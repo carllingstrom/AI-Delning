@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useForm } from 'react-hook-form';
 import { useSearchParams } from 'next/navigation';
 import { OverviewSection, LegalChecklist } from '../../../components/projectForm';
@@ -49,8 +49,8 @@ const BASE_DEFAULTS = {
   valueDimensionOther: '',
 };
 
-// --- Main Wizard ---
-export default function NewProjectWizard() {
+// --- Project Wizard Component ---
+function ProjectWizardContent() {
   const searchParams = useSearchParams();
   const editId = searchParams.get('edit');
   const isEditing = !!editId;
@@ -313,7 +313,7 @@ export default function NewProjectWizard() {
     return (
       <div className="min-h-screen flex justify-center items-center bg-[#121F2B] text-white">
         <div className="text-center">
-          <div className="text-xl mb-4">Laddar projekt...</div>
+          <div className="text-xl mb-4 text-[#FECB00]">Laddar projekt...</div>
           <div className="w-8 h-8 border-2 border-[#FECB00] border-t-transparent rounded-full animate-spin mx-auto"></div>
         </div>
       </div>
@@ -347,5 +347,20 @@ export default function NewProjectWizard() {
         </div>
       </div>
     </form>
+  );
+}
+
+export default function NewProjectWizard() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen flex justify-center items-center bg-[#121F2B] text-white">
+        <div className="text-center">
+          <div className="text-xl mb-4 text-[#FECB00]">Laddar projekt...</div>
+          <div className="w-8 h-8 border-2 border-[#FECB00] border-t-transparent rounded-full animate-spin mx-auto"></div>
+        </div>
+      </div>
+    }>
+      <ProjectWizardContent />
+    </Suspense>
   );
 }
