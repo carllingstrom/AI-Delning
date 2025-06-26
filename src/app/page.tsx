@@ -2,9 +2,29 @@ import Header from '@/components/Header';
 import Link from 'next/link';
 
 async function fetchNews() {
-  const res = await fetch('http://localhost:3000/api/news', { cache: 'no-store' });
-  if (!res.ok) return [];
-  return res.json();
+  try {
+    // Use relative URL for API calls to work in all environments
+    const baseUrl = process.env.VERCEL_URL 
+      ? `https://${process.env.VERCEL_URL}` 
+      : process.env.NODE_ENV === 'production'
+      ? 'https://kommunkartan-mvp.vercel.app'  // fallback for production
+      : 'http://localhost:3000';
+    
+    const res = await fetch(`${baseUrl}/api/news`, { 
+      cache: 'no-store',
+      // Add timeout to prevent hanging
+      signal: AbortSignal.timeout(5000)
+    });
+    
+    if (!res.ok) {
+      console.warn('Failed to fetch news:', res.status);
+      return [];
+    }
+    return res.json();
+  } catch (error) {
+    console.warn('Error fetching news:', error);
+    return []; // Return empty array on error to prevent page crash
+  }
 }
 
 export default async function LandingPage() {
