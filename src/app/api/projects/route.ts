@@ -171,7 +171,13 @@ export async function GET(req: NextRequest) {
           areas,
           value_dimensions,
           created_at,
-          updated_at
+          updated_at,
+          cost_data,
+          effects_data,
+          technical_data,
+          leadership_data,
+          legal_data,
+          overview_details
         )
       `)
       .eq('municipality_id', municipality_id);

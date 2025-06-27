@@ -51,25 +51,25 @@ function getFallbackNews() {
     {
       title: "AI-driven Chatbot för Medborgarservice",
       summary: "En interaktiv chatbot som hjälper medborgare att navigera kommunala tjänster och få svar på vanliga frågor dygnet runt.",
-      image: "",
+      image: "https://images.unsplash.com/photo-1531746790731-6c087fecd65a?w=400&h=200&fit=crop&auto=format",
       url: "https://kommun.ai.se"
     },
     {
       title: "Automatiserad Handläggning av Bygglov",
       summary: "AI-system som snabbar upp handläggningen av enkla bygglovsärenden genom automatisk kontroll av regelverk.",
-      image: "",
+      image: "https://images.unsplash.com/photo-1486406146926-c627a92ad1ab?w=400&h=200&fit=crop&auto=format",
       url: "https://kommun.ai.se"
     },
     {
       title: "Prediktiv Analys för Infrastruktur",
       summary: "Maskininlärning för att förutsäga underhållsbehov av vägar och andra infrastruktursystem.",
-      image: "",
+      image: "https://images.unsplash.com/photo-1558618666-fcd25c85cd64?w=400&h=200&fit=crop&auto=format",
       url: "https://kommun.ai.se"
     },
     {
       title: "Smart Resursoptimering",
       summary: "AI-baserad optimering av personalscheman och resursallokering inom kommun verksamheter.",
-      image: "",
+      image: "https://images.unsplash.com/photo-1551288049-bebda4e38f71?w=400&h=200&fit=crop&auto=format",
       url: "https://kommun.ai.se"
     }
   ];

@@ -4,13 +4,13 @@ import { useEffect, useState, useCallback } from 'react';
 import dynamic from 'next/dynamic';
 import AddProjectFab from '@/components/AddProjectFab';
 import Header from '@/components/Header';
-import { Trash2, X } from 'lucide-react';
+import { Trash2, X, ChevronDown, ChevronRight } from 'lucide-react';
 
 const MapSweden = dynamic(() => import('@/components/MapSwedenLeaflet'), { ssr: false });
 
 /* Områden och värdedimensioner */
 export const AREAS = [
-  'Administration',
+  'Administration och personal',
   'Kultur och fritid',
   'Ledning och styrning',
   'Medborgarservice och kommunikation',
@@ -19,16 +19,15 @@ export const AREAS = [
   'Socialtjänst och hälsa/vård och omsorg',
   'Säkerhet och krisberedskap',
   'Utbildning och skola',
-  'Intern administration',
+  'Övrigt/oklart',
 ] as const;
 
 export const VALUE_DIMENSIONS = [
   'Effektivisering',
-  'Kostnadsbesparing',
-  'Kvalitet / noggrannhet',
-  'Medborgarnytta',
+  'Kvalitet',
   'Innovation',
-  'Tidsbesparing',
+  'Medborgarnytta',
+  'Annat',
 ] as const;
 
 type ProjectRow = {
@@ -41,6 +40,36 @@ type ProjectRow = {
   created_at?: string;
   updated_at?: string;
 };
+
+// Collapsible Section Component
+function CollapsibleSection({ title, icon, children, defaultOpen = false }: {
+  title: string;
+  icon: string;
+  children: React.ReactNode;
+  defaultOpen?: boolean;
+}) {
+  const [isOpen, setIsOpen] = useState(defaultOpen);
+
+  return (
+    <div className="mt-3 border border-gray-200 rounded">
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 text-left"
+      >
+        <div className="flex items-center gap-2">
+          <span className="text-sm">{icon}</span>
+          <span className="font-semibold text-[#004D66] text-sm">{title}</span>
+        </div>
+        {isOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+      </button>
+      {isOpen && (
+        <div className="p-3 bg-white">
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function MapPage() {
   const [municipalities, setMunicipalities] = useState<{ id: number; name: string }[]>([]);
@@ -327,70 +356,413 @@ export default function MapPage() {
                 <p><span className="font-semibold text-[#004D66]">Värdedimensioner:</span> {selectedProject.value_dimensions.join(', ')}</p>
               )}
 
+              {/* Basic Project Info - Collapsible */}
+              <CollapsibleSection title="Projektinformation" icon="📋" defaultOpen={true}>
+                {(selectedProject as any).problem && (
+                  <div className="mb-3">
+                    <span className="font-semibold text-[#004D66] text-xs">Problem/Utmaning:</span>
+                    <p className="text-xs mt-1 text-gray-700">{(selectedProject as any).problem}</p>
+                  </div>
+                )}
+                {(selectedProject as any).opportunity && (
+                  <div className="mb-3">
+                    <span className="font-semibold text-[#004D66] text-xs">Möjlighet:</span>
+                    <p className="text-xs mt-1 text-gray-700">{(selectedProject as any).opportunity}</p>
+                  </div>
+                )}
+                {(selectedProject as any).responsible && (
+                  <div className="mb-3">
+                    <span className="font-semibold text-[#004D66] text-xs">Ansvarig:</span>
+                    <p className="text-xs mt-1 text-gray-700">{(selectedProject as any).responsible}</p>
+                  </div>
+                )}
+                <div className="text-xs text-gray-500">
+                  <p>Skapad: {selectedProject.created_at ? new Date(selectedProject.created_at).toLocaleDateString('sv-SE') : 'Okänt'}</p>
+                  {selectedProject.updated_at !== selectedProject.created_at && (
+                    <p>Uppdaterad: {new Date(selectedProject.updated_at || '').toLocaleDateString('sv-SE')}</p>
+                  )}
+                </div>
+              </CollapsibleSection>
+
               {/* Financial Overview */}
               {(selectedProject as any).cost_data && (
-                <div className="mt-4 p-3 bg-gray-50 rounded">
-                  <h4 className="font-semibold text-[#004D66] mb-2">💰 Ekonomisk översikt</h4>
+                <CollapsibleSection title="Ekonomisk översikt" icon="💰">
                   {(selectedProject as any).cost_data.budgetDetails?.budgetAmount && (
-                    <p className="text-xs">
-                      <span className="font-medium">Budget:</span> {new Intl.NumberFormat('sv-SE').format((selectedProject as any).cost_data.budgetDetails.budgetAmount)} SEK
-                    </p>
+                    <div className="mb-3">
+                      <span className="font-semibold text-[#004D66] text-xs">Total budget:</span>
+                      <p className="text-sm font-bold text-green-600">{new Intl.NumberFormat('sv-SE').format((selectedProject as any).cost_data.budgetDetails.budgetAmount)} SEK</p>
+                    </div>
                   )}
                   
                   {(selectedProject as any).cost_data.actualCostDetails?.costEntries && (
-                    <div className="mt-2">
-                      <span className="font-medium text-xs">Kostnadsposter:</span>
-                      <ul className="text-xs mt-1 space-y-1">
-                        {(selectedProject as any).cost_data.actualCostDetails.costEntries.slice(0, 2).map((entry: any, i: number) => (
-                          <li key={i} className="flex justify-between">
-                            <span>{entry.costLabel || entry.costType}</span>
-                            <span>{entry.costFixed > 0 ? `${new Intl.NumberFormat('sv-SE').format(entry.costFixed)} SEK` : `${entry.costHours}h × ${entry.costRate} SEK`}</span>
-                          </li>
+                    <div className="mb-3">
+                      <span className="font-semibold text-[#004D66] text-xs">Detaljerad kostnadsfördelning:</span>
+                      <div className="mt-2 space-y-2">
+                        {(selectedProject as any).cost_data.actualCostDetails.costEntries.map((entry: any, i: number) => (
+                          <div key={i} className="bg-gray-50 p-2 rounded text-xs">
+                            <div className="flex justify-between items-start">
+                              <div className="flex-1">
+                                <p className="font-medium">{entry.costLabel || entry.costType || `Kostnad ${i + 1}`}</p>
+                                {entry.costDescription && (
+                                  <p className="text-gray-600 text-xs mt-1">{entry.costDescription}</p>
+                                )}
+                              </div>
+                              <div className="text-right">
+                                {entry.costFixed > 0 ? (
+                                  <p className="font-bold">{new Intl.NumberFormat('sv-SE').format(entry.costFixed)} SEK</p>
+                                ) : (
+                                  <div>
+                                    <p className="font-bold">{new Intl.NumberFormat('sv-SE').format(entry.costHours * entry.costRate)} SEK</p>
+                                    <p className="text-gray-600">{entry.costHours}h × {entry.costRate} SEK/h</p>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
                         ))}
-                      </ul>
+                      </div>
                     </div>
                   )}
-                </div>
+
+                  {/* ROI Calculation if possible */}
+                  {(selectedProject as any).effects_data?.effectDetails && (selectedProject as any).cost_data && (
+                    <div className="mt-3 p-2 bg-blue-50 rounded">
+                      <span className="font-semibold text-[#004D66] text-xs">ROI-analys:</span>
+                      <p className="text-xs mt-1">
+                        Se "Förväntade effekter" för monetära uppskattningar
+                      </p>
+                    </div>
+                  )}
+                </CollapsibleSection>
               )}
 
               {/* Effects Overview */}
               {(selectedProject as any).effects_data?.effectDetails && (
-                <div className="mt-3 p-3 bg-green-50 rounded">
-                  <h4 className="font-semibold text-[#004D66] mb-2">📈 Förväntade effekter</h4>
-                  {(selectedProject as any).effects_data.effectDetails.slice(0, 2).map((effect: any, i: number) => (
-                    <div key={i} className="text-xs mb-2">
-                      {effect.impactMeasurement?.measurements?.slice(0, 1).map((measurement: any, j: number) => (
-                        <div key={j}>
-                          <p className="font-medium">{measurement.measurementName}</p>
-                          {measurement.monetaryEstimate && (
-                            <p className="text-green-600">Uppskattad värde: {new Intl.NumberFormat('sv-SE').format(measurement.monetaryEstimate)} SEK</p>
-                          )}
-                          {measurement.affectedGroups && (
-                            <p className="text-gray-600">Påverkar: {measurement.affectedGroups.join(', ')}</p>
-                          )}
+                <CollapsibleSection title="Förväntade effekter" icon="📈">
+                  {(selectedProject as any).effects_data.effectDetails.map((effect: any, i: number) => (
+                    <div key={i} className="mb-4 border-b border-gray-100 pb-3 last:border-b-0">
+                      {effect.effectName && (
+                        <h5 className="font-semibold text-[#004D66] text-xs mb-2">{effect.effectName}</h5>
+                      )}
+                      {effect.effectDescription && (
+                        <p className="text-xs text-gray-700 mb-2">{effect.effectDescription}</p>
+                      )}
+                      
+                      {effect.impactMeasurement?.measurements && (
+                        <div className="space-y-2">
+                          {effect.impactMeasurement.measurements.map((measurement: any, j: number) => (
+                            <div key={j} className="bg-green-50 p-2 rounded">
+                              <p className="font-medium text-xs text-[#004D66]">{measurement.measurementName}</p>
+                              
+                              {measurement.monetaryEstimate && (
+                                <div className="mt-1">
+                                  <span className="text-xs text-green-700 font-semibold">
+                                    Monetärt värde: {new Intl.NumberFormat('sv-SE').format(measurement.monetaryEstimate)} SEK
+                                  </span>
+                                </div>
+                              )}
+                              
+                              {measurement.quantitativeEstimate && (
+                                <div className="mt-1">
+                                  <span className="text-xs text-blue-700">
+                                    Kvantitativ uppskattning: {measurement.quantitativeEstimate} {measurement.unit || ''}
+                                  </span>
+                                </div>
+                              )}
+                              
+                              {measurement.qualitativeDescription && (
+                                <p className="text-xs text-gray-600 mt-1">{measurement.qualitativeDescription}</p>
+                              )}
+                              
+                              {measurement.affectedGroups && measurement.affectedGroups.length > 0 && (
+                                <div className="mt-2">
+                                  <span className="text-xs font-medium text-[#004D66]">Påverkade grupper:</span>
+                                  <div className="flex flex-wrap gap-1 mt-1">
+                                    {measurement.affectedGroups.map((group: string, k: number) => (
+                                      <span key={k} className="px-1 py-0.5 bg-blue-100 text-blue-700 rounded text-xs">
+                                        {group}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          ))}
                         </div>
-                      ))}
+                      )}
                     </div>
                   ))}
-                </div>
+                </CollapsibleSection>
               )}
 
-              {/* Technical Info */}
-              {(selectedProject as any).technical_data && (
-                <div className="mt-3 p-3 bg-blue-50 rounded">
-                  <h4 className="font-semibold text-[#004D66] mb-2">🔧 Teknisk information</h4>
-                  <div className="text-xs space-y-1">
-                    {(selectedProject as any).technical_data.system_name && (
-                      <p><span className="font-medium">System:</span> {(selectedProject as any).technical_data.system_name}</p>
+              {/* Leadership & Organization */}
+              {(selectedProject as any).leadership_data && Object.keys((selectedProject as any).leadership_data).some(key => (selectedProject as any).leadership_data[key]) && (
+                <CollapsibleSection title="Organisation & Ledarskap" icon="👥">
+                  <div className="space-y-3">
+                    {(selectedProject as any).leadership_data.leadershipInvolved && (
+                      <div>
+                        <span className="font-semibold text-[#004D66] text-xs">Ledningens engagemang:</span>
+                        <p className="text-xs mt-1">{(selectedProject as any).leadership_data.leadershipInvolved === 'yes' ? 'Ja' : 'Nej'}</p>
+                      </div>
                     )}
-                    {(selectedProject as any).technical_data.ai_methodology && (
-                      <p><span className="font-medium">AI-metod:</span> {(selectedProject as any).technical_data.ai_methodology}</p>
+                    
+                    {(selectedProject as any).leadership_data.strategyAlignment && (
+                      <div>
+                        <span className="font-semibold text-[#004D66] text-xs">Strategisk förankring:</span>
+                        <p className="text-xs mt-1">
+                          {(selectedProject as any).leadership_data.strategyAlignment === 'explicit' ? 'Ja, uttryckligen i strategier' :
+                           (selectedProject as any).leadership_data.strategyAlignment === 'indirect' ? 'Ja, indirekt stöd' : 'Nej'}
+                        </p>
+                      </div>
                     )}
-                    {(selectedProject as any).technical_data.deployment_environment && (
-                      <p><span className="font-medium">Miljö:</span> {(selectedProject as any).technical_data.deployment_environment}</p>
+                    
+                    {(selectedProject as any).leadership_data.competenceNeeds && Array.isArray((selectedProject as any).leadership_data.competenceNeeds) && (
+                      <div>
+                        <span className="font-semibold text-[#004D66] text-xs">Kompetenssäkring:</span>
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {(selectedProject as any).leadership_data.competenceNeeds.map((need: string, i: number) => (
+                            <span key={i} className="px-1 py-0.5 bg-purple-100 text-purple-700 rounded text-xs">
+                              {need === 'internal_development' ? 'Intern utveckling' :
+                               need === 'recruitment' ? 'Rekrytering' :
+                               need === 'consultants' ? 'Konsulter' :
+                               need === 'no_new_needs' ? 'Inga nya behov' : need}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {(selectedProject as any).leadership_data.strategicAlignment && (
+                      <div>
+                        <span className="font-semibold text-[#004D66] text-xs">Strategisk förankring:</span>
+                        <p className="text-xs mt-1 text-gray-700">{(selectedProject as any).leadership_data.strategicAlignment}</p>
+                      </div>
+                    )}
+                    
+                    {(selectedProject as any).leadership_data.managementSupport && (
+                      <div>
+                        <span className="font-semibold text-[#004D66] text-xs">Ledningens stöd:</span>
+                        <p className="text-xs mt-1 text-gray-700">{(selectedProject as any).leadership_data.managementSupport}</p>
+                      </div>
+                    )}
+                    
+                    {(selectedProject as any).leadership_data.nextSteps && (
+                      <div>
+                        <span className="font-semibold text-[#004D66] text-xs">Nästa steg:</span>
+                        <p className="text-xs mt-1 text-gray-700">{(selectedProject as any).leadership_data.nextSteps}</p>
+                      </div>
+                    )}
+                    
+                    {(selectedProject as any).leadership_data.lessonsLearned && (
+                      <div>
+                        <span className="font-semibold text-[#004D66] text-xs">Lärdomar & utmaningar:</span>
+                        <p className="text-xs mt-1 text-gray-700">{(selectedProject as any).leadership_data.lessonsLearned}</p>
+                      </div>
                     )}
                   </div>
-                </div>
+                </CollapsibleSection>
+              )}
+
+              {/* Legal & Security */}
+              {(selectedProject as any).legal_data && Object.keys((selectedProject as any).legal_data).some(key => (selectedProject as any).legal_data[key]) && (
+                <CollapsibleSection title="Juridik & Informationssäkerhet" icon="🔒">
+                  <div className="space-y-3">
+                    {(selectedProject as any).legal_data.processes_personal_data && (
+                      <div>
+                        <span className="font-semibold text-[#004D66] text-xs">Behandlar personuppgifter:</span>
+                        <p className="text-xs mt-1">{(selectedProject as any).legal_data.processes_personal_data}</p>
+                      </div>
+                    )}
+                    
+                    {(selectedProject as any).legal_data.data_categories && Array.isArray((selectedProject as any).legal_data.data_categories) && (
+                      <div>
+                        <span className="font-semibold text-[#004D66] text-xs">Personuppgiftskategorier:</span>
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {(selectedProject as any).legal_data.data_categories.map((category: string, i: number) => (
+                            <span key={i} className="px-1 py-0.5 bg-red-100 text-red-700 rounded text-xs">
+                              {category}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {(selectedProject as any).legal_data.legal_basis && (
+                      <div>
+                        <span className="font-semibold text-[#004D66] text-xs">Rättslig grund:</span>
+                        <p className="text-xs mt-1">{(selectedProject as any).legal_data.legal_basis}</p>
+                      </div>
+                    )}
+                    
+                    {(selectedProject as any).legal_data.dpia_done && (
+                      <div>
+                        <span className="font-semibold text-[#004D66] text-xs">DPIA genomförd:</span>
+                        <p className="text-xs mt-1">{(selectedProject as any).legal_data.dpia_done}</p>
+                      </div>
+                    )}
+                    
+                    {(selectedProject as any).legal_data.high_risk_ai && (
+                      <div>
+                        <span className="font-semibold text-[#004D66] text-xs">Högrisk AI (EU-förordning):</span>
+                        <p className="text-xs mt-1">{(selectedProject as any).legal_data.high_risk_ai}</p>
+                      </div>
+                    )}
+                    
+                    {(selectedProject as any).legal_data.is_open_source && (
+                      <div>
+                        <span className="font-semibold text-[#004D66] text-xs">Öppen källkod:</span>
+                        <p className="text-xs mt-1">{(selectedProject as any).legal_data.is_open_source}</p>
+                        {(selectedProject as any).legal_data.open_source_link && (
+                          <a href={(selectedProject as any).legal_data.open_source_link} target="_blank" rel="noopener noreferrer" 
+                             className="text-blue-600 underline text-xs">
+                            {(selectedProject as any).legal_data.open_source_link}
+                          </a>
+                        )}
+                      </div>
+                    )}
+                    
+                    {(selectedProject as any).legal_data.security_measures && (
+                      <div>
+                        <span className="font-semibold text-[#004D66] text-xs">Säkerhetsåtgärder:</span>
+                        <p className="text-xs mt-1 text-gray-700">{(selectedProject as any).legal_data.security_measures}</p>
+                      </div>
+                    )}
+                    
+                    {(selectedProject as any).legal_data.accessibility && (
+                      <div>
+                        <span className="font-semibold text-[#004D66] text-xs">WCAG-kompatibilitet:</span>
+                        <p className="text-xs mt-1">{(selectedProject as any).legal_data.accessibility}</p>
+                      </div>
+                    )}
+                  </div>
+                </CollapsibleSection>
+              )}
+
+              {/* Enhanced Technical & Data Section */}
+              {(selectedProject as any).technical_data && (
+                <CollapsibleSection title="Teknisk information & Data" icon="🔧">
+                  <div className="space-y-4">
+                    {/* Data Information */}
+                    <div className="bg-blue-50 p-3 rounded">
+                      <h6 className="font-semibold text-[#004D66] text-xs mb-2">📊 Datainformation</h6>
+                      <div className="space-y-2">
+                        {(selectedProject as any).technical_data.data_types && Array.isArray((selectedProject as any).technical_data.data_types) && (
+                          <div>
+                            <span className="font-medium text-[#004D66] text-xs">Datatyper:</span>
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {(selectedProject as any).technical_data.data_types.map((type: string, i: number) => (
+                                <span key={i} className="px-1 py-0.5 bg-blue-200 text-blue-800 rounded text-xs">
+                                  {type}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        
+                        {(selectedProject as any).technical_data.data_sources && Array.isArray((selectedProject as any).technical_data.data_sources) && (
+                          <div>
+                            <span className="font-medium text-[#004D66] text-xs">Datakällor:</span>
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {(selectedProject as any).technical_data.data_sources.map((source: string, i: number) => (
+                                <span key={i} className="px-1 py-0.5 bg-green-200 text-green-800 rounded text-xs">
+                                  {source}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        
+                        {(selectedProject as any).technical_data.data_sensitivity_level && (
+                          <div>
+                            <span className="font-medium text-[#004D66] text-xs">Känslighetsnivå:</span>
+                            <span className={`ml-2 px-1 py-0.5 rounded text-xs ${
+                              (selectedProject as any).technical_data.data_sensitivity_level.includes('känslig') 
+                                ? 'bg-red-200 text-red-800' 
+                                : 'bg-gray-200 text-gray-800'
+                            }`}>
+                              {(selectedProject as any).technical_data.data_sensitivity_level}
+                            </span>
+                          </div>
+                        )}
+                        
+                        {(selectedProject as any).technical_data.data_freshness && (
+                          <div>
+                            <span className="font-medium text-[#004D66] text-xs">Aktualitet:</span>
+                            <p className="text-xs mt-1">{(selectedProject as any).technical_data.data_freshness}</p>
+                          </div>
+                        )}
+                        
+                        {(selectedProject as any).technical_data.data_quality && (
+                          <div>
+                            <span className="font-medium text-[#004D66] text-xs">Datakvalitet:</span>
+                            <p className="text-xs mt-1">{(selectedProject as any).technical_data.data_quality}</p>
+                          </div>
+                        )}
+                        
+                        {(selectedProject as any).technical_data.data_description_free && (
+                          <div>
+                            <span className="font-medium text-[#004D66] text-xs">Databeskrivning:</span>
+                            <p className="text-xs mt-1 text-gray-700">{(selectedProject as any).technical_data.data_description_free}</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Technical Implementation */}
+                    <div className="bg-purple-50 p-3 rounded">
+                      <h6 className="font-semibold text-[#004D66] text-xs mb-2">⚙️ Teknisk implementation</h6>
+                      <div className="space-y-2">
+                        {(selectedProject as any).technical_data.system_name && (
+                          <div>
+                            <span className="font-medium text-[#004D66] text-xs">System/Plattform:</span>
+                            <p className="text-xs mt-1">{(selectedProject as any).technical_data.system_name}</p>
+                          </div>
+                        )}
+                        
+                        {(selectedProject as any).technical_data.ai_methodology && (
+                          <div>
+                            <span className="font-medium text-[#004D66] text-xs">AI-metodik:</span>
+                            <p className="text-xs mt-1">{(selectedProject as any).technical_data.ai_methodology}</p>
+                          </div>
+                        )}
+                        
+                        {(selectedProject as any).technical_data.deployment_environment && (
+                          <div>
+                            <span className="font-medium text-[#004D66] text-xs">Driftmiljö:</span>
+                            <p className="text-xs mt-1">{(selectedProject as any).technical_data.deployment_environment}</p>
+                          </div>
+                        )}
+                        
+                        {(selectedProject as any).technical_data.integration_capabilities && Array.isArray((selectedProject as any).technical_data.integration_capabilities) && (
+                          <div>
+                            <span className="font-medium text-[#004D66] text-xs">Integrationsmöjligheter:</span>
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {(selectedProject as any).technical_data.integration_capabilities.map((capability: string, i: number) => (
+                                <span key={i} className="px-1 py-0.5 bg-yellow-200 text-yellow-800 rounded text-xs">
+                                  {capability}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        
+                        {(selectedProject as any).technical_data.technical_obstacles && (
+                          <div>
+                            <span className="font-medium text-[#004D66] text-xs">Tekniska hinder:</span>
+                            <p className="text-xs mt-1 text-gray-700">{(selectedProject as any).technical_data.technical_obstacles}</p>
+                          </div>
+                        )}
+                        
+                        {(selectedProject as any).technical_data.technical_solutions && (
+                          <div>
+                            <span className="font-medium text-[#004D66] text-xs">Tekniska lösningar:</span>
+                            <p className="text-xs mt-1 text-gray-700">{(selectedProject as any).technical_data.technical_solutions}</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </CollapsibleSection>
               )}
 
               <div className="mt-4 pt-3 border-t space-x-2">
