@@ -377,13 +377,16 @@ function analyzeCostTypes(projects: any[]) {
     
     costEntries.forEach((entry: any) => {
       const type = entry.costType || 'Unknown';
-      const cost = (entry.costHours || 0) * (entry.costRate || 0) + (entry.costFixed || 0);
+      const rate = parseFloat(entry.costRate) || 0;
+      const hours = parseFloat(entry.costHours) || 0;
+      const fixed = parseFloat(entry.costFixed) || 0;
+      const cost = (hours * rate) + fixed;
       
       if (!result[type]) {
         result[type] = { count: 0, totalCost: 0 };
       }
       result[type].count++;
-      result[type].totalCost += cost;
+      result[type].totalCost = (result[type].totalCost || 0) + cost;
     });
   });
   

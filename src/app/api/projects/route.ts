@@ -146,50 +146,150 @@ export async function POST(req: NextRequest) {
   }
 }
 
-// GET /api/projects?municipality_id=123
+// GET /api/projects?municipality_id=123 (optional)
 export async function GET(req: NextRequest) {
   const sb = serverSupabase();
-  const municipality_id = Number(req.nextUrl.searchParams.get('municipality_id'));
+  const municipality_id = req.nextUrl.searchParams.get('municipality_id');
   
-  if (!municipality_id) {
-    return NextResponse.json({ error: 'municipality_id is required' }, { status: 400 });
-  }
-
   try {
-    const { data, error } = await sb
-      .from('project_municipalities')
+    let query = sb
+      .from('projects')
       .select(`
-        project_id, 
-        projects(
-          id,
-          title,
-          intro,
-          problem,
-          opportunity,
-          responsible,
-          phase,
-          areas,
-          value_dimensions,
-          created_at,
-          updated_at,
-          cost_data,
-          effects_data,
-          technical_data,
-          leadership_data,
-          legal_data,
-          overview_details
+        *,
+        project_municipalities(
+          municipalities(
+            id,
+            name,
+            county
+          )
+        ),
+        project_areas(
+          areas(
+            id,
+            name
+          )
+        ),
+        project_value_dimensions(
+          value_dimensions(
+            id,
+            name
+          )
         )
-      `)
-      .eq('municipality_id', municipality_id);
+      `);
+
+    // If municipality_id is provided, filter by it
+    if (municipality_id) {
+      const municipalityIdNum = Number(municipality_id);
+      if (isNaN(municipalityIdNum)) {
+        return NextResponse.json({ error: 'Invalid municipality_id' }, { status: 400 });
+      }
+      
+      // Filter projects that belong to the specified municipality
+      const { data: projectIds, error: projectIdsError } = await sb
+        .from('project_municipalities')
+        .select('project_id')
+        .eq('municipality_id', municipalityIdNum);
+
+      if (projectIdsError) {
+        console.error('Project IDs fetch error:', projectIdsError);
+        return NextResponse.json({ error: projectIdsError.message }, { status: 500 });
+      }
+
+      if (projectIds && projectIds.length > 0) {
+        const ids = projectIds.map(p => p.project_id);
+        query = query.in('id', ids);
+      } else {
+        // No projects found for this municipality
+        return NextResponse.json([]);
+      }
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       console.error('Projects fetch error:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    // Flatten the projects out of the join table result
-    const projects = (data || []).map((row: any) => row.projects);
-    return NextResponse.json(projects);
+    // Transform the data to include calculated metrics and flatten relationships
+    const transformedProjects = (data || []).map((project: any) => {
+      // Calculate metrics from cost_data and effects_data
+      let budget = null;
+      let actualCost = 0;
+      let roi = null;
+      let affectedGroups: string[] = [];
+      let technologies: string[] = [];
+
+      // Extract budget information
+      if (project.cost_data) {
+        // Check for budgetDetails.budgetAmount
+        if (project.cost_data.budgetDetails && project.cost_data.budgetDetails.budgetAmount) {
+          budget = parseFloat(project.cost_data.budgetDetails.budgetAmount) || 0;
+        }
+        
+        // Calculate actual cost from costEntries
+        if (project.cost_data.actualCostDetails && project.cost_data.actualCostDetails.costEntries) {
+          const costEntries = project.cost_data.actualCostDetails.costEntries;
+          if (Array.isArray(costEntries)) {
+            actualCost = costEntries.reduce((sum: number, entry: any) => {
+              const rate = parseFloat(entry.costRate) || 0;
+              const hours = parseFloat(entry.costHours) || 0;
+              const fixed = parseFloat(entry.costFixed) || 0;
+              return sum + (rate * hours) + fixed;
+            }, 0);
+          }
+        }
+        
+        // Fallback: check for legacy costs array
+        if (!budget && project.cost_data.costs && Array.isArray(project.cost_data.costs)) {
+          budget = project.cost_data.costs.reduce((sum: number, cost: any) => {
+            const amount = parseFloat(cost.amount) || 0;
+            return sum + amount;
+          }, 0);
+          actualCost = budget; // For legacy data, assume actual cost equals budget
+        }
+      }
+
+      // Extract ROI from effects_data
+      if (project.effects_data && project.effects_data.monetaryValue) {
+        const monetaryValue = parseFloat(project.effects_data.monetaryValue) || 0;
+        if (budget && budget > 0) {
+          roi = ((monetaryValue - budget) / budget) * 100;
+        }
+      }
+
+      // Extract affected groups
+      if (project.effects_data && project.effects_data.affectedGroups) {
+        affectedGroups = Array.isArray(project.effects_data.affectedGroups) 
+          ? project.effects_data.affectedGroups 
+          : [];
+      }
+
+      // Extract technologies
+      if (project.technical_data && project.technical_data.aiMethodology) {
+        technologies = Array.isArray(project.technical_data.aiMethodology) 
+          ? project.technical_data.aiMethodology 
+          : [project.technical_data.aiMethodology];
+      }
+
+      return {
+        ...project,
+        // Flatten areas array
+        areas: project.project_areas?.map((pa: any) => pa.areas?.name).filter(Boolean) || project.areas || [],
+        // Flatten value dimensions array  
+        value_dimensions: project.project_value_dimensions?.map((pv: any) => pv.value_dimensions?.name).filter(Boolean) || project.value_dimensions || [],
+        // Add calculated metrics
+        calculatedMetrics: {
+          budget,
+          actualCost,
+          roi,
+          affectedGroups,
+          technologies
+        }
+      };
+    });
+
+    return NextResponse.json(transformedProjects);
 
   } catch (error) {
     console.error('Unexpected error:', error);

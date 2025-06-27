@@ -99,10 +99,28 @@ export default function AnalyticsPage() {
       });
 
       const response = await fetch(`/api/analytics?${params}`);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
       const data = await response.json();
+      
+      // Check if the response has an error property
+      if (data.error) {
+        throw new Error(data.error);
+      }
+      
+      // Validate that we have the expected structure
+      if (!data.summary || typeof data.summary.totalProjects === 'undefined') {
+        console.error('Invalid analytics data structure:', data);
+        throw new Error('Invalid data structure received from API');
+      }
+      
       setAnalytics(data);
     } catch (error) {
       console.error('Failed to fetch analytics:', error);
+      setAnalytics(null);
     } finally {
       setLoading(false);
     }
@@ -233,27 +251,27 @@ export default function AnalyticsPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
           <div className="bg-[#1E3A4A] p-6 rounded-lg">
             <h3 className="text-lg font-semibold text-[#FFD600] mb-2">Totalt Projekt</h3>
-            <p className="text-3xl font-bold">{analytics.summary.totalProjects}</p>
+            <p className="text-3xl font-bold">{analytics?.summary?.totalProjects || 0}</p>
           </div>
           
           <div className="bg-[#1E3A4A] p-6 rounded-lg">
             <h3 className="text-lg font-semibold text-[#FFD600] mb-2">Total Budget</h3>
-            <p className="text-2xl font-bold">{formatCurrency(analytics.summary.totalBudget)}</p>
+            <p className="text-2xl font-bold">{formatCurrency(analytics?.summary?.totalBudget || 0)}</p>
           </div>
           
           <div className="bg-[#1E3A4A] p-6 rounded-lg">
             <h3 className="text-lg font-semibold text-[#FFD600] mb-2">Genomsnittlig Budget</h3>
-            <p className="text-2xl font-bold">{formatCurrency(analytics.summary.averageBudget)}</p>
+            <p className="text-2xl font-bold">{formatCurrency(analytics?.summary?.averageBudget || 0)}</p>
           </div>
           
           <div className="bg-[#1E3A4A] p-6 rounded-lg">
             <h3 className="text-lg font-semibold text-[#FFD600] mb-2">Total ROI</h3>
-            <p className="text-2xl font-bold">{formatPercent(analytics.summary.totalROI)}</p>
+            <p className="text-2xl font-bold">{formatPercent(analytics?.summary?.totalROI || 0)}</p>
           </div>
           
           <div className="bg-[#1E3A4A] p-6 rounded-lg">
             <h3 className="text-lg font-semibold text-[#FFD600] mb-2">Genomsnittlig ROI</h3>
-            <p className="text-2xl font-bold">{formatPercent(analytics.summary.averageROI)}</p>
+            <p className="text-2xl font-bold">{formatPercent(analytics?.summary?.averageROI || 0)}</p>
           </div>
         </div>
 
@@ -263,7 +281,7 @@ export default function AnalyticsPage() {
           <div className="bg-[#1E3A4A] p-6 rounded-lg">
             <h3 className="text-xl font-bold text-[#FFD600] mb-4">Projekt per Fas</h3>
             <div className="space-y-3">
-              {Object.entries(analytics.breakdowns.byPhase).map(([phase, count]) => (
+              {Object.entries(analytics?.breakdowns?.byPhase || {}).map(([phase, count]) => (
                 <div key={phase} className="flex justify-between items-center">
                   <span className="capitalize">{phase}</span>
                   <span className="text-[#FFD600] font-semibold">{count}</span>
@@ -276,7 +294,7 @@ export default function AnalyticsPage() {
           <div className="bg-[#1E3A4A] p-6 rounded-lg">
             <h3 className="text-xl font-bold text-[#FFD600] mb-4">Budgetfördelning</h3>
             <div className="space-y-3">
-              {Object.entries(analytics.breakdowns.byBudgetRange).map(([range, count]) => (
+              {Object.entries(analytics?.breakdowns?.byBudgetRange || {}).map(([range, count]) => (
                 <div key={range} className="flex justify-between items-center">
                   <span>{range}</span>
                   <span className="text-[#FFD600] font-semibold">{count}</span>
@@ -289,7 +307,7 @@ export default function AnalyticsPage() {
           <div className="bg-[#1E3A4A] p-6 rounded-lg">
             <h3 className="text-xl font-bold text-[#FFD600] mb-4">Mest Använda Teknologier</h3>
             <div className="space-y-3">
-              {analytics.technologyInsights.mostUsedTechnologies.slice(0, 8).map(([tech, count]) => (
+              {(analytics?.technologyInsights?.mostUsedTechnologies || []).slice(0, 8).map(([tech, count]) => (
                 <div key={tech} className="flex justify-between items-center">
                   <span className="truncate mr-4">{tech}</span>
                   <span className="text-[#FFD600] font-semibold">{count}</span>
@@ -302,7 +320,7 @@ export default function AnalyticsPage() {
           <div className="bg-[#1E3A4A] p-6 rounded-lg">
             <h3 className="text-xl font-bold text-[#FFD600] mb-4">Påverkade Grupper</h3>
             <div className="space-y-3">
-              {Object.entries(analytics.breakdowns.byAffectedGroups).map(([group, count]) => (
+              {Object.entries(analytics?.breakdowns?.byAffectedGroups || {}).map(([group, count]) => (
                 <div key={group} className="flex justify-between items-center">
                   <span>{group}</span>
                   <span className="text-[#FFD600] font-semibold">{count}</span>
@@ -317,7 +335,7 @@ export default function AnalyticsPage() {
           <div className="bg-[#1E3A4A] p-6 rounded-lg">
             <h3 className="text-xl font-bold text-[#FFD600] mb-4">Kostnadstyper</h3>
             <div className="space-y-3">
-              {Object.entries(analytics.costAnalysis.byCostType).map(([type, data]) => (
+              {Object.entries(analytics?.costAnalysis?.byCostType || {}).map(([type, data]) => (
                 <div key={type}>
                   <div className="flex justify-between items-center">
                     <span className="text-sm truncate mr-2">{type}</span>
@@ -337,25 +355,25 @@ export default function AnalyticsPage() {
               <div className="flex justify-between">
                 <span>Genomsnitt:</span>
                 <span className="text-[#FFD600] font-semibold">
-                  {formatCurrency(analytics.costAnalysis.costPerHour.average)}
+                  {formatCurrency(analytics?.costAnalysis?.costPerHour?.average || 0)}
                 </span>
               </div>
               <div className="flex justify-between">
                 <span>Median:</span>
                 <span className="text-[#FFD600] font-semibold">
-                  {formatCurrency(analytics.costAnalysis.costPerHour.median)}
+                  {formatCurrency(analytics?.costAnalysis?.costPerHour?.median || 0)}
                 </span>
               </div>
               <div className="flex justify-between">
                 <span>Min:</span>
                 <span className="text-gray-300">
-                  {formatCurrency(analytics.costAnalysis.costPerHour.min)}
+                  {formatCurrency(analytics?.costAnalysis?.costPerHour?.min || 0)}
                 </span>
               </div>
               <div className="flex justify-between">
                 <span>Max:</span>
                 <span className="text-gray-300">
-                  {formatCurrency(analytics.costAnalysis.costPerHour.max)}
+                  {formatCurrency(analytics?.costAnalysis?.costPerHour?.max || 0)}
                 </span>
               </div>
             </div>
@@ -367,25 +385,25 @@ export default function AnalyticsPage() {
               <div className="flex justify-between">
                 <span>Med kvantifierbara mått:</span>
                 <span className="text-[#FFD600] font-semibold">
-                  {analytics.effectsAnalysis.quantifiableEffects.withQuantifiable}
+                  {analytics?.effectsAnalysis?.quantifiableEffects?.withQuantifiable || 0}
                 </span>
               </div>
               <div className="flex justify-between">
                 <span>Utan kvantifierbara mått:</span>
                 <span className="text-gray-300">
-                  {analytics.effectsAnalysis.quantifiableEffects.withoutQuantifiable}
+                  {analytics?.effectsAnalysis?.quantifiableEffects?.withoutQuantifiable || 0}
                 </span>
               </div>
               <div className="flex justify-between">
                 <span>Kvantifieringsgrad:</span>
                 <span className="text-[#FFD600] font-semibold">
-                  {formatPercent(analytics.effectsAnalysis.quantifiableEffects.percentage)}
+                  {formatPercent(analytics?.effectsAnalysis?.quantifiableEffects?.percentage || 0)}
                 </span>
               </div>
               <div className="flex justify-between">
                 <span>Totalt monetärt värde:</span>
                 <span className="text-[#FFD600] font-semibold">
-                  {formatCurrency(analytics.effectsAnalysis.monetaryValue)}
+                  {formatCurrency(analytics?.effectsAnalysis?.monetaryValue || 0)}
                 </span>
               </div>
             </div>
@@ -397,7 +415,7 @@ export default function AnalyticsPage() {
           <div className="bg-[#1E3A4A] p-6 rounded-lg">
             <h3 className="text-xl font-bold text-[#FFD600] mb-4">Högsta ROI</h3>
             <div className="space-y-3">
-              {analytics.topPerformers.highestROI.map((project) => (
+              {(analytics?.topPerformers?.highestROI || []).map((project) => (
                 <div key={project.id} className="border-b border-gray-600 pb-2">
                   <div className="font-semibold truncate">{project.title}</div>
                   <div className="text-sm text-gray-400">
@@ -411,7 +429,7 @@ export default function AnalyticsPage() {
           <div className="bg-[#1E3A4A] p-6 rounded-lg">
             <h3 className="text-xl font-bold text-[#FFD600] mb-4">Största Budget</h3>
             <div className="space-y-3">
-              {analytics.topPerformers.largestBudget.map((project) => (
+              {(analytics?.topPerformers?.largestBudget || []).map((project) => (
                 <div key={project.id} className="border-b border-gray-600 pb-2">
                   <div className="font-semibold truncate">{project.title}</div>
                   <div className="text-sm text-gray-400">
@@ -430,16 +448,16 @@ export default function AnalyticsPage() {
             <div>
               <h4 className="font-semibold mb-2">Statistik</h4>
               <div className="space-y-2 text-sm">
-                <div>Totalt utmaningar: <span className="text-[#FFD600]">{analytics.technologyInsights.technicalChallenges.totalChallenges}</span></div>
-                <div>Totalt lösningar: <span className="text-[#FFD600]">{analytics.technologyInsights.technicalChallenges.totalSolutions}</span></div>
-                <div>Lösningsgrad: <span className="text-[#FFD600]">{formatPercent(analytics.technologyInsights.technicalChallenges.resolutionRate)}</span></div>
+                <div>Totalt utmaningar: <span className="text-[#FFD600]">{analytics?.technologyInsights?.technicalChallenges?.totalChallenges || 0}</span></div>
+                <div>Totalt lösningar: <span className="text-[#FFD600]">{analytics?.technologyInsights?.technicalChallenges?.totalSolutions || 0}</span></div>
+                <div>Lösningsgrad: <span className="text-[#FFD600]">{formatPercent(analytics?.technologyInsights?.technicalChallenges?.resolutionRate || 0)}</span></div>
               </div>
             </div>
             
             <div>
               <h4 className="font-semibold mb-2">Exempel på Utmaningar</h4>
               <div className="space-y-1 text-sm text-gray-300">
-                {analytics.technologyInsights.technicalChallenges.challenges.slice(0, 3).map((challenge, index) => (
+                {(analytics?.technologyInsights?.technicalChallenges?.challenges || []).slice(0, 3).map((challenge, index) => (
                   <div key={index} className="truncate">{challenge}</div>
                 ))}
               </div>
@@ -448,7 +466,7 @@ export default function AnalyticsPage() {
             <div>
               <h4 className="font-semibold mb-2">Exempel på Lösningar</h4>
               <div className="space-y-1 text-sm text-gray-300">
-                {analytics.technologyInsights.technicalChallenges.solutions.slice(0, 3).map((solution, index) => (
+                {(analytics?.technologyInsights?.technicalChallenges?.solutions || []).slice(0, 3).map((solution, index) => (
                   <div key={index} className="truncate">{solution}</div>
                 ))}
               </div>
@@ -458,7 +476,7 @@ export default function AnalyticsPage() {
 
         {/* Footer Info */}
         <div className="text-center text-gray-400 text-sm">
-          Analysdata baserad på {analytics.summary.totalProjects} projekt. 
+          Analysdata baserad på {analytics?.summary?.totalProjects || 0} projekt. 
           Senast uppdaterad: {new Date().toLocaleDateString('sv-SE')}
         </div>
       </div>
