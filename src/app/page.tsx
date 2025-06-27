@@ -3,28 +3,76 @@ import Link from 'next/link';
 
 async function fetchNews() {
   try {
-    // Use relative URL for API calls to work in all environments
-    const baseUrl = process.env.VERCEL_URL 
-      ? `https://${process.env.VERCEL_URL}` 
-      : process.env.NODE_ENV === 'production'
-      ? 'https://kommunkartan-mvp.vercel.app'  // fallback for production
-      : 'http://localhost:3000';
+    // More robust URL construction for different environments
+    let baseUrl: string;
+    
+    if (process.env.VERCEL_URL) {
+      // On Vercel, use the provided URL
+      baseUrl = `https://${process.env.VERCEL_URL}`;
+    } else if (process.env.NODE_ENV === 'production') {
+      // Fallback for other production environments
+      baseUrl = 'https://kommunkartan-mvp.vercel.app';
+    } else {
+      // Development environment
+      baseUrl = 'http://localhost:3000';
+    }
+    
+    console.log('Fetching news from:', `${baseUrl}/api/news`);
+    
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 second timeout
     
     const res = await fetch(`${baseUrl}/api/news`, { 
       cache: 'no-store',
-      // Add timeout to prevent hanging
-      signal: AbortSignal.timeout(5000)
+      signal: controller.signal,
+      headers: {
+        'User-Agent': 'Kommunkartan-Internal/1.0'
+      }
     });
     
+    clearTimeout(timeoutId);
+    
     if (!res.ok) {
-      console.warn('Failed to fetch news:', res.status);
-      return [];
+      console.warn('Failed to fetch news:', res.status, res.statusText);
+      return getFallbackNews();
     }
-    return res.json();
+    
+    const data = await res.json();
+    return Array.isArray(data) ? data : getFallbackNews();
+    
   } catch (error) {
-    console.warn('Error fetching news:', error);
-    return []; // Return empty array on error to prevent page crash
+    console.warn('Error fetching news:', error instanceof Error ? error.message : 'Unknown error');
+    return getFallbackNews();
   }
+}
+
+function getFallbackNews() {
+  return [
+    {
+      title: "AI-driven Chatbot för Medborgarservice",
+      summary: "En interaktiv chatbot som hjälper medborgare att navigera kommunala tjänster och få svar på vanliga frågor dygnet runt.",
+      image: "",
+      url: "https://kommun.ai.se"
+    },
+    {
+      title: "Automatiserad Handläggning av Bygglov",
+      summary: "AI-system som snabbar upp handläggningen av enkla bygglovsärenden genom automatisk kontroll av regelverk.",
+      image: "",
+      url: "https://kommun.ai.se"
+    },
+    {
+      title: "Prediktiv Analys för Infrastruktur",
+      summary: "Maskininlärning för att förutsäga underhållsbehov av vägar och andra infrastruktursystem.",
+      image: "",
+      url: "https://kommun.ai.se"
+    },
+    {
+      title: "Smart Resursoptimering",
+      summary: "AI-baserad optimering av personalscheman och resursallokering inom kommun verksamheter.",
+      image: "",
+      url: "https://kommun.ai.se"
+    }
+  ];
 }
 
 export default async function LandingPage() {
