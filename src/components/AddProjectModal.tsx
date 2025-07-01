@@ -1,4 +1,5 @@
 import React, { useState, useRef } from 'react';
+import { VALUE_DIMENSIONS } from '@/constants/projectForm';
 
 interface Municipality {
   id: number;
@@ -21,13 +22,7 @@ const CATEGORIES = [
   'Utbildning och skola',
   'Övrigt/oklart',
 ];
-const VALUE_CATEGORIES = [
-  'Effektivisering',
-  'Kvalitet',
-  'Innovation',
-  'Medborgarnytta',
-  'Annat',
-];
+const VALUE_CATEGORIES = VALUE_DIMENSIONS as unknown as string[];
 
 export default function AddProjectModal({ municipalities }: AddProjectModalProps) {
   const [open, setOpen] = useState(false);
@@ -85,10 +80,11 @@ export default function AddProjectModal({ municipalities }: AddProjectModalProps
       body: JSON.stringify({
         municipality_ids: form.municipality_ids.filter(id => !!id),
         title: form.title,
-        description: form.description,
-        category: form.category,
-        value_category: form.value_category,
+        intro: form.description,
+        areas: form.category ? [form.category] : [],
+        value_dimensions: form.value_category ? [form.value_category] : [],
         link: form.link,
+        phase: 'idea'
       }),
     });
     setLoading(false);

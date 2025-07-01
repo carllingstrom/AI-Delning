@@ -34,13 +34,13 @@ async function seedBasicData() {
       .select()
     
     if (muniError) {
-      console.error('❌ Error inserting municipalities:', muniError)
+      console.error('Error inserting municipalities:', muniError)
     } else {
-      console.log(`✅ Inserted/updated ${municipalities.length} municipalities`)
+      console.log(`Inserted/updated ${municipalities.length} municipalities`)
     }
     
     // 2. Populate areas if they don't exist
-    console.log('\n🎯 Populating areas...')
+    console.log('\nPopulating areas...')
     const areas = [
       'Administration och personal',
       'Kultur och fritid', 
@@ -59,9 +59,9 @@ async function seedBasicData() {
       .upsert(areas, { onConflict: 'name', ignoreDuplicates: true })
     
     if (areasError) {
-      console.error('❌ Error inserting areas:', areasError)
+      console.error('Error inserting areas:', areasError)
     } else {
-      console.log(`✅ Ensured ${areas.length} areas exist`)
+      console.log(`Ensured ${areas.length} areas exist`)
     }
     
     // 3. Populate value dimensions
@@ -79,20 +79,20 @@ async function seedBasicData() {
       .upsert(valueDimensions, { onConflict: 'name', ignoreDuplicates: true })
     
     if (valueError) {
-      console.error('❌ Error inserting value dimensions:', valueError)
+      console.error('Error inserting value dimensions:', valueError)
     } else {
-      console.log(`✅ Ensured ${valueDimensions.length} value dimensions exist`)
+      console.log(`Ensured ${valueDimensions.length} value dimensions exist`)
     }
     
     // 4. Verify data
-    console.log('\n🔍 Verifying seeded data...')
+    console.log('\nVerifying seeded data...')
     
     const { data: muniCount, error: countError } = await supabase
       .from('municipalities')
       .select('id', { count: 'exact', head: true })
     
     if (!countError) {
-      console.log(`✅ Municipalities in database: ${muniCount}`)
+      console.log(`Municipalities in database: ${muniCount}`)
     }
     
     // 5. Create a test project to verify functionality
@@ -153,7 +153,7 @@ async function seedBasicData() {
         .single()
       
       if (projError) {
-        console.error('❌ Error creating test project:', projError)
+        console.error('Error creating test project:', projError)
       } else {
         // Link project to municipality
         const { error: linkError } = await supabase
@@ -164,20 +164,20 @@ async function seedBasicData() {
           }])
         
         if (linkError) {
-          console.error('❌ Error linking project to municipality:', linkError)
+          console.error('Error linking project to municipality:', linkError)
         } else {
-          console.log(`✅ Created test project "${testProject.title}" in ${firstMuni.name}`)
+          console.log(`Created test project "${testProject.title}" in ${firstMuni.name}`)
         }
       }
     }
     
-    console.log('\n🎉 Basic data seeding complete!')
-    console.log('🗺️  Map should now work at /map')
-    console.log('📊 Analytics should work at /analytics')
-    console.log('🆕 You can add new projects at /projects/new')
+    console.log('\nBasic data seeding complete!')
+console.log('Map should now work at /map')
+console.log('Analytics should work at /analytics')
+console.log('You can add new projects at /projects/new')
     
   } catch (error) {
-    console.error('❌ Error during seeding:', error)
+    console.error('Error during seeding:', error)
   }
 }
 

@@ -39,4 +39,4 @@ hexFC.features.forEach(hex => {
 
 // 6. Skriv ut
 fs.writeFileSync(OUT, JSON.stringify(hexFC));
-console.log('✅  Hex-grid skapad:', OUT);
+console.log('Hex-grid skapad:', OUT);

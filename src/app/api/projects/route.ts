@@ -28,6 +28,7 @@ export async function POST(req: NextRequest) {
     responsible,
     areas,
     valueDimensions,
+    value_dimensions,
     phase,
     // Form section data
     cost_data,
@@ -55,7 +56,7 @@ export async function POST(req: NextRequest) {
         responsible,
         phase: phase || 'idea',
         areas: areas || [],
-        value_dimensions: valueDimensions || [],
+        value_dimensions: (value_dimensions || valueDimensions || []),
         overview_details: overview_details || {},
         cost_data: cost_data || {},
         effects_data: effects_data || {},
@@ -115,14 +116,37 @@ export async function POST(req: NextRequest) {
     }
 
     // 4. Insert value dimension relationships
-    if (valueDimensions && valueDimensions.length > 0) {
-      // First get value dimension IDs from names
-      const { data: valueData, error: valueFetchError } = await sb
+    const valueDimsArr = (value_dimensions || valueDimensions || []);
+    if (valueDimsArr && valueDimsArr.length > 0) {
+      // Ensure all value dimensions exist in the lookup table
+      const { data: existingVals, error: valueFetchError } = await sb
+        .from('value_dimensions')
+        .select('id, name');
+
+      if (valueFetchError) {
+        console.error('Value dimension fetch error:', valueFetchError);
+      }
+
+      const existingNames = (existingVals || []).map((v: any) => v.name);
+      const missingNames = valueDimsArr.filter((n: string) => !existingNames.includes(n));
+
+      if (missingNames.length > 0) {
+        // Insert missing value dimensions
+        const { error: insertMissingError } = await sb
+          .from('value_dimensions')
+          .insert(missingNames.map((name: string) => ({ name })));
+        if (insertMissingError) {
+          console.error('Insert missing value dimensions error:', insertMissingError);
+        }
+      }
+
+      // Fetch IDs again
+      const { data: valueData } = await sb
         .from('value_dimensions')
         .select('id, name')
-        .in('name', valueDimensions);
+        .in('name', valueDimsArr);
 
-      if (!valueFetchError && valueData) {
+      if (valueData && valueData.length) {
         const valueRows = valueData.map(value => ({
           project_id: project.id,
           value_dimension_id: value.id,
@@ -211,6 +235,18 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    // Debug: Log projects without municipality relationships
+    if (!municipality_id) {
+      const projectsWithoutMunicipality = (data || []).filter((project: any) => 
+        !project.project_municipalities || project.project_municipalities.length === 0
+      );
+      if (projectsWithoutMunicipality.length > 0) {
+        console.log('⚠️  Projects without municipality relationships:', 
+          projectsWithoutMunicipality.map((p: any) => ({ id: p.id, title: p.title }))
+        );
+      }
+    }
+
     // Transform the data to include calculated metrics and flatten relationships
     const transformedProjects = (data || []).map((project: any) => {
       // Calculate metrics from cost_data and effects_data
@@ -285,7 +321,9 @@ export async function GET(req: NextRequest) {
           roi,
           affectedGroups,
           technologies
-        }
+        },
+        // Add municipality info for debugging
+        municipality_info: project.project_municipalities?.map((pm: any) => pm.municipalities).filter(Boolean) || []
       };
     });
 

@@ -1,6 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { ChevronDown } from 'lucide-react';
+import dynamic from 'next/dynamic';
 
 interface AnalyticsData {
   summary: {
@@ -69,6 +71,22 @@ interface AnalyticsData {
     mostInnovative: any[];
   };
   projects: any[];
+  nationalImpact?: {
+    nationalSavings: number;
+    savingsPerCitizen: number;
+    observedMunicipalities: number;
+  };
+  dataCompleteness?: Record<string, number>;
+}
+
+// @ts-ignore – chartjs types resolved at runtime
+const Scatter: any = dynamic(() => import('react-chartjs-2').then((m:any) => m.Scatter), { ssr: false });
+// Chart.js types might be missing; we defer registration inside dynamic component if needed
+
+// Ensure all chart.js components are registered (client-side only)
+if (typeof window !== 'undefined') {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  require('chart.js/auto');
 }
 
 export default function AnalyticsPage() {
@@ -138,6 +156,11 @@ export default function AnalyticsPage() {
   const formatPercent = (value: number) => {
     return `${value.toFixed(1)}%`;
   };
+
+  // Ensure Chart.js scales registered (for SSR hydration issues)
+  useEffect(() => {
+    import('chart.js/auto');
+  }, []);
 
   if (loading) {
     return (
@@ -275,6 +298,114 @@ export default function AnalyticsPage() {
           </div>
         </div>
 
+        {/* National Impact */}
+        {analytics.nationalImpact && (
+          <div className="bg-[#1E3A4A] p-6 rounded-lg mb-8">
+            <h2 className="text-xl font-bold text-[#FFD600] mb-4">Nationell besparingssimulering</h2>
+            <p className="text-lg">Om alla 290 kommuner implementerar dagens projektportfölj:</p>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4 text-[#FECB00] font-semibold">
+              <div>
+                <div className="text-sm text-gray-300">Beräknad total besparing</div>
+                <div className="text-2xl">{formatCurrency(analytics.nationalImpact.nationalSavings)}</div>
+              </div>
+              <div>
+                <div className="text-sm text-gray-300">Besparing per invånare</div>
+                <div className="text-2xl">{formatCurrency(analytics.nationalImpact.savingsPerCitizen)}</div>
+              </div>
+              <div>
+                <div className="text-sm text-gray-300">Data baserad på</div>
+                <div className="text-2xl">{analytics.nationalImpact.observedMunicipalities} kommuner</div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Data Completeness */}
+        {analytics.dataCompleteness && (
+          <div className="bg-[#1E3A4A] p-6 rounded-lg mb-8">
+            <h2 className="text-xl font-bold text-[#FFD600] mb-4">Datakompletthet</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {Object.entries(analytics.dataCompleteness).map(([field, percent]) => (
+                <div key={field} className="flex flex-col">
+                  <span className="text-sm capitalize">{field.replace(/_/g,' ')}</span>
+                  <div className="w-full h-2 bg-gray-600 rounded overflow-hidden mt-1">
+                    <div style={{width:`${percent}%`}} className="h-2 bg-[#FECB00]"></div>
+                  </div>
+                  <span className="text-xs text-gray-300 mt-1">{percent}% ifyllda</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* ROI vs Budget Scatter */}
+        {analytics.projects && analytics.projects.length > 0 && (
+          <div className="bg-[#1E3A4A] p-6 rounded-lg mb-8">
+            <h2 className="text-xl font-bold text-[#FFD600] mb-4">ROI vs. Budget</h2>
+            <Scatter
+              data={{
+                datasets: [
+                  {
+                    label: 'Projekt',
+                    data: analytics.projects
+                      .filter((p:any) => (p.calculatedMetrics?.budget || 0) > 0 && p.calculatedMetrics?.roi !== null)
+                      .map((p:any) => ({ x: p.calculatedMetrics.budget, y: p.calculatedMetrics.roi })),
+                    backgroundColor: '#FECB00',
+                  },
+                ],
+              }}
+              options={{
+                plugins: { legend: { display: false } },
+                scales: {
+                  x: { title: { display: true, text: 'Budget (SEK)' }, type: 'linear', beginAtZero: true },
+                  y: { title: { display: true, text: 'ROI %' }, beginAtZero: true },
+                },
+              }}
+            />
+          </div>
+        )}
+
+        {/* Top Performers */}
+        {analytics.topPerformers && (
+          <div className="bg-[#1E3A4A] p-6 rounded-lg mb-8">
+            <h2 className="text-xl font-bold text-[#FFD600] mb-4">Toppresultat</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
+              <div>
+                <h3 className="font-semibold text-[#FECB00] mb-2">Högst ROI</h3>
+                <ul className="space-y-1">
+                  {analytics.topPerformers.highestROI.map((p:any)=> (
+                    <li key={p.id}>{p.title} – {((p.calculatedMetrics?.roi ?? p.roi) ?? 0).toFixed(1)}%</li>
+                  ))}
+                </ul>
+              </div>
+              <div>
+                <h3 className="font-semibold text-[#FECB00] mb-2">Störst Budget</h3>
+                <ul className="space-y-1">
+                  {analytics.topPerformers.largestBudget.map((p:any)=> (
+                    <li key={p.id}>{p.title} – {formatCurrency(p.calculatedMetrics?.budget ?? p.budget ?? 0)}</li>
+                  ))}
+                </ul>
+              </div>
+              <div>
+                <h3 className="font-semibold text-[#FECB00] mb-2">Flest grupper påverkade</h3>
+                <ul className="space-y-1">
+                  {analytics.topPerformers.mostAffectedGroups.map((p:any)=> (
+                    <li key={p.id}>{p.title} – {(p.calculatedMetrics?.affectedGroups?.length ?? 0)}</li>
+                  ))}
+                </ul>
+              </div>
+              <div>
+                <h3 className="font-semibold text-[#FECB00] mb-2">Mest innovativa</h3>
+                <ul className="space-y-1">
+                  {analytics.topPerformers.mostInnovative.map((p:any)=> (
+                    <li key={p.id}>{p.title}</li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Charts and Breakdowns */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
           {/* Projects by Phase */}
@@ -406,37 +537,6 @@ export default function AnalyticsPage() {
                   {formatCurrency(analytics?.effectsAnalysis?.monetaryValue || 0)}
                 </span>
               </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Top Performers */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-          <div className="bg-[#1E3A4A] p-6 rounded-lg">
-            <h3 className="text-xl font-bold text-[#FFD600] mb-4">Högsta ROI</h3>
-            <div className="space-y-3">
-              {(analytics?.topPerformers?.highestROI || []).map((project) => (
-                <div key={project.id} className="border-b border-gray-600 pb-2">
-                  <div className="font-semibold truncate">{project.title}</div>
-                  <div className="text-sm text-gray-400">
-                    ROI: <span className="text-[#FFD600]">{formatPercent(project.roi)}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <div className="bg-[#1E3A4A] p-6 rounded-lg">
-            <h3 className="text-xl font-bold text-[#FFD600] mb-4">Största Budget</h3>
-            <div className="space-y-3">
-              {(analytics?.topPerformers?.largestBudget || []).map((project) => (
-                <div key={project.id} className="border-b border-gray-600 pb-2">
-                  <div className="font-semibold truncate">{project.title}</div>
-                  <div className="text-sm text-gray-400">
-                    Budget: <span className="text-[#FFD600]">{formatCurrency(project.budget)}</span>
-                  </div>
-                </div>
-              ))}
             </div>
           </div>
         </div>

@@ -5,30 +5,9 @@ import dynamic from 'next/dynamic';
 import AddProjectFab from '@/components/AddProjectFab';
 import Header from '@/components/Header';
 import { Trash2, X, ChevronDown, ChevronRight } from 'lucide-react';
+import { AREAS, VALUE_DIMENSIONS } from '@/constants/projectForm';
 
 const MapSweden = dynamic(() => import('@/components/MapSwedenLeaflet'), { ssr: false });
-
-/* Områden och värdedimensioner */
-export const AREAS = [
-  'Administration och personal',
-  'Kultur och fritid',
-  'Ledning och styrning',
-  'Medborgarservice och kommunikation',
-  'Miljö och hållbarhet',
-  'Samhällsbyggnad och stadsbyggnad',
-  'Socialtjänst och hälsa/vård och omsorg',
-  'Säkerhet och krisberedskap',
-  'Utbildning och skola',
-  'Övrigt/oklart',
-] as const;
-
-export const VALUE_DIMENSIONS = [
-  'Effektivisering',
-  'Kvalitet',
-  'Innovation',
-  'Medborgarnytta',
-  'Annat',
-] as const;
 
 type ProjectRow = {
   id: string;
@@ -39,6 +18,7 @@ type ProjectRow = {
   value_dimensions: string[];
   created_at?: string;
   updated_at?: string;
+  municipality_info?: { id: number }[];
 };
 
 // Collapsible Section Component
@@ -50,6 +30,38 @@ function CollapsibleSection({ title, icon, children, defaultOpen = false }: {
 }) {
   const [isOpen, setIsOpen] = useState(defaultOpen);
 
+  const getIcon = (iconName: string) => {
+    switch (iconName) {
+      case 'document':
+        return (
+          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clipRule="evenodd" />
+          </svg>
+        );
+      case 'currency':
+        return (
+          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+            <path d="M8.433 7.418c.155-.103.346-.196.567-.267v1.698a2.305 2.305 0 01-.567-.267C8.07 8.34 8 8.114 8 8c0-.114.07-.34.433-.582zM11 12.849v-1.698c.22.071.412.164.567.267.364.243.433.468.433.582 0 .114-.07.34-.433.582a2.305 2.305 0 01-.567.267z" />
+            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-13a1 1 0 10-2 0v.092a4.535 4.535 0 00-1.676.662C6.602 6.234 6 7.009 6 8c0 .99.602 1.765 1.324 2.246.48.32 1.054.545 1.676.662v1.941c-.391-.127-.68-.317-.843-.504a1 1 0 10-1.51 1.31c.562.649 1.413 1.076 2.353 1.253V15a1 1 0 102 0v-.092a4.535 4.535 0 001.676-.662C13.398 13.766 14 12.991 14 12c0-.99-.602-1.765-1.324-2.246A4.535 4.535 0 0011 9.092V7.151c.391.127.68.317.843.504a1 1 0 101.511-1.31c-.563-.649-1.413-1.076-2.354-1.253V5z" clipRule="evenodd" />
+          </svg>
+        );
+      case 'trending-up':
+        return (
+          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M12 7a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0V8.414l-4.293 4.293a1 1 0 01-1.414 0L8 10.414l-4.293 4.293a1 1 0 01-1.414-1.414l5-5a1 1 0 011.414 0L11 10.586 14.586 7H12z" clipRule="evenodd" />
+          </svg>
+        );
+      case 'wrench':
+        return (
+          <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+            <path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" clipRule="evenodd" />
+          </svg>
+        );
+      default:
+        return <span className="text-sm">{icon}</span>;
+    }
+  };
+
   return (
     <div className="mt-3 border border-gray-200 rounded">
       <button
@@ -57,7 +69,7 @@ function CollapsibleSection({ title, icon, children, defaultOpen = false }: {
         className="w-full flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 text-left"
       >
         <div className="flex items-center gap-2">
-          <span className="text-sm">{icon}</span>
+          {getIcon(icon)}
           <span className="font-semibold text-[#004D66] text-sm">{title}</span>
         </div>
         {isOpen ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
@@ -71,14 +83,30 @@ function CollapsibleSection({ title, icon, children, defaultOpen = false }: {
   );
 }
 
+// Simple key-value renderer for generic objects
+function KeyValueList({ data }: { data: Record<string, any> }) {
+  if (!data) return null;
+  const entries = Object.entries(data).filter(([, v]) => v !== null && v !== '' && v !== undefined && !(Array.isArray(v) && v.length === 0));
+  if (entries.length === 0) return null;
+  return (
+    <dl className="text-xs space-y-2">
+      {entries.map(([key, value]) => (
+        <div key={key} className="flex flex-col">
+          <dt className="font-semibold text-[#004D66] capitalize">{key.replace(/_/g, ' ')}</dt>
+          <dd className="text-gray-700 break-words">{typeof value === 'string' || typeof value === 'number' ? value as any : JSON.stringify(value)}</dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
 export default function MapPage() {
   const [municipalities, setMunicipalities] = useState<{ id: number; name: string }[]>([]);
   const [selectedMunicipalityId, setSelectedMunicipalityId] = useState<number | null>(null);
   const [selectedMunicipalityName, setSelectedMunicipalityName] = useState<string | null>(null);
   const [tab, setTab] = useState<'areas' | 'value'>('areas');
-  const [projects, setProjects] = useState<ProjectRow[]>([]);
-  const [areaCounts, setAreaCounts] = useState<number[]>(Array(AREAS.length).fill(0));
-  const [valueCounts, setValueCounts] = useState<number[]>(Array(VALUE_DIMENSIONS.length).fill(0));
+  const [allProjects, setAllProjects] = useState<ProjectRow[]>([]);
+  const [filteredProjects, setFilteredProjects] = useState<ProjectRow[]>([]);
   const [aiFilter, setAiFilter] = useState<Record<string, boolean>>({});
   const [valFilter, setValFilter] = useState<Record<string, boolean>>({});
   const [selectedProject, setSelectedProject] = useState<ProjectRow | null>(null);
@@ -94,65 +122,50 @@ export default function MapPage() {
     setSelectedMunicipalityId(null);
   };
 
-  const recalcCounts = useCallback((projList: ProjectRow[]) => {
-    const areas = Array(AREAS.length).fill(0);
-    const values = Array(VALUE_DIMENSIONS.length).fill(0);
-    projList.forEach((p) => {
-      // Count each area mentioned in the project
-      p.areas?.forEach(area => {
-        const areaIdx = AREAS.indexOf(area as any);
-        if (areaIdx !== -1) areas[areaIdx]++;
+  // Fetch all projects once on mount
+  useEffect(() => {
+    fetch('/api/projects')
+      .then((r) => r.json())
+      .then((data: ProjectRow[]) => {
+        setAllProjects(Array.isArray(data) ? data : []);
+        setFilteredProjects(Array.isArray(data) ? data : []);
+      })
+      .catch(() => {
+        setAllProjects([]);
+        setFilteredProjects([]);
       });
-      // Count each value dimension mentioned in the project
-      p.value_dimensions?.forEach(dim => {
-        const dimIdx = VALUE_DIMENSIONS.indexOf(dim as any);
-        if (dimIdx !== -1) values[dimIdx]++;
-      });
-    });
-    setAreaCounts(areas);
-    setValueCounts(values);
   }, []);
 
+  // Fetch municipalities on mount
   useEffect(() => {
     fetch('/api/municipalities')
-      .then((r) => r.json())
-      .then((data) => {
-        // Ensure data is an array before setting municipalities
-        if (Array.isArray(data)) {
-          setMunicipalities(data);
-        } else {
-          console.error('Municipalities API returned non-array:', data);
-          setMunicipalities([]);
-        }
-      })
-      .catch((error) => {
-        console.error('Error fetching municipalities:', error);
-        setMunicipalities([]);
-      });
+      .then(r => r.json())
+      .then(data => setMunicipalities(Array.isArray(data) ? data : []));
   }, []);
 
+  // When a municipality is selected, filter projects by municipality
   useEffect(() => {
     if (!selectedMunicipalityId) {
-      setProjects([]);
-      recalcCounts([]);
+      setFilteredProjects(allProjects);
       setSelectedMunicipalityName(null);
       return;
     }
-    fetch(`/api/projects?municipality_id=${selectedMunicipalityId}`)
-      .then((r) => r.json())
-      .then((data: ProjectRow[]) => {
-        const projectsData = Array.isArray(data) ? data : [];
-        setProjects(projectsData);
-        recalcCounts(projectsData);
-      })
-      .catch((error) => {
-        console.error('Error fetching projects:', error);
-        setProjects([]);
-        recalcCounts([]);
-      });
+    // Find projects that have the selected municipality in their municipality_info
+    const filtered = allProjects.filter(p =>
+      p.municipality_info && p.municipality_info.some((m: any) => m.id === selectedMunicipalityId)
+    );
+    setFilteredProjects(filtered);
     const found = municipalities.find((m) => m.id === selectedMunicipalityId);
     setSelectedMunicipalityName(found ? found.name : null);
-  }, [selectedMunicipalityId, municipalities, recalcCounts]);
+  }, [selectedMunicipalityId, allProjects, municipalities]);
+
+  // Calculate area and value counts from filteredProjects
+  const areaCounts = AREAS.map(area =>
+    filteredProjects.filter(p => p.areas && p.areas.includes(area)).length
+  );
+  const valueCounts = VALUE_DIMENSIONS.map(val =>
+    filteredProjects.filter(p => p.value_dimensions && p.value_dimensions.includes(val)).length
+  );
 
   const handleDelete = async (id: string) => {
     if (!confirm('Ta bort projektet?')) return;
@@ -161,9 +174,8 @@ export default function MapPage() {
     
     // If we're viewing municipality projects, update the projects list
     if (selectedMunicipalityId) {
-      const newList = projects.filter((p) => p.id !== id);
-      setProjects(newList); 
-      recalcCounts(newList);
+      const newList = filteredProjects.filter((p) => p.id !== id);
+      setFilteredProjects(newList); 
     }
     
     // If we're viewing ideas, refresh the idea list
@@ -190,7 +202,8 @@ export default function MapPage() {
     <div className="min-h-screen flex flex-col">
       <Header />
       <div className="flex flex-1">
-        <aside className="w-96 bg-[#F9F8F3] p-6 flex flex-col shadow-lg">
+        <aside className="w-96 bg-[#F9F8F3] p-6 flex flex-col shadow-lg relative">
+          {/* Välj kommun always at the top */}
           <div className="mb-4 space-y-2">
             <select className="w-full px-4 py-2 border border-gray-300 bg-white text-[#004D66]" value={selectedMunicipalityId || ''} onChange={(e)=>setSelectedMunicipalityId(e.target.value?Number(e.target.value):null)}>
               <option value="">Välj kommun</option>
@@ -201,15 +214,56 @@ export default function MapPage() {
                 fetch('/api/ideas').then(r => r.json()).then(handleIdeasSelect);
                 setSelectedMunicipalityId(null);
               }}
-              className="w-full px-4 py-2 bg-[#7ED957] text-white font-medium rounded hover:bg-green-600 transition-colors"
+              className="w-full px-4 py-2 bg-green-100 text-green-800 font-medium rounded hover:bg-green-200 transition-colors flex items-center justify-center"
             >
-              🔬 Visa Idébank
+              <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z" clipRule="evenodd" />
+              </svg>
+              Visa Idébank
             </button>
           </div>
+          {/* National view if no kommun selected and not in ideaProjects mode */}
+          {!selectedMunicipalityId && !ideaProjects && (
+            <div className="flex-1 overflow-y-auto">
+              <h2 className="text-lg font-bold text-[#004D66] mb-2">Nationell översikt</h2>
+              <div className="flex gap-2 mb-4 border-b border-gray-200 text-sm font-semibold">
+                <button className={`${tab==='areas'?'border-b-2 border-[#FECB00] text-[#004D66]':'text-gray-400'}`} onClick={()=>setTab('areas')}>Områden</button>
+                <button className={`${tab==='value'?'border-b-2 border-[#FECB00] text-[#004D66]':'text-gray-400'}`} onClick={()=>setTab('value')}>Värdeskapande</button>
+              </div>
+              {tab==='areas' && (
+                <ul className="space-y-2 text-xs">
+                  {AREAS.map((area, i) => (
+                    <li key={area} className="flex items-center justify-between">
+                      <span className="text-[#004D66]">{area}</span>
+                      {bar(areaCounts[i])}
+                      <span className="font-bold">{areaCounts[i]}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+              {tab==='value' && (
+                <ul className="space-y-2 text-xs">
+                  {VALUE_DIMENSIONS.map((dimension, i) => (
+                    <li key={dimension} className="flex items-center justify-between">
+                      <span className="text-[#004D66]">{dimension}</span>
+                      {bar(valueCounts[i])}
+                      <span className="font-bold">{valueCounts[i]}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+             
+            </div>
+          )}
           {ideaProjects && (
             <div className="flex-1 overflow-y-auto">
               <div className="flex justify-between items-center mb-3">
-                <h2 className="text-lg font-bold text-[#004D66]">🔬 Idébank</h2>
+                <h2 className="text-lg font-bold text-green-700 flex items-center">
+                  <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z" clipRule="evenodd" />
+                  </svg>
+                  Idébank
+                </h2>
                 <button className="text-sm underline text-[#004D66] hover:text-[#FECB00]" onClick={()=>setIdeaProjects(null)}>Tillbaka</button>
               </div>
               <div className="text-xs text-gray-600 mb-3">
@@ -250,8 +304,18 @@ export default function MapPage() {
                       ))}
                     </div>
                     <div className="flex justify-between items-center text-xs text-gray-500">
-                      <span>📍 {p.municipality}</span>
-                      <span>💡 Idé</span>
+                      <span className="flex items-center">
+                        <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd" />
+                        </svg>
+                        {p.municipality}
+                      </span>
+                      <span className="flex items-center">
+                        <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                        </svg>
+                        Idé
+                      </span>
                     </div>
                   </li>
                 ))}
@@ -260,7 +324,16 @@ export default function MapPage() {
           )}
           {!ideaProjects && selectedMunicipalityId && (
             <div className="flex-1 overflow-y-auto">
-              <h2 className="text-lg font-bold text-[#004D66] mb-2">{selectedMunicipalityName}</h2>
+              <div className="flex items-center mb-2 gap-2">
+                <button
+                  className="bg-gray-100 border border-gray-300 text-[#004D66] rounded px-2 py-1 text-xs font-semibold hover:bg-gray-200 transition-colors"
+                  onClick={() => { setSelectedMunicipalityId(null); setSelectedMunicipalityName(null); }}
+                  aria-label="Tillbaka"
+                >
+                  ←
+                </button>
+                <h2 className="text-lg font-bold text-[#004D66]">{selectedMunicipalityName}</h2>
+              </div>
               <div className="flex gap-2 mb-4 border-b border-gray-200 text-sm font-semibold">
                 <button className={`${tab==='areas'?'border-b-2 border-[#FECB00] text-[#004D66]':'text-gray-400'}`} onClick={()=>setTab('areas')}>Områden</button>
                 <button className={`${tab==='value'?'border-b-2 border-[#FECB00] text-[#004D66]':'text-gray-400'}`} onClick={()=>setTab('value')}>Värdeskapande</button>
@@ -274,7 +347,8 @@ export default function MapPage() {
                       <span className="font-bold">{areaCounts[i]}</span>
                     </li>
                   ))}
-                </ul>)}
+                </ul>
+              )}
               {tab==='value' && (
                 <ul className="space-y-2 text-xs">
                   {VALUE_DIMENSIONS.map((dimension, i) => (
@@ -284,45 +358,55 @@ export default function MapPage() {
                       <span className="font-bold">{valueCounts[i]}</span>
                     </li>
                   ))}
-                </ul>)}
-              {tab==='areas' && (
+                </ul>
+              )}
+              {/* Show list of projects for this municipality */}
+              {filteredProjects.length > 0 && (
                 <div className="mt-4 text-xs">
-                  <h3 className="font-semibold mb-2 text-[#004D66]">Projekt</h3>
-                  <ul className="space-y-2 max-h-48 overflow-y-auto pr-2">
-                    {projects.map(proj => (
-                      <li key={proj.id} className="border-b border-gray-200 py-2 flex items-start gap-2">
-                        <button onClick={() => handleDelete(proj.id)} title="Ta bort" className="text-[#004D66] hover:text-red-600">
-                          <Trash2 size={14} />
-                        </button>
-                        <div className="flex-1">
-                          <div className="font-bold text-[#004D66]">{proj.title}</div>
-                          {proj.areas && proj.areas.length > 0 && (
-                            <div className="text-[#004D66] text-xs">Områden: {proj.areas.join(', ')}</div>
+                  <div className="bg-white rounded shadow p-4 mb-4">
+                    <h3 className="font-semibold mb-2 text-[#004D66] text-base">Projekt</h3>
+                    <ul className="space-y-2 max-h-48 overflow-y-auto pr-2">
+                      {filteredProjects.map((proj) => (
+                        <li
+                          key={proj.id}
+                          className="border border-gray-200 rounded p-2 bg-white hover:shadow-sm transition-shadow cursor-pointer"
+                          onClick={() => setSelectedProject(proj)}
+                        >
+                          <p className="font-semibold text-[#004D66] text-xs mb-1">{proj.title}</p>
+                          {proj.intro && (
+                            <p className="text-gray-700 text-[11px] mb-1 line-clamp-2">{proj.intro}</p>
                           )}
-                          {proj.value_dimensions && proj.value_dimensions.length > 0 && (
-                            <div className="text-[#004D66] text-xs">Värde: {proj.value_dimensions.join(', ')}</div>
-                          )}
-                          <div className="text-xs">
-                            <span className={`px-1 py-0.5 rounded text-white ${
-                              proj.phase === 'idea' ? 'bg-blue-500' :
-                              proj.phase === 'pilot' ? 'bg-yellow-500' :
-                              proj.phase === 'implemented' ? 'bg-green-500' : 'bg-gray-500'
-                            }`}>
-                              {proj.phase === 'idea' ? 'Idé' : 
-                               proj.phase === 'pilot' ? 'Pilot' :
-                               proj.phase === 'implemented' ? 'Implementerad' : proj.phase}
-                            </span>
+                          <div className="flex flex-wrap gap-1">
+                            {proj.areas?.slice(0, 2).map((area, i) => (
+                              <span key={i} className="px-1 py-0.5 bg-blue-100 text-blue-700 rounded text-[10px]">{area}</span>
+                            ))}
+                            {proj.value_dimensions?.slice(0, 1).map((dim, i) => (
+                              <span key={i} className="px-1 py-0.5 bg-green-100 text-green-700 rounded text-[10px]">{dim}</span>
+                            ))}
                           </div>
-                          <button onClick={() => setSelectedProject(proj)} className="underline text-[#004D66] text-xs hover:text-[#FECB00]">Visa detaljer</button>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                </div>) }
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+              )}
             </div>
           )}
+          <div className="sticky bottom-0 left-0 w-full">
+            <div
+              className="bg-white border-t border-gray-200 px-6 pt-4 pb-4 cursor-pointer flex items-center justify-center gap-2 font-semibold text-[#004D66] hover:bg-gray-100 transition-colors select-none"
+              onClick={() => window.location.href = '/projects/new'}
+              role="button"
+              tabIndex={0}
+              onKeyPress={e => { if (e.key === 'Enter' || e.key === ' ') window.location.href = '/projects/new'; }}
+            >
+              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clipRule="evenodd" />
+              </svg>
+              Lägg till projekt
+            </div>
+          </div>
         </aside>
-
         {selectedProject && (
           <section className="w-96 bg-white p-6 overflow-y-auto shadow-lg">
             <div className="flex justify-between items-start mb-4">
@@ -349,15 +433,22 @@ export default function MapPage() {
                 </span>
               </div>
 
+              {/* Grundinfo */}
+              {selectedProject.municipality_info && selectedProject.municipality_info.length > 0 && (
+                <p><span className="font-semibold text-[#004D66]">Kommuner:</span> {selectedProject.municipality_info.map((m:any)=>m.name).join(', ')}</p>
+              )}
               {selectedProject.areas && selectedProject.areas.length > 0 && (
                 <p><span className="font-semibold text-[#004D66]">Områden:</span> {selectedProject.areas.join(', ')}</p>
               )}
               {selectedProject.value_dimensions && selectedProject.value_dimensions.length > 0 && (
                 <p><span className="font-semibold text-[#004D66]">Värdedimensioner:</span> {selectedProject.value_dimensions.join(', ')}</p>
               )}
+              { (selectedProject as any).link && (
+                <p className="text-xs"><a href={(selectedProject as any).link} target="_blank" className="text-blue-600 underline">Länk till projekt&nbsp;↗</a></p>
+              )}
 
               {/* Basic Project Info - Collapsible */}
-              <CollapsibleSection title="Projektinformation" icon="📋" defaultOpen={true}>
+              <CollapsibleSection title="Projektinformation" icon="document" defaultOpen={true}>
                 {(selectedProject as any).problem && (
                   <div className="mb-3">
                     <span className="font-semibold text-[#004D66] text-xs">Problem/Utmaning:</span>
@@ -386,7 +477,7 @@ export default function MapPage() {
 
               {/* Financial Overview */}
               {(selectedProject as any).cost_data && (
-                <CollapsibleSection title="Ekonomisk översikt" icon="💰">
+                <CollapsibleSection title="Ekonomisk översikt" icon="currency">
                   {(selectedProject as any).cost_data.budgetDetails?.budgetAmount && (
                     <div className="mb-3">
                       <span className="font-semibold text-[#004D66] text-xs">Total budget:</span>
@@ -438,7 +529,11 @@ export default function MapPage() {
 
               {/* Effects Overview */}
               {(selectedProject as any).effects_data?.effectDetails && (
-                <CollapsibleSection title="Förväntade effekter" icon="📈">
+                <CollapsibleSection title="Förväntade effekter" icon="trending-up">
+                  {/* ROI */}
+                  { (selectedProject as any).calculatedMetrics?.roi !== null && (selectedProject as any).calculatedMetrics?.roi !== undefined && (
+                    <p className="text-xs text-gray-700 mb-3"><span className="font-semibold text-[#004D66]">ROI:</span> {(selectedProject as any).calculatedMetrics.roi.toFixed(1)}%</p>
+                  )}
                   {(selectedProject as any).effects_data.effectDetails.map((effect: any, i: number) => (
                     <div key={i} className="mb-4 border-b border-gray-100 pb-3 last:border-b-0">
                       {effect.effectName && (
@@ -638,130 +733,17 @@ export default function MapPage() {
                 </CollapsibleSection>
               )}
 
-              {/* Enhanced Technical & Data Section */}
-              {(selectedProject as any).technical_data && (
-                <CollapsibleSection title="Teknisk information & Data" icon="🔧">
-                  <div className="space-y-4">
-                    {/* Data Information */}
-                    <div className="bg-blue-50 p-3 rounded">
-                      <h6 className="font-semibold text-[#004D66] text-xs mb-2">📊 Datainformation</h6>
-                      <div className="space-y-2">
-                        {(selectedProject as any).technical_data.data_types && Array.isArray((selectedProject as any).technical_data.data_types) && (
-                          <div>
-                            <span className="font-medium text-[#004D66] text-xs">Datatyper:</span>
-                            <div className="flex flex-wrap gap-1 mt-1">
-                              {(selectedProject as any).technical_data.data_types.map((type: string, i: number) => (
-                                <span key={i} className="px-1 py-0.5 bg-blue-200 text-blue-800 rounded text-xs">
-                                  {type}
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                        
-                        {(selectedProject as any).technical_data.data_sources && Array.isArray((selectedProject as any).technical_data.data_sources) && (
-                          <div>
-                            <span className="font-medium text-[#004D66] text-xs">Datakällor:</span>
-                            <div className="flex flex-wrap gap-1 mt-1">
-                              {(selectedProject as any).technical_data.data_sources.map((source: string, i: number) => (
-                                <span key={i} className="px-1 py-0.5 bg-green-200 text-green-800 rounded text-xs">
-                                  {source}
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                        
-                        {(selectedProject as any).technical_data.data_sensitivity_level && (
-                          <div>
-                            <span className="font-medium text-[#004D66] text-xs">Känslighetsnivå:</span>
-                            <span className={`ml-2 px-1 py-0.5 rounded text-xs ${
-                              (selectedProject as any).technical_data.data_sensitivity_level.includes('känslig') 
-                                ? 'bg-red-200 text-red-800' 
-                                : 'bg-gray-200 text-gray-800'
-                            }`}>
-                              {(selectedProject as any).technical_data.data_sensitivity_level}
-                            </span>
-                          </div>
-                        )}
-                        
-                        {(selectedProject as any).technical_data.data_freshness && (
-                          <div>
-                            <span className="font-medium text-[#004D66] text-xs">Aktualitet:</span>
-                            <p className="text-xs mt-1">{(selectedProject as any).technical_data.data_freshness}</p>
-                          </div>
-                        )}
-                        
-                        {(selectedProject as any).technical_data.data_quality && (
-                          <div>
-                            <span className="font-medium text-[#004D66] text-xs">Datakvalitet:</span>
-                            <p className="text-xs mt-1">{(selectedProject as any).technical_data.data_quality}</p>
-                          </div>
-                        )}
-                        
-                        {(selectedProject as any).technical_data.data_description_free && (
-                          <div>
-                            <span className="font-medium text-[#004D66] text-xs">Databeskrivning:</span>
-                            <p className="text-xs mt-1 text-gray-700">{(selectedProject as any).technical_data.data_description_free}</p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
+              {/* Technical Data */}
+              {(selectedProject as any).technical_data && Object.keys((selectedProject as any).technical_data).length > 0 && (
+                <CollapsibleSection title="Teknisk information" icon="wrench">
+                  <KeyValueList data={(selectedProject as any).technical_data} />
+                </CollapsibleSection>
+              )}
 
-                    {/* Technical Implementation */}
-                    <div className="bg-purple-50 p-3 rounded">
-                      <h6 className="font-semibold text-[#004D66] text-xs mb-2">⚙️ Teknisk implementation</h6>
-                      <div className="space-y-2">
-                        {(selectedProject as any).technical_data.system_name && (
-                          <div>
-                            <span className="font-medium text-[#004D66] text-xs">System/Plattform:</span>
-                            <p className="text-xs mt-1">{(selectedProject as any).technical_data.system_name}</p>
-                          </div>
-                        )}
-                        
-                        {(selectedProject as any).technical_data.ai_methodology && (
-                          <div>
-                            <span className="font-medium text-[#004D66] text-xs">AI-metodik:</span>
-                            <p className="text-xs mt-1">{(selectedProject as any).technical_data.ai_methodology}</p>
-                          </div>
-                        )}
-                        
-                        {(selectedProject as any).technical_data.deployment_environment && (
-                          <div>
-                            <span className="font-medium text-[#004D66] text-xs">Driftmiljö:</span>
-                            <p className="text-xs mt-1">{(selectedProject as any).technical_data.deployment_environment}</p>
-                          </div>
-                        )}
-                        
-                        {(selectedProject as any).technical_data.integration_capabilities && Array.isArray((selectedProject as any).technical_data.integration_capabilities) && (
-                          <div>
-                            <span className="font-medium text-[#004D66] text-xs">Integrationsmöjligheter:</span>
-                            <div className="flex flex-wrap gap-1 mt-1">
-                              {(selectedProject as any).technical_data.integration_capabilities.map((capability: string, i: number) => (
-                                <span key={i} className="px-1 py-0.5 bg-yellow-200 text-yellow-800 rounded text-xs">
-                                  {capability}
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                        
-                        {(selectedProject as any).technical_data.technical_obstacles && (
-                          <div>
-                            <span className="font-medium text-[#004D66] text-xs">Tekniska hinder:</span>
-                            <p className="text-xs mt-1 text-gray-700">{(selectedProject as any).technical_data.technical_obstacles}</p>
-                          </div>
-                        )}
-                        
-                        {(selectedProject as any).technical_data.technical_solutions && (
-                          <div>
-                            <span className="font-medium text-[#004D66] text-xs">Tekniska lösningar:</span>
-                            <p className="text-xs mt-1 text-gray-700">{(selectedProject as any).technical_data.technical_solutions}</p>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
+              {/* Legal Data */}
+              {(selectedProject as any).legal_data && Object.keys((selectedProject as any).legal_data).length > 0 && (
+                <CollapsibleSection title="Juridik & Regelverk" icon="document">
+                  <KeyValueList data={(selectedProject as any).legal_data} />
                 </CollapsibleSection>
               )}
 
@@ -782,12 +764,10 @@ export default function MapPage() {
             </div>
           </section>
         )}
-
-        <main className="flex-1 relative bg-[#004D66]">
+        <main className="flex-1 relative bg-[#003A52]">
           <MapSweden aiFilter={aiFilter} valFilter={valFilter} onSelectMunicipality={handleMapMunicipalitySelect} onSelectIdeas={handleIdeasSelect}/>
         </main>
       </div>
-      <AddProjectFab />
     </div>
   );
 } 

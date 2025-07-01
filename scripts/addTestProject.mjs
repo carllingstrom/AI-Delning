@@ -51,7 +51,7 @@ async function addTestProject() {
       return
     }
     
-    console.log(`✅ Created project: ${project.title}`)
+    console.log(`Created project: ${project.title}`)
     
     // Link to Stockholm municipality
     const { error: linkError } = await supabase
@@ -66,8 +66,8 @@ async function addTestProject() {
       return
     }
     
-    console.log(`✅ Linked project to Stockholm municipality`)
-    console.log('🎉 Test project added successfully!')
+    console.log(`Linked project to Stockholm municipality`)
+    console.log('Test project added successfully!')
     
   } catch (error) {
     console.error('Error adding test project:', error)

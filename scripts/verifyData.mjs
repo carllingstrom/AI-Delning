@@ -16,7 +16,7 @@ if (!supabaseUrl || !supabaseKey) {
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 async function verifyData() {
-  console.log('🔍 Verifying data in database...\n');
+  console.log('Verifying data in database...\n');
 
   // 1. Check municipalities table
   console.log('Checking municipalities table:');
@@ -73,7 +73,7 @@ async function verifyData() {
 
 async function verifyProjectData() {
   try {
-    console.log('🔍 Verifying project data structure...');
+    console.log('Verifying project data structure...');
     
     // Get a sample project with all data
     const { data: projects, error } = await supabase
@@ -87,14 +87,14 @@ async function verifyProjectData() {
       .limit(5);
 
     if (error) {
-      console.error('❌ Error fetching projects:', error);
+      console.error('Error fetching projects:', error);
       return;
     }
 
-    console.log(`\n📊 Found ${projects.length} projects to analyze`);
+    console.log(`\nFound ${projects.length} projects to analyze`);
     
     if (projects.length === 0) {
-      console.log('⚠️  No projects found. Add some projects first to see analytics.');
+      console.log('No projects found. Add some projects first to see analytics.');
       return;
     }
 
@@ -106,11 +106,11 @@ async function verifyProjectData() {
     
     // Check cost data
     const costData = sampleProject.cost_data || {};
-    console.log('\n💰 Cost Data Structure:');
+    console.log('\nCost Data Structure:');
     if (costData.budgetDetails?.budgetAmount) {
-      console.log('   ✅ Budget:', costData.budgetDetails.budgetAmount, 'SEK');
+      console.log('   Budget:', costData.budgetDetails.budgetAmount, 'SEK');
     } else {
-      console.log('   ⚠️  No budget amount found');
+      console.log('   No budget amount found');
     }
     
     const costEntries = costData.actualCostDetails?.costEntries || [];
@@ -121,12 +121,12 @@ async function verifyProjectData() {
         const fixedCost = entry.costFixed || 0;
         return total + hourCost + fixedCost;
       }, 0);
-      console.log('   ✅ Total actual cost:', totalCost, 'SEK');
+      console.log('   Total actual cost:', totalCost, 'SEK');
     }
 
     // Check effects data
     const effectsData = sampleProject.effects_data || {};
-    console.log('\n📈 Effects Data Structure:');
+    console.log('\nEffects Data Structure:');
     const effectDetails = effectsData.effectDetails || [];
     console.log('   Effect details:', effectDetails.length);
     
@@ -145,23 +145,23 @@ async function verifyProjectData() {
     });
     
     if (totalMonetaryValue > 0) {
-      console.log('   ✅ Total monetary value:', totalMonetaryValue, 'SEK');
+      console.log('   Total monetary value:', totalMonetaryValue, 'SEK');
     }
 
     // Check technical data
     const techData = sampleProject.technical_data || {};
-    console.log('\n🔧 Technical Data Structure:');
+    console.log('\nTechnical Data Structure:');
     if (techData.system_name) {
-      console.log('   ✅ System:', techData.system_name);
+      console.log('   System:', techData.system_name);
     }
     if (techData.ai_methodology) {
-      console.log('   ✅ AI Method:', techData.ai_methodology);
+      console.log('   AI Method:', techData.ai_methodology);
     }
     if (techData.deployment_environment) {
-      console.log('   ✅ Environment:', techData.deployment_environment);
+      console.log('   Environment:', techData.deployment_environment);
     }
     if (techData.data_types) {
-      console.log('   ✅ Data types:', techData.data_types.join(', '));
+      console.log('   Data types:', techData.data_types.join(', '));
     }
 
     // Test analytics calculations
@@ -176,9 +176,9 @@ async function verifyProjectData() {
     
     if (actualCost > 0 && totalMonetaryValue > 0) {
       const roi = ((totalMonetaryValue - actualCost) / actualCost) * 100;
-      console.log('   ✅ ROI calculation:', roi.toFixed(1) + '%');
+      console.log('   ROI calculation:', roi.toFixed(1) + '%');
     } else {
-      console.log('   ⚠️  Cannot calculate ROI (missing cost or value data)');
+      console.log('   Cannot calculate ROI (missing cost or value data)');
     }
 
     // Show affected groups
@@ -193,11 +193,11 @@ async function verifyProjectData() {
     });
     
     if (affectedGroups.size > 0) {
-      console.log('   ✅ Affected groups:', Array.from(affectedGroups).join(', '));
+      console.log('   Affected groups:', Array.from(affectedGroups).join(', '));
     }
 
     // Summary across all projects
-    console.log('\n📋 Summary Across All Projects:');
+    console.log('\nSummary Across All Projects:');
     const phases = projects.reduce((acc, p) => {
       acc[p.phase] = (acc[p.phase] || 0) + 1;
       return acc;
@@ -210,11 +210,11 @@ async function verifyProjectData() {
     }, 0);
     console.log('   Total budgets:', totalBudgets, 'SEK');
 
-    console.log('\n✅ Data verification complete! Analytics should work with this data.');
-    console.log('💡 Visit /analytics to see the dashboard in action.');
+    console.log('\nData verification complete! Analytics should work with this data.');
+console.log('Visit /analytics to see the dashboard in action.');
     
   } catch (error) {
-    console.error('❌ Error during verification:', error);
+    console.error('Error during verification:', error);
   }
 }
 

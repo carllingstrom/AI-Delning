@@ -110,6 +110,40 @@ export async function PUT(
       }
     }
 
+    // 3. Update area relationships if provided
+    if (areas && Array.isArray(areas)) {
+      // Delete existing
+      await sb().from('project_areas').delete().eq('project_id', params.id);
+      // Insert new
+      if (areas.length > 0) {
+        const { data: areaData } = await sb().from('areas').select('id, name').in('name', areas);
+        if (areaData) {
+          const areaRows = areaData.map(area => ({
+            project_id: params.id,
+            area_id: area.id,
+          }));
+          await sb().from('project_areas').insert(areaRows);
+        }
+      }
+    }
+
+    // 4. Update value dimension relationships if provided
+    if (value_dimensions && Array.isArray(value_dimensions)) {
+      // Delete existing
+      await sb().from('project_value_dimensions').delete().eq('project_id', params.id);
+      // Insert new
+      if (value_dimensions.length > 0) {
+        const { data: valueData } = await sb().from('value_dimensions').select('id, name').in('name', value_dimensions);
+        if (valueData) {
+          const valueRows = valueData.map(value => ({
+            project_id: params.id,
+            value_dimension_id: value.id,
+          }));
+          await sb().from('project_value_dimensions').insert(valueRows);
+        }
+      }
+    }
+
     return NextResponse.json(project)
   } catch (error) {
     console.error('Update project error:', error)

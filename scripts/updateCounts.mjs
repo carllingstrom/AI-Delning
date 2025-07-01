@@ -60,7 +60,7 @@ async function updateCounts() {
       if (upsertError) {
         console.error(`Error updating counts for municipality ${municipalityId}:`, upsertError)
       } else {
-        console.log(`✅ Updated counts for municipality ${municipalityId}: ${count.total} projects`)
+        console.log(`Updated counts for municipality ${municipalityId}: ${count.total} projects`)
       }
     }
     

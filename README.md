@@ -1,30 +1,30 @@
-# 🗺️ Kommunkartan MVP
+# Kommunkartan MVP
 
 En interaktiv karta för att visualisera och hantera AI-projekt inom svenska kommuner. Byggd med Next.js, TypeScript, Supabase och Leaflet.
 
-## ✨ Funktioner
+## Funktioner
 
-### 🎯 Kärnfunktioner
+### Kärnfunktioner
 - **Interaktiv Sverige-karta** med projekt per kommun
 - **Idébank** för projekt som inte är knutna till specifika kommuner
 - **Projekthantering** med fullständiga formulär för skapande och redigering
 - **Analytics dashboard** med ROI-beräkningar och insikter
 - **Avancerad filtrering** efter områden och värdedimensioner
 
-### 📊 Analytics & Insights
+### Analytics & Insights
 - Ekonomisk översikt med budget och kostnadsberäkningar
 - ROI-analys och prestationsranking
 - Teknikinsikter och implementeringsstatistik
 - Effektmätning och påverkansbedömning
 
-### 🛠️ Teknisk Stack
+### Teknisk Stack
 - **Frontend**: Next.js 14, TypeScript, TailwindCSS
 - **Karta**: Leaflet med force-layout algoritmer
 - **Backend**: Next.js API Routes
 - **Databas**: Supabase (PostgreSQL)
 - **Deployment**: Vercel
 
-## 🚀 Snabbstart
+## Snabbstart
 
 ### Förutsättningar
 - Node.js 18+
@@ -59,7 +59,7 @@ npm run dev
 
 5. **Öppna [http://localhost:3000](http://localhost:3000)**
 
-## 📋 Databas Setup
+## Databas Setup
 
 ### Supabase Migrationer
 Projektet använder Supabase för datalagring. Se \`supabase/migrations/\` för schema.
@@ -70,7 +70,7 @@ Använd skripten i \`scripts/\` för att fylla databasen:
 node scripts/seedBasicData.mjs
 \`\`\`
 
-## 🏗️ Projektstruktur
+## Projektstruktur
 
 \`\`\`
 kommunkartan-mvp/
@@ -89,7 +89,7 @@ kommunkartan-mvp/
     └── migrations/       # Database schema
 \`\`\`
 
-## 🌟 Huvudfunktioner
+## Huvudfunktioner
 
 ### Kartfunktionalitet
 - **Force-layout algoritm** för optimal placering av kommun-cirklar
@@ -109,7 +109,7 @@ kommunkartan-mvp/
 - **Teknikinsikter** om AI-metodologier
 - **Filtrerbar data** efter områden och värde
 
-## 🚀 Deployment
+## Deployment
 
 ### Vercel Deployment
 1. Pusha kod till GitHub
@@ -122,7 +122,7 @@ kommunkartan-mvp/
 - \`NEXT_PUBLIC_SUPABASE_ANON_KEY\`
 - \`SUPABASE_SERVICE_ROLE_KEY\`
 
-## 🤝 Contributing
+## Contributing
 
 1. Fork projektet
 2. Skapa en feature branch (\`git checkout -b feature/amazing-feature\`)
@@ -130,14 +130,14 @@ kommunkartan-mvp/
 4. Push till branchen (\`git push origin feature/amazing-feature\`)
 5. Öppna en Pull Request
 
-## 📄 License
+## License
 
 Detta projekt är licensierat under MIT License.
 
-## 🏆 Credits
+## Credits
 
 Utvecklat för svenska kommuner för att främja AI-innovation och kunskapsdelning.
 
 ---
 
-**Status**: 🚀 Beta - Redo för deployment!
+**Status**: Beta - Redo för deployment!

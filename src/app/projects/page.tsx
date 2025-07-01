@@ -603,9 +603,9 @@ export default function ProjectsPage() {
           {/* Tab Navigation */}
           <div className="flex space-x-1 bg-[#1E3A4A] rounded-lg p-1">
             {[
-              { key: 'overview', label: 'Översikt', icon: '📊' },
-              { key: 'projects', label: 'Projekt', icon: '📁' },
-              { key: 'insights', label: 'Analys', icon: '🔍' }
+              { key: 'overview', label: 'Översikt', icon: 'chart' },
+              { key: 'projects', label: 'Projekt', icon: 'folder' },
+              { key: 'insights', label: 'Analys', icon: 'search' }
             ].map((tab) => (
               <button
                 key={tab.key}
@@ -616,7 +616,21 @@ export default function ProjectsPage() {
                     : 'text-gray-300 hover:text-white hover:bg-[#2A4A5A]'
                 }`}
               >
-                <span>{tab.icon}</span>
+                {tab.icon === 'chart' && (
+                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z" />
+                  </svg>
+                )}
+                {tab.icon === 'folder' && (
+                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
+                  </svg>
+                )}
+                {tab.icon === 'search' && (
+                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
+                  </svg>
+                )}
                 <span>{tab.label}</span>
               </button>
             ))}
@@ -729,9 +743,16 @@ export default function ProjectsPage() {
             <button
               onClick={handleSearch}
               disabled={searching}
-              className="px-6 py-2 bg-[#FECB00] text-[#0D1B2A] font-semibold rounded hover:bg-[#e0b400] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-6 py-2 bg-[#FECB00] text-[#0D1B2A] font-bold rounded hover:bg-[#e0b400] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
             >
-              {searching ? 'Söker...' : '🔍 Sök projekt'}
+              {searching ? 'Söker...' : (
+                <>
+                  <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
+                  </svg>
+                  <span className="font-bold">Sök projekt</span>
+                </>
+              )}
             </button>
             
             <button

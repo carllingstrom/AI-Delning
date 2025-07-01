@@ -20,7 +20,7 @@ async function updateMunicipalityData() {
     const geojsonPath = path.join(process.cwd(), 'public/data/sweden_municipalities.geojson')
     const geojsonData = JSON.parse(fs.readFileSync(geojsonPath, 'utf8'))
     
-    console.log(`📊 Found ${geojsonData.features.length} municipalities in GeoJSON`)
+    console.log(`Found ${geojsonData.features.length} municipalities in GeoJSON`)
     
     // Get all existing municipalities
     const { data: existingMunicipalities, error: fetchError } = await supabase
@@ -85,11 +85,11 @@ async function updateMunicipalityData() {
         
         updated++
       } else {
-        console.log(`⚠️  No GeoJSON data found for: ${municipality.name}`)
+        console.log(`No GeoJSON data found for: ${municipality.name}`)
       }
     }
     
-    console.log('\n📊 Update Summary:')
+    console.log('\nUpdate Summary:')
     console.log(`   • Municipalities in database: ${existingMunicipalities.length}`)
     console.log(`   • Municipalities in GeoJSON: ${geojsonData.features.length}`)
     console.log(`   • Matched municipalities: ${matched}`)
@@ -136,15 +136,15 @@ async function updateMunicipalityData() {
     
     // Write SQL file
     fs.writeFileSync('municipality_enrichment.sql', sql)
-    console.log('✅ Generated municipality_enrichment.sql file')
+    console.log('Generated municipality_enrichment.sql file')
     
-    console.log('\n🚀 Next steps:')
+    console.log('\nNext steps:')
     console.log('   1. Run the SQL in municipality_enrichment.sql in Supabase SQL editor')
     console.log('   2. This will add the rich municipality data to your database')
     console.log('   3. Then you can use municipality_display_data view for filtering and display')
     
   } catch (error) {
-    console.error('❌ Update failed:', error)
+    console.error('Update failed:', error)
     process.exit(1)
   }
 }

@@ -3,7 +3,7 @@
 
 import 'leaflet/dist/leaflet.css';
 import { MapContainer, CircleMarker, Tooltip, useMapEvents, useMap } from 'react-leaflet';
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import * as turf from '@turf/turf';
 import { forceSimulation, forceCollide, forceX, forceY } from 'd3-force';
 import useProjectCounts from '@/components/useProjectCounts';
@@ -31,8 +31,9 @@ interface Props {
 export default function MapSwedenLeaflet({ aiFilter, valFilter, onSelectMunicipality, onSelectIdeas }: Props) {
   const counts = useProjectCounts(aiFilter, valFilter);
   const [nodes, setNodes] = useState<Node[]>([]);
-  const [ideaCount,setIdeaCount]=useState(0);
-  const [ideas,setIdeas]=useState<any[]>([]);
+  const [ideaCount, setIdeaCount] = useState(0);
+  const [ideas, setIdeas] = useState<any[]>([]);
+  const mapRef = useRef<any>(null);
 
   /* ladda GeoJSON när counts uppdateras */
   useEffect(() => {
@@ -56,34 +57,67 @@ export default function MapSwedenLeaflet({ aiFilter, valFilter, onSelectMunicipa
     })();
   }, [counts]);
 
-  useEffect(()=>{
-    fetch('/api/ideas').then(r=>r.json()).then((d)=>{setIdeas(d);setIdeaCount(d.length);});
-  },[]);
+  useEffect(() => {
+    fetch('/api/ideas').then(r => r.json()).then((d) => { setIdeas(d); setIdeaCount(d.length); });
+  }, []);
 
   return (
-    <MapContainer
-      center={[63, 15]}
-      zoom={5}
-      minZoom={5}
-      maxZoom={8}
-      style={{ width: '100%', height: '100%', background: '#004D66' }}
-      scrollWheelZoom
-      attributionControl={false}
-    >
-      <ForceLayer nodes={nodes} onSelectMunicipality={onSelectMunicipality} />
-      {ideaCount>0 && (
-        <CircleMarker
-          center={[64,32] as LatLngExpression}
-          radius={6+Math.log2(ideaCount+1)*4}
-          pathOptions={{color:'#7ED957',fillColor:'#7ED957',fillOpacity:1,weight:0}}
-          eventHandlers={{
-            click:()=>{onSelectIdeas?.(ideas);}
-          }}
-        >
-          <Tooltip direction="left" className="leading-tight"><span>Idébank – {ideaCount} projekt</span></Tooltip>
-        </CircleMarker>
-      )}
-    </MapContainer>
+    <div className="relative w-full h-full">
+      {/* Custom Zoom Controls */}
+      <ZoomControls mapRef={mapRef} />
+      <MapContainer
+        center={[63, 15]}
+        zoom={5}
+        minZoom={5}
+        maxZoom={8}
+        style={{ width: '100%', height: '100%', background: '#0D1B2A' }}
+        scrollWheelZoom
+        attributionControl={false}
+        zoomControl={false}
+      >
+        <SetMapRef mapRef={mapRef} />
+        <ForceLayer nodes={nodes} onSelectMunicipality={onSelectMunicipality} />
+        {ideaCount > 0 && (
+          <CircleMarker
+            center={[64, 32] as LatLngExpression}
+            radius={6 + Math.log2(ideaCount + 1) * 4}
+            pathOptions={{ color: '#7ED957', fillColor: '#7ED957', fillOpacity: 1, weight: 0 }}
+            eventHandlers={{
+              click: () => { onSelectIdeas?.(ideas); }
+            }}
+          >
+            <Tooltip direction="left" className="leading-tight"><span>Idébank – {ideaCount} projekt</span></Tooltip>
+          </CircleMarker>
+        )}
+      </MapContainer>
+    </div>
+  );
+}
+
+function ZoomControls({ mapRef }: { mapRef: any }) {
+  return (
+    <div className="absolute top-4 right-4 z-[1000] flex flex-col gap-2">
+      <button
+        aria-label="Zooma in"
+        className="bg-white border border-gray-300 rounded-full shadow w-10 h-10 flex items-center justify-center hover:bg-gray-100 focus:outline-none"
+        onClick={() => mapRef.current && mapRef.current.zoomIn()}
+        type="button"
+      >
+        <svg className="w-6 h-6 text-[#004D66]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+        </svg>
+      </button>
+      <button
+        aria-label="Zooma ut"
+        className="bg-white border border-gray-300 rounded-full shadow w-10 h-10 flex items-center justify-center hover:bg-gray-100 focus:outline-none"
+        onClick={() => mapRef.current && mapRef.current.zoomOut()}
+        type="button"
+      >
+        <svg className="w-6 h-6 text-[#004D66]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M20 12H4" />
+        </svg>
+      </button>
+    </div>
   );
 }
 
@@ -157,4 +191,12 @@ function ForceLayer({ nodes, onSelectMunicipality }: { nodes: Node[]; onSelectMu
       })}
     </>
   );
+}
+
+function SetMapRef({ mapRef }: { mapRef: any }) {
+  const map = useMap();
+  useEffect(() => {
+    mapRef.current = map;
+  }, [map, mapRef]);
+  return null;
 }

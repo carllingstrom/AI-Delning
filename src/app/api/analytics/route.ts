@@ -114,6 +114,10 @@ export async function GET(req: NextRequest) {
         integrationPatterns: analyzeIntegrationPatterns(filteredProjects),
         technicalChallenges: analyzeTechnicalChallenges(filteredProjects),
       },
+      // National impact simulation: assume each project implementeras i 290 kommuner
+      nationalImpact: calculateNationalImpact(filteredProjects),
+      // Data completeness per field
+      dataCompleteness: analyzeDataCompleteness(filteredProjects),
       topPerformers: {
         highestROI: getTopProjectsByROI(filteredProjects, 5),
         largestBudget: getTopProjectsByBudget(filteredProjects, 5),
@@ -602,4 +606,62 @@ function getMostInnovativeProjects(projects: any[], limit: number) {
     })
     .sort((a, b) => b.innovationScore - a.innovationScore)
     .slice(0, limit);
+}
+
+function calculateNationalImpact(projects: any[]): any {
+  if (!projects || projects.length === 0) {
+    return { totalSavings: 0, savingsPerCitizen: 0 };
+  }
+
+  // Calculate total monetary savings for the projects we have
+  let totalSavingsObserved = 0;
+  const municipalitySet = new Set<number>();
+
+  projects.forEach((p: any) => {
+    const actualCost = calculateActualCost(p);
+    const monetaryValue = calculateProjectMonetaryValue(p);
+    if (monetaryValue && actualCost && monetaryValue > actualCost) {
+      totalSavingsObserved += (monetaryValue - actualCost);
+    }
+    // Count municipalities linked to this project
+    (p.project_municipalities || []).forEach((pm: any) => municipalitySet.add(pm.municipality_id));
+  });
+
+  const observedMunicipalities = municipalitySet.size || 1; // avoid div/0
+  const scaleFactor = 290 / observedMunicipalities; // Sweden has 290 municipalities
+  const nationalSavings = totalSavingsObserved * scaleFactor;
+  const savingsPerCitizen = nationalSavings / 10400000; // ~10.4 M inhabitants
+
+  return {
+    observedMunicipalities,
+    totalSavingsObserved,
+    nationalSavings,
+    savingsPerCitizen,
+  };
+}
+
+function analyzeDataCompleteness(projects: any[]): any {
+  if (!projects || projects.length === 0) return {};
+
+  const fields = [
+    'cost_data',
+    'effects_data',
+    'technical_data',
+    'leadership_data',
+    'legal_data',
+    'areas',
+    'value_dimensions',
+  ];
+
+  const completeness: Record<string, number> = {};
+  fields.forEach((field) => {
+    const filled = projects.filter((p: any) => {
+      const val = p[field];
+      if (Array.isArray(val)) return val.length > 0;
+      if (typeof val === 'object') return val && Object.keys(val).length > 0;
+      return !!val;
+    }).length;
+    completeness[field] = parseFloat(((filled / projects.length) * 100).toFixed(1));
+  });
+  return completeness;
 }

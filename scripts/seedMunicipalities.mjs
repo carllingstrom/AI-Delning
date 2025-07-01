@@ -36,7 +36,7 @@ async function run() {
     if (e) console.error(e);
   }
 
-  console.log('✅ municipalities seeded:', rows.length);
+  console.log('Municipalities seeded:', rows.length);
 }
 
 run().catch(console.error);

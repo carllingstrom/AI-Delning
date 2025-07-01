@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { X } from 'lucide-react'
+import { AREAS as AREA_OPTIONS, VALUE_DIMENSIONS } from '@/constants/projectForm'
 
 interface Project {
   id: string
@@ -19,27 +20,6 @@ interface EditProjectModalProps {
 }
 
 const PHASES = ['idea', 'pilot', 'implemented', 'cancelled'] as const
-const AREAS = [
-  'Administration',
-  'Kultur och fritid',
-  'Ledning och styrning',
-  'Medborgarservice och kommunikation',
-  'Miljö och hållbarhet',
-  'Samhällsbyggnad och stadsbyggnad',
-  'Socialtjänst och hälsa/vård och omsorg',
-  'Säkerhet och krisberedskap',
-  'Utbildning och skola',
-  'Intern administration'
-] as const
-
-const VALUE_DIMENSIONS = [
-  'Effektivisering',
-  'Kostnadsbesparing',
-  'Kvalitet / noggrannhet',
-  'Medborgarnytta',
-  'Innovation',
-  'Tidsbesparing'
-] as const
 
 export default function EditProjectModal({ project, onClose, onUpdate }: EditProjectModalProps) {
   const [formData, setFormData] = useState({
@@ -177,7 +157,7 @@ export default function EditProjectModal({ project, onClose, onUpdate }: EditPro
               Områden
             </label>
             <div className="grid grid-cols-2 gap-2">
-              {AREAS.map(area => (
+              {AREA_OPTIONS.map(area => (
                 <label key={area} className="flex items-center space-x-2">
                   <input
                     type="checkbox"

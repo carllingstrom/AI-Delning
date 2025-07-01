@@ -20,10 +20,10 @@ async function importMunicipalityData() {
     const geojsonPath = path.join(process.cwd(), 'public/data/sweden_municipalities.geojson')
     const geojsonData = JSON.parse(fs.readFileSync(geojsonPath, 'utf8'))
     
-    console.log(`📊 Found ${geojsonData.features.length} municipalities in GeoJSON`)
+    console.log(`Found ${geojsonData.features.length} municipalities in GeoJSON`)
     
     // First, update the municipalities table schema to include all the rich data
-    console.log('🔧 Updating municipalities table schema...')
+    console.log('Updating municipalities table schema...')
     
     const schemaUpdates = `
       -- Add columns for rich municipality data
@@ -97,7 +97,7 @@ async function importMunicipalityData() {
         } else {
           updatedCount++
           if (updatedCount % 50 === 0) {
-            console.log(`✅ Updated ${updatedCount} municipalities...`)
+            console.log(`Updated ${updatedCount} municipalities...`)
           }
         }
       } else {
@@ -123,13 +123,13 @@ async function importMunicipalityData() {
       .select('*', { count: 'exact', head: true })
     
     console.log('\n🎉 Municipality data import completed!')
-    console.log(`📊 Summary:`)
+    console.log(`Summary:`)
     console.log(`   • New municipalities imported: ${importedCount}`)
     console.log(`   • Existing municipalities updated: ${updatedCount}`)
     console.log(`   • Total municipalities in database: ${totalCount}`)
     
     // Create a view for easy access to municipality display data
-    console.log('\n🔧 Creating helpful views...')
+    console.log('\nCreating helpful views...')
     
     const viewSQL = `
       -- Drop existing view if it exists
@@ -197,18 +197,18 @@ async function importMunicipalityData() {
     if (viewError) {
       console.error('View creation error:', viewError)
     } else {
-      console.log('✅ Created municipality_display_data and municipality_project_counts views')
+      console.log('Created municipality_display_data and municipality_project_counts views')
     }
     
-    console.log('\n🚀 Municipality data is now ready for filtering and display!')
-    console.log('💡 You can now use this data for:')
+    console.log('\nMunicipality data is now ready for filtering and display!')
+console.log('You can now use this data for:')
     console.log('   • Map visualization with exact coordinates')
     console.log('   • Filtering by county (län)')
     console.log('   • Geographic search and analysis')
     console.log('   • Rich municipality metadata display')
     
   } catch (error) {
-    console.error('❌ Import failed:', error)
+    console.error('Import failed:', error)
     process.exit(1)
   }
 }
