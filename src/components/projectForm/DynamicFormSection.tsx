@@ -56,10 +56,13 @@ function RepeatField({
   renderQuestion: (q: Question, parentPath: string) => React.ReactNode;
 }) {
   const { fields, append, remove } = useFieldArray({ control, name: fieldId });
+  const hasInitialized = React.useRef(false);
   
-  // Ensure at least one entry exists
+  // Ensure at least one entry exists, but only if there are truly no entries
   React.useEffect(() => {
-    if (fields.length === 0) {
+    // Only add an initial entry if there are no fields at all and we haven't initialized yet
+    if (fields.length === 0 && !hasInitialized.current) {
+      hasInitialized.current = true;
       append({});
     }
   }, [fields.length, append]);
@@ -89,14 +92,24 @@ function RepeatField({
         </div>
       ))}
       
-      {/* Check if first measurement has required fields filled before showing add button */}
+      {/* Check if first cost entry has required fields filled before showing add button */}
       {(() => {
-        const firstMeasurement = watch(`${fieldId}.0`) || {};
-        const hasRequiredFields = firstMeasurement.measurementName && 
-                                 firstMeasurement.affectedGroups && 
-                                 firstMeasurement.effectChangeType;
+        const firstEntry = watch(`${fieldId}.0`) || {};
         
-        return hasRequiredFields && (
+        // For cost entries: require costType, costLabel, and at least one cost value
+        const hasRequiredFields = firstEntry.costType && 
+                                 firstEntry.costLabel && 
+                                 (firstEntry.costHours || firstEntry.costRate || firstEntry.costFixed);
+        
+        // For measurement entries: require measurementName, affectedGroups, and effectChangeType
+        const hasRequiredMeasurementFields = firstEntry.measurementName && 
+                                           firstEntry.affectedGroups && 
+                                           firstEntry.effectChangeType;
+        
+        // Show add button if either cost or measurement requirements are met
+        const canAddMore = hasRequiredFields || hasRequiredMeasurementFields;
+        
+        return canAddMore && (
           <button
             type="button"
             onClick={() => append({})}

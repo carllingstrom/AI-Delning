@@ -125,13 +125,15 @@ export default function OverviewSection({ register, watch, setValue, setError, c
               required={idx === 0} // Make first municipality required
             >
               <option value="">Välj kommun</option>
-              {municipalities
+              {Array.isArray(municipalities) ? municipalities
                 .filter((m) => !municipalityIds.includes(m.id.toString()) || m.id.toString() === id)
                 .map((m) => (
                   <option key={m.id} value={m.id.toString()}>
                     {m.name}
                   </option>
-                ))}
+                )) : (
+                  <option value="">Laddar kommuner...</option>
+                )}
             </select>
             {municipalityIds.length > 1 && (
               <button type="button" onClick={() => removeMunicipality(idx)} className="w-6 h-6 flex items-center justify-center text-white hover:text-gray-300 transition-colors">

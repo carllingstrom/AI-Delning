@@ -1,8 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { ChevronDown } from 'lucide-react';
-import dynamic from 'next/dynamic';
 
 interface AnalyticsData {
   summary: {
@@ -71,22 +69,6 @@ interface AnalyticsData {
     mostInnovative: any[];
   };
   projects: any[];
-  nationalImpact?: {
-    nationalSavings: number;
-    savingsPerCitizen: number;
-    observedMunicipalities: number;
-  };
-  dataCompleteness?: Record<string, number>;
-}
-
-// @ts-ignore – chartjs types resolved at runtime
-const Scatter: any = dynamic(() => import('react-chartjs-2').then((m:any) => m.Scatter), { ssr: false });
-// Chart.js types might be missing; we defer registration inside dynamic component if needed
-
-// Ensure all chart.js components are registered (client-side only)
-if (typeof window !== 'undefined') {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  require('chart.js/auto');
 }
 
 export default function AnalyticsPage() {
@@ -298,114 +280,6 @@ export default function AnalyticsPage() {
           </div>
         </div>
 
-        {/* National Impact */}
-        {analytics.nationalImpact && (
-          <div className="bg-[#1E3A4A] p-6 rounded-lg mb-8">
-            <h2 className="text-xl font-bold text-[#FFD600] mb-4">Nationell besparingssimulering</h2>
-            <p className="text-lg">Om alla 290 kommuner implementerar dagens projektportfölj:</p>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4 text-[#FECB00] font-semibold">
-              <div>
-                <div className="text-sm text-gray-300">Beräknad total besparing</div>
-                <div className="text-2xl">{formatCurrency(analytics.nationalImpact.nationalSavings)}</div>
-              </div>
-              <div>
-                <div className="text-sm text-gray-300">Besparing per invånare</div>
-                <div className="text-2xl">{formatCurrency(analytics.nationalImpact.savingsPerCitizen)}</div>
-              </div>
-              <div>
-                <div className="text-sm text-gray-300">Data baserad på</div>
-                <div className="text-2xl">{analytics.nationalImpact.observedMunicipalities} kommuner</div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Data Completeness */}
-        {analytics.dataCompleteness && (
-          <div className="bg-[#1E3A4A] p-6 rounded-lg mb-8">
-            <h2 className="text-xl font-bold text-[#FFD600] mb-4">Datakompletthet</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {Object.entries(analytics.dataCompleteness).map(([field, percent]) => (
-                <div key={field} className="flex flex-col">
-                  <span className="text-sm capitalize">{field.replace(/_/g,' ')}</span>
-                  <div className="w-full h-2 bg-gray-600 rounded overflow-hidden mt-1">
-                    <div style={{width:`${percent}%`}} className="h-2 bg-[#FECB00]"></div>
-                  </div>
-                  <span className="text-xs text-gray-300 mt-1">{percent}% ifyllda</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* ROI vs Budget Scatter */}
-        {analytics.projects && analytics.projects.length > 0 && (
-          <div className="bg-[#1E3A4A] p-6 rounded-lg mb-8">
-            <h2 className="text-xl font-bold text-[#FFD600] mb-4">ROI vs. Budget</h2>
-            <Scatter
-              data={{
-                datasets: [
-                  {
-                    label: 'Projekt',
-                    data: analytics.projects
-                      .filter((p:any) => (p.calculatedMetrics?.budget || 0) > 0 && p.calculatedMetrics?.roi !== null)
-                      .map((p:any) => ({ x: p.calculatedMetrics.budget, y: p.calculatedMetrics.roi })),
-                    backgroundColor: '#FECB00',
-                  },
-                ],
-              }}
-              options={{
-                plugins: { legend: { display: false } },
-                scales: {
-                  x: { title: { display: true, text: 'Budget (SEK)' }, type: 'linear', beginAtZero: true },
-                  y: { title: { display: true, text: 'ROI %' }, beginAtZero: true },
-                },
-              }}
-            />
-          </div>
-        )}
-
-        {/* Top Performers */}
-        {analytics.topPerformers && (
-          <div className="bg-[#1E3A4A] p-6 rounded-lg mb-8">
-            <h2 className="text-xl font-bold text-[#FFD600] mb-4">Toppresultat</h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
-              <div>
-                <h3 className="font-semibold text-[#FECB00] mb-2">Högst ROI</h3>
-                <ul className="space-y-1">
-                  {analytics.topPerformers.highestROI.map((p:any)=> (
-                    <li key={p.id}>{p.title} – {((p.calculatedMetrics?.roi ?? p.roi) ?? 0).toFixed(1)}%</li>
-                  ))}
-                </ul>
-              </div>
-              <div>
-                <h3 className="font-semibold text-[#FECB00] mb-2">Störst Budget</h3>
-                <ul className="space-y-1">
-                  {analytics.topPerformers.largestBudget.map((p:any)=> (
-                    <li key={p.id}>{p.title} – {formatCurrency(p.calculatedMetrics?.budget ?? p.budget ?? 0)}</li>
-                  ))}
-                </ul>
-              </div>
-              <div>
-                <h3 className="font-semibold text-[#FECB00] mb-2">Flest grupper påverkade</h3>
-                <ul className="space-y-1">
-                  {analytics.topPerformers.mostAffectedGroups.map((p:any)=> (
-                    <li key={p.id}>{p.title} – {(p.calculatedMetrics?.affectedGroups?.length ?? 0)}</li>
-                  ))}
-                </ul>
-              </div>
-              <div>
-                <h3 className="font-semibold text-[#FECB00] mb-2">Mest innovativa</h3>
-                <ul className="space-y-1">
-                  {analytics.topPerformers.mostInnovative.map((p:any)=> (
-                    <li key={p.id}>{p.title}</li>
-                  ))}
-                </ul>
-              </div>
-            </div>
-          </div>
-        )}
-
         {/* Charts and Breakdowns */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
           {/* Projects by Phase */}
@@ -572,6 +446,525 @@ export default function AnalyticsPage() {
               </div>
             </div>
           </div>
+        </div>
+
+        {/* NEW ANALYTICS SECTIONS */}
+        
+        {/* Service Level Radar */}
+        {analytics?.serviceLevelRadarData && analytics.serviceLevelRadarData.length > 0 && (
+          <div className="bg-[#1E3A4A] p-6 rounded-lg mb-8">
+            <h3 className="text-xl font-bold text-[#FFD600] mb-4">Service Level-radar (KPI-analys)</h3>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {analytics.serviceLevelRadarData.slice(0, 4).map((project, index) => (
+                <div key={project.projectId} className="bg-[#121F2B] p-4 rounded">
+                  <h4 className="font-semibold mb-3 text-sm">{project.title}</h4>
+                  <div className="space-y-2 text-xs">
+                    <div className="flex justify-between">
+                      <span>Kvalitet:</span>
+                      <span className="text-[#FFD600]">{project.kpis.quality}%</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Medborgarnöjdhet:</span>
+                      <span className="text-[#FFD600]">{project.kpis.citizenSatisfaction}%</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Innovation:</span>
+                      <span className="text-[#FFD600]">{project.kpis.innovation}%</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Effektivitet:</span>
+                      <span className="text-[#FFD600]">{project.kpis.efficiency}%</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Hållbarhet:</span>
+                      <span className="text-[#FFD600]">{project.kpis.sustainability}%</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Tillgänglighet:</span>
+                      <span className="text-[#FFD600]">{project.kpis.accessibility}%</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* SDG Mapping */}
+        {analytics?.sdgMappingData && analytics.sdgMappingData.length > 0 && (
+          <div className="bg-[#1E3A4A] p-6 rounded-lg mb-8">
+            <h3 className="text-xl font-bold text-[#FFD600] mb-4">FN:s hållbarhetsmål-kartläggning</h3>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {analytics.sdgMappingData.slice(0, 6).map((project, index) => (
+                <div key={project.projectId} className="bg-[#121F2B] p-4 rounded">
+                  <h4 className="font-semibold mb-2 text-sm">{project.title}</h4>
+                  <div className="mb-2">
+                    <span className="text-xs text-gray-400">SDG-mål:</span>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {project.sdgs.map((sdg: string, sdgIndex: number) => (
+                        <span key={sdgIndex} className="px-2 py-1 bg-[#FFD600] text-black text-xs rounded">
+                          {sdg}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="text-xs text-gray-400">
+                    Områden: {project.areas.join(', ')}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Municipality AI Heatmap */}
+        {analytics?.municipalityAIHeatmapData && analytics.municipalityAIHeatmapData.length > 0 && (
+          <div className="bg-[#1E3A4A] p-6 rounded-lg mb-8">
+            <h3 className="text-xl font-bold text-[#FFD600] mb-4">Kommuner vs AI-områden (Heatmap)</h3>
+            <div className="overflow-x-auto">
+              <div className="grid grid-cols-1 gap-4">
+                {analytics.municipalityAIHeatmapData
+                  .filter((item: any) => item.count > 0)
+                  .slice(0, 20)
+                  .map((item: any, index: number) => (
+                    <div key={index} className="flex items-center justify-between bg-[#121F2B] p-3 rounded">
+                      <div className="flex-1">
+                        <span className="font-medium">{item.municipality}</span>
+                        <span className="text-gray-400 mx-2">→</span>
+                        <span className="text-sm">{item.area}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[#FFD600] font-semibold">{item.count}</span>
+                        <div 
+                          className="w-4 h-4 rounded"
+                          style={{
+                            backgroundColor: `rgba(255, 214, 0, ${Math.min(item.count / 5, 1)})`
+                          }}
+                        />
+                      </div>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Project Timeline */}
+        {analytics?.projectTimelineData && analytics.projectTimelineData.length > 0 && (
+          <div className="bg-[#1E3A4A] p-6 rounded-lg mb-8">
+            <h3 className="text-xl font-bold text-[#FFD600] mb-4">Tidslinje över projekt</h3>
+            <div className="space-y-4">
+              {analytics.projectTimelineData.slice(0, 10).map((project: any, index: number) => (
+                <div key={project.id} className="bg-[#121F2B] p-4 rounded">
+                  <div className="flex justify-between items-start mb-2">
+                    <h4 className="font-semibold text-sm">{project.title}</h4>
+                    <span className={`px-2 py-1 text-xs rounded ${
+                      project.phase === 'Genomförd' ? 'bg-green-600' :
+                      project.phase === 'Pågående' ? 'bg-blue-600' :
+                      project.phase === 'Budgeterad' ? 'bg-yellow-600' : 'bg-gray-600'
+                    }`}>
+                      {project.phase}
+                    </span>
+                  </div>
+                  <div className="text-xs text-gray-400 space-y-1">
+                    <div>Kommun: {project.municipality}</div>
+                    {project.startDate && (
+                      <div>Start: {new Date(project.startDate).toLocaleDateString('sv-SE')}</div>
+                    )}
+                    {project.duration && (
+                      <div>Varaktighet: {project.duration} dagar</div>
+                    )}
+                    <div>Kostnad: {formatCurrency(project.totalCost)}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Risk vs Benefit Matrix */}
+        {analytics?.riskBenefitMatrixData && analytics.riskBenefitMatrixData.length > 0 && (
+          <div className="bg-[#1E3A4A] p-6 rounded-lg mb-8">
+            <h3 className="text-xl font-bold text-[#FFD600] mb-4">Risk vs nytta-matris</h3>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {analytics.riskBenefitMatrixData.slice(0, 8).map((project: any, index: number) => (
+                <div key={project.projectId} className="bg-[#121F2B] p-4 rounded">
+                  <h4 className="font-semibold mb-3 text-sm">{project.title}</h4>
+                  <div className="grid grid-cols-2 gap-4 text-xs">
+                    <div>
+                      <div className="flex justify-between mb-1">
+                        <span>Risk:</span>
+                        <span className="text-[#FFD600]">{project.riskScore}%</span>
+                      </div>
+                      <div className="w-full bg-gray-600 rounded-full h-2">
+                        <div 
+                          className="bg-red-500 h-2 rounded-full" 
+                          style={{ width: `${project.riskScore}%` }}
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <div className="flex justify-between mb-1">
+                        <span>Nytta:</span>
+                        <span className="text-[#FFD600]">{project.benefitScore}%</span>
+                      </div>
+                      <div className="w-full bg-gray-600 rounded-full h-2">
+                        <div 
+                          className="bg-green-500 h-2 rounded-full" 
+                          style={{ width: `${project.benefitScore}%` }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="mt-3 text-xs">
+                    <span className={`px-2 py-1 rounded ${
+                      project.quadrant === 'High Risk, High Reward' ? 'bg-yellow-600' :
+                      project.quadrant === 'High Risk, Low Reward' ? 'bg-red-600' :
+                      project.quadrant === 'Low Risk, High Reward' ? 'bg-green-600' : 'bg-gray-600'
+                    }`}>
+                      {project.quadrant}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Skill Gap Analysis */}
+        {analytics?.skillGapAnalysisData && analytics.skillGapAnalysisData.gaps && (
+          <div className="bg-[#1E3A4A] p-6 rounded-lg mb-8">
+            <h3 className="text-xl font-bold text-[#FFD600] mb-4">Kompetensgap-analys</h3>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div>
+                <h4 className="font-semibold mb-3">Kompetensgap per kategori</h4>
+                <div className="space-y-3">
+                  {analytics.skillGapAnalysisData.gaps.slice(0, 5).map((gap: any, index: number) => (
+                    <div key={gap.category} className="bg-[#121F2B] p-3 rounded">
+                      <div className="flex justify-between items-center mb-2">
+                        <span className="font-medium text-sm">{gap.category}</span>
+                        <span className={`px-2 py-1 text-xs rounded ${
+                          gap.status === 'Critical Gap' ? 'bg-red-600' :
+                          gap.status === 'Surplus' ? 'bg-green-600' : 'bg-yellow-600'
+                        }`}>
+                          {gap.status}
+                        </span>
+                      </div>
+                      <div className="text-xs space-y-1">
+                        <div>Krävs: {gap.required}</div>
+                        <div>Tillgängligt: {gap.available}</div>
+                        <div>Gap: {gap.gap}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <h4 className="font-semibold mb-3">Mest efterfrågade kompetenser</h4>
+                <div className="space-y-2">
+                  {analytics.skillGapAnalysisData.required.slice(0, 5).map((skill: any, index: number) => (
+                    <div key={skill.category} className="flex justify-between items-center bg-[#121F2B] p-2 rounded">
+                      <span className="text-sm">{skill.category}</span>
+                      <span className="text-[#FFD600] font-semibold">{skill.count}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Future Trends Forecast */}
+        {analytics?.futureTrendsForecastData && (
+          <div className="bg-[#1E3A4A] p-6 rounded-lg mb-8">
+            <h3 className="text-xl font-bold text-[#FFD600] mb-4">Framtida trender-prognos</h3>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div>
+                <h4 className="font-semibold mb-3">Teknologitrender</h4>
+                <div className="space-y-2">
+                  {analytics.futureTrendsForecastData.technologyTrends.slice(0, 5).map((trend: any, index: number) => (
+                    <div key={trend.technology} className="bg-[#121F2B] p-3 rounded">
+                      <div className="flex justify-between items-center mb-1">
+                        <span className="text-sm font-medium">{trend.technology}</span>
+                        <span className={`px-2 py-1 text-xs rounded ${
+                          trend.trend === 'Rising' ? 'bg-green-600' :
+                          trend.trend === 'Stable' ? 'bg-yellow-600' : 'bg-red-600'
+                        }`}>
+                          {trend.trend}
+                        </span>
+                      </div>
+                      <div className="text-xs text-gray-400">
+                        Tillväxt: +{trend.growthRate}%
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <h4 className="font-semibold mb-3">Områdestrender</h4>
+                <div className="space-y-2">
+                  {analytics.futureTrendsForecastData.areaTrends.slice(0, 5).map((trend: any, index: number) => (
+                    <div key={trend.area} className="bg-[#121F2B] p-3 rounded">
+                      <div className="flex justify-between items-center mb-1">
+                        <span className="text-sm font-medium">{trend.area}</span>
+                        <span className={`px-2 py-1 text-xs rounded ${
+                          trend.trend === 'Rising' ? 'bg-green-600' :
+                          trend.trend === 'Stable' ? 'bg-yellow-600' : 'bg-red-600'
+                        }`}>
+                          {trend.trend}
+                        </span>
+                      </div>
+                      <div className="text-xs text-gray-400">
+                        Tillväxt: +{trend.growthRate}%
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <h4 className="font-semibold mb-3">Övergripande adoption</h4>
+                <div className="bg-[#121F2B] p-4 rounded">
+                  <div className="space-y-3 text-sm">
+                    <div className="flex justify-between">
+                      <span>Nuvarande projekt:</span>
+                      <span className="text-[#FFD600]">{analytics.futureTrendsForecastData.adoptionTrends.currentTotal}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Tillväxt senaste året:</span>
+                      <span className="text-[#FFD600]">{analytics.futureTrendsForecastData.adoptionTrends.recentGrowth}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Tillväxttakt:</span>
+                      <span className="text-[#FFD600]">{analytics.futureTrendsForecastData.adoptionTrends.growthRate}%</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Prognos (2 år):</span>
+                      <span className="text-[#FFD600]">{analytics.futureTrendsForecastData.adoptionTrends.projectedTotal}</span>
+                    </div>
+                    <div className="mt-3">
+                      <span className={`px-2 py-1 rounded text-xs ${
+                        analytics.futureTrendsForecastData.adoptionTrends.trend === 'Strong Growth' ? 'bg-green-600' :
+                        analytics.futureTrendsForecastData.adoptionTrends.trend === 'Moderate Growth' ? 'bg-yellow-600' :
+                        analytics.futureTrendsForecastData.adoptionTrends.trend === 'Slow Growth' ? 'bg-blue-600' : 'bg-red-600'
+                      }`}>
+                        {analytics.futureTrendsForecastData.adoptionTrends.trend}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Data Quality Analysis */}
+        <div className="bg-[#1E3A4A] p-6 rounded-lg mb-8">
+          <h3 className="text-xl font-bold text-[#FFD600] mb-4">Data Quality Analysis</h3>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div>
+              <h4 className="font-semibold mb-3">Data Completeness</h4>
+              <div className="space-y-3">
+                <div className="bg-[#121F2B] p-3 rounded">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-sm">Basic Information</span>
+                    <span className="text-[#FFD600] font-semibold">100%</span>
+                  </div>
+                  <div className="text-xs text-gray-400">
+                    All projects have title and intro
+                  </div>
+                </div>
+                
+                <div className="bg-[#121F2B] p-3 rounded">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-sm">Cost Data</span>
+                    <span className="text-yellow-500 font-semibold">33%</span>
+                  </div>
+                  <div className="text-xs text-gray-400">
+                    Only 1/3 projects have budget information
+                  </div>
+                </div>
+                
+                <div className="bg-[#121F2B] p-3 rounded">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-sm">Effects Data</span>
+                    <span className="text-red-500 font-semibold">33%</span>
+                  </div>
+                  <div className="text-xs text-gray-400">
+                    Only 1/3 projects have quantitative effects
+                  </div>
+                </div>
+                
+                <div className="bg-[#121F2B] p-3 rounded">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-sm">Technical Data</span>
+                    <span className="text-yellow-500 font-semibold">33%</span>
+                  </div>
+                  <div className="text-xs text-gray-400">
+                    Only 1/3 projects have AI methodology
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div>
+              <h4 className="font-semibold mb-3">Recommendations</h4>
+              <div className="space-y-2">
+                <div className="bg-[#121F2B] p-3 rounded border-l-4 border-red-500">
+                  <div className="text-sm font-medium">Prioritize Budget Collection</div>
+                  <div className="text-xs text-gray-400 mt-1">
+                    67% of projects are missing budget information
+                  </div>
+                </div>
+                
+                <div className="bg-[#121F2B] p-3 rounded border-l-4 border-yellow-500">
+                  <div className="text-sm font-medium">Improve Effects Measurement</div>
+                  <div className="text-xs text-gray-400 mt-1">
+                    Encourage quantitative effect measurements
+                  </div>
+                </div>
+                
+                <div className="bg-[#121F2B] p-3 rounded border-l-4 border-blue-500">
+                  <div className="text-sm font-medium">Document AI Methodologies</div>
+                  <div className="text-xs text-gray-400 mt-1">
+                    Require AI methodology for all AI projects
+                  </div>
+                </div>
+              </div>
+              
+              <div className="mt-4 p-3 bg-[#121F2B] rounded">
+                <div className="text-sm font-medium text-[#FFD600]">Current Data Status</div>
+                <div className="text-xs text-gray-400 mt-1">
+                  Based on {analytics?.summary?.totalProjects || 0} projects in the system
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* National Savings Simulation Card */}
+        <div className="bg-[#1E3A4A] p-6 rounded-lg mb-8">
+          <h2 className="text-2xl font-bold text-[#FFD600] mb-2">Nationell besparingssimulering</h2>
+          <p className="mb-4 text-gray-300">Simulerad besparing om alla Sveriges 290 kommuner implementerar motsvarande projekt.</p>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+              <div className="text-lg text-gray-400">Totalt simulerad besparing</div>
+              <div className="text-3xl font-bold text-[#FFD600]">{formatCurrency(analytics.nationalSavingsSimulation.totalSimulatedSavings || 0)}</div>
+            </div>
+            <div>
+              <div className="text-lg text-gray-400">Besparing per invånare</div>
+              <div className="text-3xl font-bold text-[#FFD600]">{analytics.nationalSavingsSimulation.savingsPerInhabitant || 0} kr</div>
+            </div>
+          </div>
+          <div className="mt-4 text-sm text-gray-400">
+            Baserat på {analytics.nationalSavingsSimulation.usedMunicipalityCount} kommuner i datasetet och en uppskattad befolkning på {analytics.nationalSavingsSimulation.usedPopulation.toLocaleString('sv-SE')} personer.
+          </div>
+        </div>
+
+        {/* Budgetfördelning Sankey Card */}
+        <div className="bg-[#1E3A4A] p-6 rounded-lg mb-8">
+          <h2 className="text-2xl font-bold text-[#FFD600] mb-2">Budgetfördelning Sankey</h2>
+          <p className="mb-4 text-gray-300">Visualisering av flödet från kostnadstyper till projekt och vidare till kommuner.</p>
+          {analytics.budgetSankeyData && analytics.budgetSankeyData.nodes.length > 0 && analytics.budgetSankeyData.links.length > 0 ? (
+            <div style={{ width: '100%', height: 400 }}>
+              <ResponsiveContainer width="100%" height={400}>
+                <Sankey
+                  data={{
+                    nodes: analytics.budgetSankeyData.nodes.map((node, index) => ({ ...node, key: index })),
+                    links: analytics.budgetSankeyData.links
+                  }}
+                  nodePadding={24}
+                  margin={{ top: 20, bottom: 20, left: 20, right: 20 }}
+                  link={{ stroke: '#FFD600', strokeOpacity: 0.4 }}
+                  node={{ stroke: '#FFD600', fill: '#FFD600', fillOpacity: 0.8 }}
+                >
+                  <SankeyTooltip />
+                </Sankey>
+              </ResponsiveContainer>
+            </div>
+          ) : (
+            <div className="text-gray-400">Ingen budgetfördelningsdata tillgänglig för nuvarande filter.</div>
+          )}
+        </div>
+
+        {/* Kostnad vs. Effekt-heatmap Card */}
+        <div className="bg-[#1E3A4A] p-6 rounded-lg mb-8">
+          <h2 className="text-2xl font-bold text-[#FFD600] mb-2">Kostnad vs. Effekt-heatmap</h2>
+          <p className="mb-4 text-gray-300">Fyrfältare där X = faktisk kostnad och Y = monetär effekt per projekt.</p>
+          {analytics.costEffectHeatmapData && analytics.costEffectHeatmapData.length > 0 ? (
+            <div style={{ width: '100%', height: 400 }}>
+              <ChartResponsiveContainer width="100%" height={400}>
+                <ScatterChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                  <XAxis type="number" dataKey="x" name="Kostnad" tickFormatter={formatCurrency} stroke="#FFD600">
+                    <Label value="Faktisk kostnad (SEK)" offset={-10} position="insideBottom" fill="#FFD600" />
+                  </XAxis>
+                  <YAxis type="number" dataKey="y" name="Effekt" tickFormatter={formatCurrency} stroke="#FFD600">
+                    <Label value="Monetär effekt (SEK)" angle={-90} position="insideLeft" fill="#FFD600" />
+                  </YAxis>
+                  <ChartTooltip cursor={{ strokeDasharray: '3 3' }} formatter={(v: number) => formatCurrency(v)} />
+                  <Scatter name="Projekt" data={analytics.costEffectHeatmapData} fill="#FFD600" />
+                </ScatterChart>
+              </ChartResponsiveContainer>
+            </div>
+          ) : (
+            <div className="text-gray-400">Ingen heatmap-data tillgänglig för nuvarande filter.</div>
+          )}
+        </div>
+
+        {/* Break-even-tid Card */}
+        <div className="bg-[#1E3A4A] p-6 rounded-lg mb-8">
+          <h2 className="text-2xl font-bold text-[#FFD600] mb-2">Break-even-tid</h2>
+          <p className="mb-4 text-gray-300">Antal månader tills projektet når break-even (ROI = 0), baserat på periodiserad kostnad och effekt.</p>
+          {analytics.breakEvenData && analytics.breakEvenData.length > 0 ? (
+            <div className="space-y-2">
+              {analytics.breakEvenData.map((item: any) => (
+                <div key={item.projectId} className="flex justify-between items-center border-b border-gray-700 py-2">
+                  <span className="truncate font-semibold">{item.title}</span>
+                  <span className="text-[#FFD600] font-mono">
+                    {item.breakEvenMonths ? `${item.breakEvenMonths} mån` : 'Ej uppnådd'}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-gray-400">Ingen break-even-data tillgänglig för nuvarande filter.</div>
+          )}
+        </div>
+
+        {/* Top-10 kvalitativa effekter (wordcloud) Card */}
+        <div className="bg-[#1E3A4A] p-6 rounded-lg mb-8">
+          <h2 className="text-2xl font-bold text-[#FFD600] mb-2">Top-10 kvalitativa effekter</h2>
+          <p className="mb-4 text-gray-300">Frekvensanalys av de vanligaste orden i projektens effektbeskrivningar.</p>
+          {analytics.topQualitativeEffectsWordcloud && analytics.topQualitativeEffectsWordcloud.length > 0 ? (
+            <SimpleWordcloud words={analytics.topQualitativeEffectsWordcloud} />
+          ) : (
+            <div className="text-gray-400">Ingen wordcloud-data tillgänglig för nuvarande filter.</div>
+          )}
+        </div>
+
+        {/* Effekt-spridning (bubble chart) Card */}
+        <div className="bg-[#1E3A4A] p-6 rounded-lg mb-8">
+          <h2 className="text-2xl font-bold text-[#FFD600] mb-2">Effekt-spridning</h2>
+          <p className="mb-4 text-gray-300">Antal påverkade grupper × monetärt värde per projekt (bubbel­diagram).</p>
+          {analytics.effectSpreadBubbleData && analytics.effectSpreadBubbleData.length > 0 ? (
+            <div style={{ width: '100%', height: 400 }}>
+              <ChartResponsiveContainer width="100%" height={400}>
+                <ScatterChart margin={{ top: 20, right: 20, bottom: 20, left: 20 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#334155" />
+                  <XAxis type="number" dataKey="numGroups" name="Grupper" stroke="#FFD600">
+                    <Label value="Antal påverkade grupper" offset={-10} position="insideBottom" fill="#FFD600" />
+                  </XAxis>
+                  <YAxis type="number" dataKey="monetaryValue" name="Värde" tickFormatter={formatCurrency} stroke="#FFD600">
+                    <Label value="Monetärt värde (SEK)" angle={-90} position="insideLeft" fill="#FFD600" />
+                  </YAxis>
+                  <ChartTooltip cursor={{ strokeDasharray: '3 3' }} formatter={(v: number) => formatCurrency(v)} />
+                  <Scatter name="Projekt" data={analytics.effectSpreadBubbleData} fill="#FFD600" shape="circle" />
+                </ScatterChart>
+              </ChartResponsiveContainer>
+            </div>
+          ) : (
+            <div className="text-gray-400">Ingen effekt-spridningsdata tillgänglig för nuvarande filter.</div>
+          )}
         </div>
 
         {/* Footer Info */}

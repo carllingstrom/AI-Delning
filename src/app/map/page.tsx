@@ -211,7 +211,19 @@ export default function MapPage() {
             </select>
             <button 
               onClick={() => {
-                fetch('/api/ideas').then(r => r.json()).then(handleIdeasSelect);
+                fetch('/api/ideas')
+  .then(async r => {
+    if (!r.ok) {
+      const text = await r.text();
+      console.error(`Ideas API error (${r.status}):`, text);
+      throw new Error(`Ideas API failed: ${r.status} - ${text}`);
+    }
+    return r.json();
+  })
+  .then(handleIdeasSelect)
+  .catch(error => {
+    console.error('Error loading ideas:', error);
+  });
                 setSelectedMunicipalityId(null);
               }}
               className="w-full px-4 py-2 bg-green-100 text-green-800 font-medium rounded hover:bg-green-200 transition-colors flex items-center justify-center"

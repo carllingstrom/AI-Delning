@@ -12,7 +12,7 @@ import { legalSections } from '../../../components/projectForm/schemas/legalSche
 import { legalSectionsIdea } from '../../../components/projectForm/schemas/legalSchema-idea';
 import useWizard from '../../../hooks/useWizard';
 import { leadershipSchema } from '../../../components/projectForm/schemas/leadershipSchema';
-import { valueCreationSchema } from '../../../components/projectForm/schemas/effectsSchema';
+import { createValueCreationSchema } from '../../../components/projectForm/schemas/effectsSchema';
 
 // Step identifiers
 const STEPS = [
@@ -36,8 +36,6 @@ const BASE_DEFAULTS = {
   areas: [],
   valueDimensions: [],
   phase: 'idea',
-  cost_entries: [],
-  cost_reflection: '',
   effectDetails: [],
   // Add common form fields to prevent TypeScript errors
   hasDedicatedBudget: false,
@@ -65,7 +63,27 @@ function ProjectWizardContent() {
 
   // Load municipalities
   useEffect(() => {
-    fetch('/api/municipalities').then(r => r.json()).then(setMunicipalities);
+    fetch('/api/municipalities')
+      .then(async r => {
+        if (!r.ok) {
+          const text = await r.text();
+          console.error(`Municipalities API error (${r.status}):`, text);
+          throw new Error(`Municipalities API failed: ${r.status} - ${text}`);
+        }
+        return r.json();
+      })
+      .then(data => {
+        if (Array.isArray(data)) {
+          setMunicipalities(data);
+        } else {
+          console.error('Municipalities API returned non-array data:', data);
+          setMunicipalities([]);
+        }
+      })
+      .catch(error => {
+        console.error('Error loading municipalities:', error);
+        setMunicipalities([]);
+      });
   }, []);
 
   // Load existing project data if editing
@@ -75,8 +93,25 @@ function ProjectWizardContent() {
       
       // Load both project data and municipality associations
       Promise.all([
-        fetch(`/api/projects/${editId}`).then(r => r.json()),
-        fetch(`/api/projects/${editId}/municipalities`).then(r => r.json()).catch(() => [])
+        fetch(`/api/projects/${editId}`)
+          .then(async r => {
+            if (!r.ok) {
+              const text = await r.text();
+              console.error(`Project API error (${r.status}):`, text);
+              throw new Error(`Project API failed: ${r.status} - ${text}`);
+            }
+            return r.json();
+          }),
+        fetch(`/api/projects/${editId}/municipalities`)
+          .then(async r => {
+            if (!r.ok) {
+              const text = await r.text();
+              console.error(`Project municipalities API error (${r.status}):`, text);
+              throw new Error(`Project municipalities API failed: ${r.status} - ${text}`);
+            }
+            return r.json();
+          })
+          .catch(() => [])
       ])
         .then(([project, projectMunicipalities]) => {
           console.log('Loaded project for editing:', project);
@@ -283,12 +318,16 @@ function ProjectWizardContent() {
   const onBack = () => prev();
 
   const renderStep = () => {
+    // Get selected value dimensions for dynamic effects schema
+    const selectedValueDimensions = watch('valueDimensions') || [];
+    const dynamicEffectsSchema = createValueCreationSchema(selectedValueDimensions);
+    
     // For 'idea' phase, use IDEA-specific schemas where needed
     if (phase === 'idea') {
       switch (stepIdx) {
         case 0: return <OverviewSection register={register} watch={watch} setValue={setValue} setError={setError} clearErrors={clearErrors} errors={errors} municipalities={municipalities} />;
         case 1: return <DynamicFormSection schema={costSectionSchemaIdea} {...methods} />;
-        case 2: return <DynamicFormSection schema={valueCreationSchema} {...methods} />;
+        case 2: return <DynamicFormSection schema={dynamicEffectsSchema} {...methods} />;
         case 3: return <LegalChecklist sections={dataSections as any} {...methods} />;
         case 4: return <DynamicFormSection schema={leadershipSchema} {...methods} />;
         case 5: return <LegalChecklist sections={legalSectionsIdea as any} {...methods} />;
@@ -300,7 +339,7 @@ function ProjectWizardContent() {
     switch (stepIdx) {
       case 0: return <OverviewSection register={register} watch={watch} setValue={setValue} setError={setError} clearErrors={clearErrors} errors={errors} municipalities={municipalities} />;
       case 1: return <DynamicFormSection schema={costSectionSchema} {...methods} />;
-      case 2: return <DynamicFormSection schema={valueCreationSchema} {...methods} />;
+      case 2: return <DynamicFormSection schema={dynamicEffectsSchema} {...methods} />;
       case 3: return <LegalChecklist sections={dataSections as any} {...methods} />;
       case 4: return <DynamicFormSection schema={leadershipSchema} {...methods} />;
       case 5: return <LegalChecklist sections={legalSections as any} {...methods} />;

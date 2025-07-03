@@ -24,18 +24,19 @@ export const costSectionSchema: SectionSchema = {
           type: 'number',
           label: 'Total budget (SEK)',
           placeholder: 'Ange belopp i kronor',
+          optional: false, // obligatorisk om budget finns
         },
         {
           id: 'budgetBreakdown',
           type: 'checkbox',
           label: 'Vad ingår i budgeten?',
           options: [
-            { value: 'staff_time', label: 'Interna arbetstimmar' },
-            { value: 'consultant_fees', label: 'Konsultkostnader' },
-            { value: 'software', label: 'Programvarulicenser' },
-            { value: 'hardware', label: 'Hårdvara/infrastruktur' },
-            { value: 'training', label: 'Kompetensutveckling' },
-            { value: 'other', label: 'Annat' },
+            { value: 'Intern personal (debiterbar tid)', label: 'Intern personal (debiterbar tid)' },
+            { value: 'Extern konsult', label: 'Extern konsult' },
+            { value: 'Licenser / mjukvara', label: 'Licenser / mjukvara' },
+            { value: 'Infrastruktur / hårdvara', label: 'Infrastruktur / hårdvara' },
+            { value: 'Utbildning / kompetensinsats', label: 'Utbildning / kompetensinsats' },
+            { value: 'Annat', label: 'Annat' },
           ],
         },
         {
@@ -51,6 +52,7 @@ export const costSectionSchema: SectionSchema = {
       id: 'actualCostDetails',
       type: 'group',
       label: 'Faktiska kostnader (används för ROI och uppföljning)',
+      condition: { id: 'hasDedicatedBudget', value: 'true', op: 'equals' }, // visas bara om budget finns
       questions: [
         {
           id: 'costEntries',
@@ -94,7 +96,7 @@ export const costSectionSchema: SectionSchema = {
             {
               id: 'costFixed',
               type: 'number',
-              label: 'Fast kostnad/ Overhead (SEK)',
+              label: 'Fast kostnad / Overhead (SEK)',
               placeholder: 't.ex. 15000 för licens',
               optional: true,
             },
@@ -116,4 +118,4 @@ export const costSectionSchema: SectionSchema = {
       ],
     },
   ],
-}; 
+};

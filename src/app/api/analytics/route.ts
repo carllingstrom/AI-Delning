@@ -1,17 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerClient } from '@supabase/ssr';
+import { createServerSupabaseClient } from '@/lib/supabaseServer';
 
 function serverSupabase() {
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    {
-      cookies: {
-        getAll: () => [],
-        setAll: () => {},
-      },
-    }
-  );
+  return createServerSupabaseClient();
 }
 
 // GET /api/analytics - Comprehensive project analytics
@@ -49,35 +40,748 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    console.log(`Analytics: Found ${projects?.length || 0} projects`);
+
     // Apply additional filters and analyze
     const filteredProjects = (projects || []).filter(project => {
-      // Budget filter
-      const budget = extractBudgetAmount(project);
-      if (minBudget && (!budget || budget < parseFloat(minBudget))) return false;
-      if (maxBudget && (!budget || budget > parseFloat(maxBudget))) return false;
+      try {
+        // Budget filter
+        const budget = extractBudgetAmount(project);
+        if (minBudget && (!budget || budget < parseFloat(minBudget))) return false;
+        if (maxBudget && (!budget || budget > parseFloat(maxBudget))) return false;
 
-      // ROI filter
-      if (hasROI === 'true') {
-        const roi = calculateROI(project);
-        if (!roi || roi <= 0) return false;
+        // ROI filter
+        if (hasROI === 'true') {
+          const roi = calculateROI(project);
+          if (!roi || roi <= 0) return false;
+        }
+
+        // Technology filter
+        if (technology) {
+          const technologies = extractTechnologies(project);
+          if (!technologies.some((tech: string) => 
+            tech.toLowerCase().includes(technology.toLowerCase())
+          )) return false;
+        }
+
+        // Affected groups filter
+        if (affectedGroups) {
+          const groups = extractAffectedGroups(project);
+          if (!groups.includes(affectedGroups)) return false;
+        }
+
+        return true;
+      } catch (err) {
+        console.error('Error filtering project:', project.id, err);
+        return false;
       }
-
-      // Technology filter
-      if (technology) {
-        const technologies = extractTechnologies(project);
-        if (!technologies.some(tech => 
-          tech.toLowerCase().includes(technology.toLowerCase())
-        )) return false;
-      }
-
-      // Affected groups filter
-      if (affectedGroups) {
-        const groups = extractAffectedGroups(project);
-        if (!groups.includes(affectedGroups)) return false;
-      }
-
-      return true;
     });
+
+    console.log(`Analytics: Filtered to ${filteredProjects.length} projects`);
+
+    // --- National Savings Simulation ---
+    let simulatedSavings = 0;
+    let savingsPerInhabitant = 0;
+    let usedMunicipalityCount = 1;
+    let usedPopulation = 10500000;
+    
+    try {
+      // Calculate project savings (monetary value - actual cost)
+      const projectSavings = filteredProjects.map(project => {
+        const actualCost = calculateActualCost(project) || 0;
+        const monetaryValue = calculateProjectMonetaryValue(project) || 0;
+        return monetaryValue - actualCost;
+      });
+      const totalProjectSavings = projectSavings.reduce((sum, s) => sum + s, 0);
+      // Count unique municipalities in the dataset
+      const allMunicipalityIds = new Set();
+      filteredProjects.forEach(project => {
+        (project.project_municipalities || []).forEach((pm: any) => {
+          if (pm.municipality_id) allMunicipalityIds.add(pm.municipality_id);
+        });
+      });
+      usedMunicipalityCount = allMunicipalityIds.size || 1;
+      simulatedSavings = usedMunicipalityCount > 0
+        ? totalProjectSavings * (290 / usedMunicipalityCount)
+        : 0;
+      savingsPerInhabitant = usedPopulation > 0 ? simulatedSavings / usedPopulation : 0;
+    } catch (err) {
+      console.error('Error calculating national savings:', err);
+    }
+
+    // --- Budgetfördelning Sankey ---
+    let nodes: any[] = [];
+    let links: any[] = [];
+    
+    try {
+      // 1. Gather all unique cost types, project titles, and municipality names
+      const costTypeSet = new Set<string>();
+      const projectTitleSet = new Set<string>();
+      const municipalityNameSet = new Set<string>();
+      filteredProjects.forEach(project => {
+        projectTitleSet.add(project.title);
+        (project.cost_data?.actualCostDetails?.costEntries || []).forEach((entry: any) => {
+          if (entry.costType) costTypeSet.add(entry.costType);
+        });
+        (project.project_municipalities || []).forEach((pm: any) => {
+          if (pm.municipalities?.name) municipalityNameSet.add(pm.municipalities.name);
+        });
+      });
+      const costTypes = Array.from(costTypeSet);
+      const projectTitles = Array.from(projectTitleSet);
+      const municipalityNames = Array.from(municipalityNameSet);
+      // 2. Build nodes array
+      nodes = [
+        ...costTypes.map(name => ({ name })),
+        ...projectTitles.map(name => ({ name })),
+        ...municipalityNames.map(name => ({ name }))
+      ];
+      // 3. Build links array
+      links = [];
+      // Cost type → project
+      filteredProjects.forEach(project => {
+        const projectIdx = costTypes.length + projectTitles.indexOf(project.title);
+        const costEntries = project.cost_data?.actualCostDetails?.costEntries || [];
+        costEntries.forEach((entry: any) => {
+          if (entry.costType) {
+            const costTypeIdx = costTypes.indexOf(entry.costType);
+            const value = (entry.costHours || 0) * (entry.costRate || 0) + (entry.costFixed || 0);
+            if (value > 0) {
+              links.push({ source: costTypeIdx, target: projectIdx, value });
+            }
+          }
+        });
+      });
+      // Project → municipality
+      filteredProjects.forEach(project => {
+        const projectIdx = costTypes.length + projectTitles.indexOf(project.title);
+        const totalProjectCost = (project.cost_data?.budgetDetails?.budgetAmount || 0);
+        (project.project_municipalities || []).forEach((pm: any) => {
+          if (pm.municipalities?.name) {
+            const muniIdx = costTypes.length + projectTitles.length + municipalityNames.indexOf(pm.municipalities.name);
+            links.push({ source: projectIdx, target: muniIdx, value: totalProjectCost });
+          }
+        });
+      });
+    } catch (err) {
+      console.error('Error calculating Sankey data:', err);
+    }
+
+    // --- Kostnad vs. Effekt-heatmap ---
+    let costEffectHeatmapData: any[] = [];
+    
+    try {
+      costEffectHeatmapData = filteredProjects
+        .map(project => {
+          const x = calculateActualCost(project) || 0;
+          const y = calculateProjectMonetaryValue(project) || 0;
+          return { x, y, label: project.title };
+        })
+        .filter(d => d.x > 0 && d.y > 0);
+    } catch (err) {
+      console.error('Error calculating heatmap data:', err);
+    }
+
+    // --- Break-even-tid ---
+    let breakEvenData: any[] = [];
+    
+    try {
+      breakEvenData = filteredProjects.map(project => {
+        const periodizedCost = project.cost_data?.periodizedCost || [];
+        const periodizedEffect = project.effects_data?.periodizedEffect || [];
+        if (!Array.isArray(periodizedCost) || !Array.isArray(periodizedEffect) || periodizedCost.length === 0 || periodizedEffect.length === 0) {
+          return null;
+        }
+        // Build cumulative arrays by month
+        let months = Math.max(periodizedCost.length, periodizedEffect.length);
+        let cumCost = 0;
+        let cumEffect = 0;
+        let breakEven = null;
+        for (let i = 0; i < months; i++) {
+          cumCost += periodizedCost[i]?.value || 0;
+          cumEffect += periodizedEffect[i]?.value || 0;
+          if (breakEven === null && cumEffect >= cumCost) {
+            breakEven = i + 1; // months are 1-indexed
+          }
+        }
+        return {
+          projectId: project.id,
+          title: project.title,
+          breakEvenMonths: breakEven
+        };
+      }).filter(Boolean);
+    } catch (err) {
+      console.error('Error calculating break-even data:', err);
+    }
+
+    // --- Top-10 kvalitativa effekter (wordcloud) ---
+    let topQualitativeEffectsWordcloud: any[] = [];
+    
+    try {
+      const wordCounts: Record<string, number> = {};
+      filteredProjects.forEach(project => {
+        const effectDetails = project.effects_data?.effectDetails || [];
+        effectDetails.forEach((effect: any) => {
+          const desc = effect.effectDescription || effect.effectText || '';
+          desc
+            .toLowerCase()
+            .replace(/[^a-zåäö0-9\s]/gi, '')
+            .split(/\s+/)
+            .filter((word: string) => word.length >= 3)
+            .forEach((word: string) => {
+              wordCounts[word] = (wordCounts[word] || 0) + 1;
+            });
+        });
+      });
+      topQualitativeEffectsWordcloud = Object.entries(wordCounts)
+        .map(([text, value]) => ({ text, value }))
+        .sort((a, b) => b.value - a.value)
+        .slice(0, 30);
+    } catch (err) {
+      console.error('Error calculating wordcloud data:', err);
+    }
+
+    // --- Effekt-spridning (bubble chart) ---
+    let effectSpreadBubbleData: any[] = [];
+    
+    try {
+      effectSpreadBubbleData = filteredProjects.map(project => {
+        // Gather all unique affected groups
+        const effectDetails = project.effects_data?.effectDetails || [];
+        const groupSet = new Set<string>();
+        effectDetails.forEach((effect: any) => {
+          const measurements = effect.impactMeasurement?.measurements || [];
+          measurements.forEach((m: any) => {
+            (m.affectedGroups || []).forEach((g: string) => groupSet.add(g));
+          });
+        });
+        const numGroups = groupSet.size;
+        const monetaryValue = calculateProjectMonetaryValue(project) || 0;
+        return { numGroups, monetaryValue, label: project.title };
+      }).filter(d => d.numGroups > 0 && d.monetaryValue > 0);
+    } catch (err) {
+      console.error('Error calculating bubble chart data:', err);
+    }
+
+    // --- Service Level-radar (qualitative KPIs) ---
+    let serviceLevelRadarData: any[] = [];
+    
+    try {
+      serviceLevelRadarData = filteredProjects.map(project => {
+        const kpis = {
+          quality: 0,
+          citizenSatisfaction: 0,
+          innovation: 0,
+          efficiency: 0,
+          sustainability: 0,
+          accessibility: 0
+        };
+        
+        // Quality score based on effect details and measurements
+        const effectDetails = project.effects_data?.effectDetails || [];
+        if (effectDetails.length > 0) {
+          kpis.quality = Math.min(100, effectDetails.length * 20);
+        }
+        
+        // Citizen satisfaction based on affected groups
+        const affectedGroups = extractAffectedGroups(project);
+        if (affectedGroups.includes('Medborgare')) {
+          kpis.citizenSatisfaction = 80;
+        } else if (affectedGroups.length > 0) {
+          kpis.citizenSatisfaction = 40;
+        }
+        
+        // Innovation score based on value dimensions and technical complexity
+        const valueDimensions = project.value_dimensions || [];
+        if (valueDimensions.some((vd: string) => vd.includes('Innovation'))) {
+          kpis.innovation = 90;
+        } else if (valueDimensions.length > 0) {
+          kpis.innovation = 50;
+        }
+        
+        // Efficiency based on ROI and cost-effectiveness
+        const roi = calculateROI(project);
+        if (roi && roi > 100) {
+          kpis.efficiency = 90;
+        } else if (roi && roi > 0) {
+          kpis.efficiency = 60;
+        } else {
+          kpis.efficiency = 30;
+        }
+        
+        // Sustainability based on areas and value dimensions
+        const areas = project.areas || [];
+        if (areas.some((area: string) => area.includes('Miljö') || area.includes('Hållbar'))) {
+          kpis.sustainability = 85;
+        } else if (valueDimensions.some((vd: string) => vd.includes('Hållbar'))) {
+          kpis.sustainability = 60;
+        }
+        
+        // Accessibility based on affected groups diversity
+        if (affectedGroups.length >= 3) {
+          kpis.accessibility = 80;
+        } else if (affectedGroups.length >= 2) {
+          kpis.accessibility = 60;
+        } else if (affectedGroups.length >= 1) {
+          kpis.accessibility = 40;
+        }
+        
+        return {
+          projectId: project.id,
+          title: project.title,
+          kpis
+        };
+      });
+    } catch (err) {
+      console.error('Error calculating service level radar data:', err);
+    }
+
+    // --- FN:s hållbarhetsmål-kartläggning (SDG mapping) ---
+    let sdgMappingData: any[] = [];
+    
+    try {
+      // SDG mapping based on project areas and value dimensions
+      const sdgMapping = {
+        'Utbildning och skola': ['SDG4'],
+        'Primärvård & e-hälsa': ['SDG3'],
+        'Miljö & klimat': ['SDG13', 'SDG7'],
+        'Transport & infrastruktur': ['SDG9', 'SDG11'],
+        'Socialtjänst': ['SDG1', 'SDG10'],
+        'Äldre- & funktionsstöd': ['SDG3', 'SDG10'],
+        'Kultur & fritid': ['SDG11'],
+        'Samhällsbyggnad & stadsplanering': ['SDG11', 'SDG9'],
+        'Säkerhet & krisberedskap': ['SDG16'],
+        'Ledning och styrning': ['SDG16'],
+        'Intern administration': ['SDG16'],
+        'Medborgarservice & kommunikation': ['SDG16', 'SDG11']
+      };
+      
+      const valueDimensionSDGMapping = {
+        'Innovation (nya tjänster)': ['SDG9'],
+        'Etik, hållbarhet & ansvarsfull AI': ['SDG12', 'SDG13'],
+        'Kostnadsbesparing': ['SDG12'],
+        'Tidsbesparing': ['SDG8'],
+        'Kvalitet / noggrannhet': ['SDG9'],
+        'Medborgarnytta, upplevelse & service': ['SDG11'],
+        'Kompetens & lärande': ['SDG4'],
+        'Riskreduktion & säkerhet': ['SDG16'],
+        'Ökade intäkter': ['SDG8']
+      };
+      
+      sdgMappingData = filteredProjects.map(project => {
+        const projectSDGs = new Set<string>();
+        
+        // Map based on areas
+        (project.areas || []).forEach((area: string) => {
+          const sdgs = (sdgMapping as any)[area] || [];
+          sdgs.forEach((sdg: string) => projectSDGs.add(sdg));
+        });
+        
+        // Map based on value dimensions
+        (project.value_dimensions || []).forEach((vd: string) => {
+          const sdgs = (valueDimensionSDGMapping as any)[vd] || [];
+          sdgs.forEach((sdg: string) => projectSDGs.add(sdg));
+        });
+        
+        return {
+          projectId: project.id,
+          title: project.title,
+          sdgs: Array.from(projectSDGs),
+          areas: project.areas || [],
+          valueDimensions: project.value_dimensions || []
+        };
+      });
+    } catch (err) {
+      console.error('Error calculating SDG mapping data:', err);
+    }
+
+    // --- Tech stack-nätverk (force graph) ---
+    let techStackNetworkData: any = { nodes: [], links: [] };
+    
+    try {
+      // Collect all technologies and their co-occurrences
+      const techCounts: Record<string, number> = {};
+      const techCooccurrences: Record<string, Record<string, number>> = {};
+      
+      filteredProjects.forEach(project => {
+        const technologies = extractTechnologies(project);
+        
+        // Count individual technologies
+        technologies.forEach(tech => {
+          techCounts[tech] = (techCounts[tech] || 0) + 1;
+          if (!techCooccurrences[tech]) {
+            techCooccurrences[tech] = {};
+          }
+        });
+        
+        // Count co-occurrences
+        for (let i = 0; i < technologies.length; i++) {
+          for (let j = i + 1; j < technologies.length; j++) {
+            const tech1 = technologies[i];
+            const tech2 = technologies[j];
+            
+            if (!techCooccurrences[tech1][tech2]) {
+              techCooccurrences[tech1][tech2] = 0;
+            }
+            if (!techCooccurrences[tech2][tech1]) {
+              techCooccurrences[tech2][tech1] = 0;
+            }
+            
+            techCooccurrences[tech1][tech2]++;
+            techCooccurrences[tech2][tech1]++;
+          }
+        }
+      });
+      
+      // Create nodes
+      const nodes = Object.entries(techCounts).map(([tech, count], index) => ({
+        id: tech,
+        name: tech,
+        value: count,
+        group: Math.floor(index / 3) + 1 // Simple grouping for visualization
+      }));
+      
+      // Create links
+      const links: any[] = [];
+      Object.entries(techCooccurrences).forEach(([tech1, cooccurrences]) => {
+        Object.entries(cooccurrences).forEach(([tech2, weight]) => {
+          if (weight > 0 && tech1 < tech2) { // Avoid duplicate links
+            links.push({
+              source: tech1,
+              target: tech2,
+              value: weight
+            });
+          }
+        });
+      });
+      
+      techStackNetworkData = { nodes, links };
+    } catch (err) {
+      console.error('Error calculating tech stack network data:', err);
+    }
+
+    // --- Kommuner vs AI-områden (heatmap) ---
+    let municipalityAIHeatmapData: any[] = [];
+    
+    try {
+      // Get unique municipalities and AI areas
+      const municipalities = [...new Set(filteredProjects.map(p => p.municipality).filter(Boolean))];
+      const aiAreas = [...new Set(filteredProjects.flatMap(p => p.areas || []).filter(Boolean))];
+      
+      // Create heatmap data
+      municipalityAIHeatmapData = municipalities.flatMap(municipality => 
+        aiAreas.map(area => {
+          const count = filteredProjects.filter(project => 
+            project.municipality === municipality && 
+            (project.areas || []).includes(area)
+          ).length;
+          
+          return {
+            municipality,
+            area,
+            count,
+            // Add some derived metrics for better visualization
+            totalProjects: filteredProjects.filter(p => p.municipality === municipality).length,
+            areaPercentage: count > 0 ? (count / filteredProjects.filter(p => p.municipality === municipality).length) * 100 : 0
+          };
+        })
+      );
+    } catch (err) {
+      console.error('Error calculating municipality AI heatmap data:', err);
+    }
+
+    // --- Tidslinje över projekt (timeline) ---
+    let projectTimelineData: any[] = [];
+    
+    try {
+      projectTimelineData = filteredProjects
+        .filter(project => project.created_at || project.updated_at)
+        .map(project => {
+          const createdDate = project.created_at ? new Date(project.created_at) : null;
+          const updatedDate = project.updated_at ? new Date(project.updated_at) : null;
+          
+          // Determine project status/phase based on available data
+          let phase = 'Planering';
+          if (project.status === 'completed') {
+            phase = 'Genomförd';
+          } else if (project.status === 'in_progress') {
+            phase = 'Pågående';
+          } else if (project.costs_data?.totalCost && project.costs_data.totalCost > 0) {
+            phase = 'Budgeterad';
+          }
+          
+          return {
+            id: project.id,
+            title: project.title,
+            municipality: project.municipality,
+            phase,
+            startDate: createdDate,
+            endDate: updatedDate,
+            // Add derived timeline data
+            duration: createdDate && updatedDate ? 
+              Math.ceil((updatedDate.getTime() - createdDate.getTime()) / (1000 * 60 * 60 * 24)) : null,
+            totalCost: project.costs_data?.totalCost || 0,
+            areas: project.areas || []
+          };
+        })
+        .sort((a, b) => {
+          // Sort by start date, then by title
+          if (a.startDate && b.startDate) {
+            return a.startDate.getTime() - b.startDate.getTime();
+          }
+          return (a.title || '').localeCompare(b.title || '');
+        });
+    } catch (err) {
+      console.error('Error calculating project timeline data:', err);
+    }
+
+    // --- Risk vs nytta-matris (scatter plot) ---
+    let riskBenefitMatrixData: any[] = [];
+    
+    try {
+      riskBenefitMatrixData = filteredProjects.map(project => {
+        // Calculate risk score based on various factors
+        let riskScore = 0;
+        
+        // Technology complexity risk
+        const technologies = extractTechnologies(project);
+        if (technologies.some(tech => tech.toLowerCase().includes('ai') || tech.toLowerCase().includes('maskininlärning'))) {
+          riskScore += 30;
+        }
+        if (technologies.some(tech => tech.toLowerCase().includes('blockchain') || tech.toLowerCase().includes('iot'))) {
+          riskScore += 20;
+        }
+        
+        // Cost risk
+        const totalCost = project.costs_data?.totalCost || 0;
+        if (totalCost > 1000000) {
+          riskScore += 25;
+        } else if (totalCost > 500000) {
+          riskScore += 15;
+        } else if (totalCost > 100000) {
+          riskScore += 10;
+        }
+        
+        // Legal/ethical risk
+        const legalData = project.legal_data;
+        if (legalData?.dataProtection || legalData?.aiEthics || legalData?.transparency) {
+          riskScore += 15;
+        }
+        
+        // Calculate benefit score
+        let benefitScore = 0;
+        
+        // ROI benefit
+        const roi = calculateROI(project);
+        if (roi && roi > 200) {
+          benefitScore += 40;
+        } else if (roi && roi > 100) {
+          benefitScore += 30;
+        } else if (roi && roi > 0) {
+          benefitScore += 20;
+        }
+        
+        // Citizen impact benefit
+        const affectedGroups = extractAffectedGroups(project);
+        if (affectedGroups.includes('Medborgare')) {
+          benefitScore += 25;
+        }
+        if (affectedGroups.length > 2) {
+          benefitScore += 15;
+        }
+        
+        // Innovation benefit
+        const valueDimensions = project.value_dimensions || [];
+        if (valueDimensions.some((vd: string) => vd.includes('Innovation'))) {
+          benefitScore += 20;
+        }
+        
+        // Normalize scores to 0-100
+        riskScore = Math.min(100, riskScore);
+        benefitScore = Math.min(100, benefitScore);
+        
+        return {
+          projectId: project.id,
+          title: project.title,
+          municipality: project.municipality,
+          riskScore,
+          benefitScore,
+          totalCost,
+          roi,
+          affectedGroups,
+          areas: project.areas || [],
+          // Add quadrant classification
+          quadrant: riskScore > 50 && benefitScore > 50 ? 'High Risk, High Reward' :
+                   riskScore > 50 && benefitScore <= 50 ? 'High Risk, Low Reward' :
+                   riskScore <= 50 && benefitScore > 50 ? 'Low Risk, High Reward' : 'Low Risk, Low Reward'
+        };
+      });
+    } catch (err) {
+      console.error('Error calculating risk benefit matrix data:', err);
+    }
+
+    // --- Kompetensgap-analys (skill gap analysis) ---
+    let skillGapAnalysisData: any = { required: [], available: [], gaps: [] };
+    
+    try {
+      // Define skill categories and their associated technologies/requirements
+      const skillCategories = {
+        'AI/ML': ['AI', 'Machine Learning', 'Deep Learning', 'Neural Networks', 'Natural Language Processing'],
+        'Data Engineering': ['Data Processing', 'ETL', 'Data Warehousing', 'Big Data', 'Data Pipeline'],
+        'Software Development': ['Web Development', 'Mobile Development', 'API Development', 'Database Design'],
+        'DevOps': ['CI/CD', 'Cloud Infrastructure', 'Containerization', 'Monitoring', 'Security'],
+        'Business Analysis': ['Process Analysis', 'Requirements Gathering', 'Stakeholder Management', 'Change Management'],
+        'Legal & Ethics': ['Data Protection', 'AI Ethics', 'Compliance', 'Transparency', 'Privacy'],
+        'Project Management': ['Agile', 'Scrum', 'Risk Management', 'Budget Management', 'Stakeholder Communication']
+      };
+      
+      // Analyze required skills from projects
+      const requiredSkills: Record<string, number> = {};
+      const availableSkills: Record<string, number> = {};
+      
+      filteredProjects.forEach(project => {
+        const technologies = extractTechnologies(project);
+        const areas = project.areas || [];
+        const valueDimensions = project.value_dimensions || [];
+        
+        // Map technologies and areas to skill categories
+        Object.entries(skillCategories).forEach(([category, skills]) => {
+          const relevance = skills.reduce((score, skill) => {
+            const techMatch = technologies.some(tech => 
+              tech.toLowerCase().includes(skill.toLowerCase())
+            );
+            const areaMatch = areas.some((area: string) => 
+              area.toLowerCase().includes(skill.toLowerCase())
+            );
+            return score + (techMatch ? 1 : 0) + (areaMatch ? 1 : 0);
+          }, 0);
+          
+          if (relevance > 0) {
+            requiredSkills[category] = (requiredSkills[category] || 0) + relevance;
+          }
+        });
+        
+        // Estimate available skills based on project success and complexity
+        const projectComplexity = technologies.length + areas.length;
+        if (projectComplexity > 0) {
+          Object.keys(skillCategories).forEach(category => {
+            availableSkills[category] = (availableSkills[category] || 0) + Math.min(projectComplexity, 3);
+          });
+        }
+      });
+      
+      // Calculate skill gaps
+      const gaps = Object.keys(skillCategories).map(category => {
+        const required = requiredSkills[category] || 0;
+        const available = availableSkills[category] || 0;
+        const gap = required - available;
+        
+        return {
+          category,
+          required,
+          available,
+          gap,
+          gapPercentage: required > 0 ? (gap / required) * 100 : 0,
+          status: gap > 0 ? 'Critical Gap' : gap < 0 ? 'Surplus' : 'Balanced'
+        };
+      });
+      
+      skillGapAnalysisData = {
+        required: Object.entries(requiredSkills).map(([category, count]) => ({ category, count })),
+        available: Object.entries(availableSkills).map(([category, count]) => ({ category, count })),
+        gaps
+      };
+    } catch (err) {
+      console.error('Error calculating skill gap analysis data:', err);
+    }
+
+    // --- Framtida trender-prognos (trend forecasting) ---
+    let futureTrendsForecastData: any = { technologyTrends: [], areaTrends: [], adoptionTrends: [] };
+    
+    try {
+      // Analyze technology adoption trends
+      const techAdoptionTrends: Record<string, number> = {};
+      const areaAdoptionTrends: Record<string, number> = {};
+      
+      filteredProjects.forEach(project => {
+        const technologies = extractTechnologies(project);
+        const areas = project.areas || [];
+        const createdDate = project.created_at ? new Date(project.created_at) : null;
+        
+        // Weight by recency (newer projects have more weight)
+        const recencyWeight = createdDate ? 
+          Math.max(0.5, (createdDate.getTime() - new Date('2020-01-01').getTime()) / (Date.now() - new Date('2020-01-01').getTime())) : 1;
+        
+        technologies.forEach(tech => {
+          techAdoptionTrends[tech] = (techAdoptionTrends[tech] || 0) + recencyWeight;
+        });
+        
+        areas.forEach((area: string) => {
+          areaAdoptionTrends[area] = (areaAdoptionTrends[area] || 0) + recencyWeight;
+        });
+      });
+      
+      // Project future trends (next 2 years)
+      const technologyTrends = Object.entries(techAdoptionTrends)
+        .map(([tech, currentAdoption]) => {
+          const growthRate = currentAdoption > 0 ? Math.min(2.5, 1 + (currentAdoption / 10)) : 1.2;
+          const projectedAdoption = currentAdoption * growthRate;
+          
+          return {
+            technology: tech,
+            currentAdoption,
+            projectedAdoption: Math.round(projectedAdoption * 100) / 100,
+            growthRate: Math.round((growthRate - 1) * 100),
+            trend: growthRate > 1.5 ? 'Rising' : growthRate > 1.2 ? 'Stable' : 'Declining'
+          };
+        })
+        .sort((a, b) => b.projectedAdoption - a.projectedAdoption)
+        .slice(0, 10);
+      
+      const areaTrends = Object.entries(areaAdoptionTrends)
+        .map(([area, currentAdoption]) => {
+          const growthRate = currentAdoption > 0 ? Math.min(2.0, 1 + (currentAdoption / 15)) : 1.15;
+          const projectedAdoption = currentAdoption * growthRate;
+          
+          return {
+            area,
+            currentAdoption,
+            projectedAdoption: Math.round(projectedAdoption * 100) / 100,
+            growthRate: Math.round((growthRate - 1) * 100),
+            trend: growthRate > 1.3 ? 'Rising' : growthRate > 1.1 ? 'Stable' : 'Declining'
+          };
+        })
+        .sort((a, b) => b.projectedAdoption - a.projectedAdoption);
+      
+      // Overall adoption trend
+      const totalProjects = filteredProjects.length;
+      const recentProjects = filteredProjects.filter(p => 
+        p.created_at && new Date(p.created_at) > new Date(Date.now() - 365 * 24 * 60 * 60 * 1000)
+      ).length;
+      
+      const adoptionGrowthRate = totalProjects > 0 ? (recentProjects / totalProjects) * 4 : 0; // Annualized rate
+      const projectedTotalProjects = Math.round(totalProjects * (1 + adoptionGrowthRate));
+      
+      const adoptionTrends = {
+        currentTotal: totalProjects,
+        recentGrowth: recentProjects,
+        growthRate: Math.round(adoptionGrowthRate * 100),
+        projectedTotal: projectedTotalProjects,
+        trend: adoptionGrowthRate > 0.5 ? 'Strong Growth' : 
+               adoptionGrowthRate > 0.2 ? 'Moderate Growth' : 
+               adoptionGrowthRate > 0 ? 'Slow Growth' : 'Declining'
+      };
+      
+      futureTrendsForecastData = {
+        technologyTrends,
+        areaTrends,
+        adoptionTrends
+      };
+    } catch (err) {
+      console.error('Error calculating future trends forecast data:', err);
+    }
+
+    console.log('Analytics: Building final analytics object...');
 
     const analytics = {
       summary: {
@@ -114,16 +818,7 @@ export async function GET(req: NextRequest) {
         integrationPatterns: analyzeIntegrationPatterns(filteredProjects),
         technicalChallenges: analyzeTechnicalChallenges(filteredProjects),
       },
-      // National impact simulation: assume each project implementeras i 290 kommuner
-      nationalImpact: calculateNationalImpact(filteredProjects),
-      // Data completeness per field
-      dataCompleteness: analyzeDataCompleteness(filteredProjects),
-      topPerformers: {
-        highestROI: getTopProjectsByROI(filteredProjects, 5),
-        largestBudget: getTopProjectsByBudget(filteredProjects, 5),
-        mostAffectedGroups: getProjectsByAffectedGroups(filteredProjects, 5),
-        mostInnovative: getMostInnovativeProjects(filteredProjects, 5),
-      },
+
       projects: filteredProjects.map(project => ({
         ...project,
         calculatedMetrics: {
@@ -134,534 +829,703 @@ export async function GET(req: NextRequest) {
           technologies: extractTechnologies(project),
           effects: extractEffectsSummary(project),
         }
-      }))
+      })),
+      nationalSavingsSimulation: {
+        totalSimulatedSavings: Math.round(simulatedSavings),
+        savingsPerInhabitant: Math.round(savingsPerInhabitant),
+        usedPopulation,
+        usedMunicipalityCount
+      },
+      budgetSankeyData: {
+        nodes,
+        links
+      },
+      costEffectHeatmapData,
+      breakEvenData,
+      topQualitativeEffectsWordcloud,
+      effectSpreadBubbleData,
+      serviceLevelRadarData,
+      sdgMappingData,
+      techStackNetworkData,
+      municipalityAIHeatmapData,
+      projectTimelineData,
+      riskBenefitMatrixData,
+      skillGapAnalysisData,
+      futureTrendsForecastData,
     };
+
+    console.log('Analytics: Successfully built analytics object');
 
     return NextResponse.json(analytics);
 
   } catch (error) {
-    console.error('Unexpected error:', error);
+    console.error('Unexpected error in analytics API:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
 
 // Helper functions
 function extractBudgetAmount(project: any): number | null {
-  const costData = project.cost_data || {};
-  return costData.budgetDetails?.budgetAmount || null;
+  try {
+    const costData = project?.cost_data || {};
+    return costData.budgetDetails?.budgetAmount || null;
+  } catch (err) {
+    console.error('Error extracting budget amount:', err);
+    return null;
+  }
 }
 
 function calculateActualCost(project: any): number {
-  const costData = project.cost_data || {};
-  const costEntries = costData.actualCostDetails?.costEntries || [];
-  
-  return costEntries.reduce((total: number, entry: any) => {
-    const hourCost = (entry.costHours || 0) * (entry.costRate || 0);
-    const fixedCost = entry.costFixed || 0;
-    return total + hourCost + fixedCost;
-  }, 0);
+  try {
+    const costData = project?.cost_data || {};
+    const costEntries = costData.actualCostDetails?.costEntries || [];
+    
+    return costEntries.reduce((total: number, entry: any) => {
+      // Handle string values that should be numbers
+      const hours = typeof entry?.costHours === 'string' ? parseFloat(entry.costHours) || 0 : (entry?.costHours || 0);
+      const rate = typeof entry?.costRate === 'string' ? parseFloat(entry.costRate) || 0 : (entry?.costRate || 0);
+      const fixed = typeof entry?.costFixed === 'string' ? parseFloat(entry.costFixed) || 0 : (entry?.costFixed || 0);
+      
+      // Skip invalid entries (negative hours, empty strings)
+      if (hours < 0 || rate < 0 || fixed < 0) return total;
+      
+      const hourCost = hours * rate;
+      return total + hourCost + fixed;
+    }, 0);
+  } catch (err) {
+    console.error('Error calculating actual cost:', err);
+    return 0;
+  }
 }
 
 function calculateROI(project: any): number | null {
-  const actualCost = calculateActualCost(project);
-  const monetaryValue = calculateProjectMonetaryValue(project);
-  
-  if (!actualCost || actualCost === 0) return null;
-  if (!monetaryValue || monetaryValue === 0) return null;
-  
-  return ((monetaryValue - actualCost) / actualCost) * 100;
+  try {
+    const actualCost = calculateActualCost(project);
+    const monetaryValue = calculateProjectMonetaryValue(project);
+    
+    if (!actualCost || actualCost === 0) return null;
+    if (!monetaryValue || monetaryValue === 0) return null;
+    
+    return ((monetaryValue - actualCost) / actualCost) * 100;
+  } catch (err) {
+    console.error('Error calculating ROI:', err);
+    return null;
+  }
 }
 
 function calculateProjectMonetaryValue(project: any): number {
-  const effectsData = project.effects_data || {};
-  const effectDetails = effectsData.effectDetails || [];
-  
-  let totalValue = 0;
-  
-  effectDetails.forEach((effect: any) => {
-    const measurements = effect.impactMeasurement?.measurements || [];
-    measurements.forEach((measurement: any) => {
-      if (measurement.monetaryEstimate) {
-        totalValue += parseFloat(measurement.monetaryEstimate);
-      }
+  try {
+    const effectsData = project?.effects_data || {};
+    const effectDetails = effectsData.effectDetails || [];
+    
+    let totalValue = 0;
+    
+    effectDetails.forEach((effect: any) => {
+      const measurements = effect?.impactMeasurement?.measurements || [];
+      measurements.forEach((measurement: any) => {
+        if (measurement?.monetaryEstimate) {
+          totalValue += parseFloat(measurement.monetaryEstimate) || 0;
+        }
+      });
     });
-  });
-  
-  return totalValue;
+    
+    return totalValue;
+  } catch (err) {
+    console.error('Error calculating project monetary value:', err);
+    return 0;
+  }
 }
 
 function extractAffectedGroups(project: any): string[] {
-  const effectsData = project.effects_data || {};
-  const effectDetails = effectsData.effectDetails || [];
-  const groups = new Set<string>();
-  
-  effectDetails.forEach((effect: any) => {
-    const measurements = effect.impactMeasurement?.measurements || [];
-    measurements.forEach((measurement: any) => {
-      if (measurement.affectedGroups) {
-        measurement.affectedGroups.forEach((group: string) => groups.add(group));
-      }
+  try {
+    const effectsData = project?.effects_data || {};
+    const effectDetails = effectsData.effectDetails || [];
+    const groups = new Set<string>();
+    
+    effectDetails.forEach((effect: any) => {
+      const measurements = effect?.impactMeasurement?.measurements || [];
+      measurements.forEach((measurement: any) => {
+        if (measurement?.affectedGroups) {
+          measurement.affectedGroups.forEach((group: string) => groups.add(group));
+        }
+      });
     });
-  });
-  
-  return Array.from(groups);
+    
+    return Array.from(groups);
+  } catch (err) {
+    console.error('Error extracting affected groups:', err);
+    return [];
+  }
 }
 
 function extractTechnologies(project: any): string[] {
-  const techData = project.technical_data || {};
-  const technologies = [];
-  
-  if (techData.system_name) technologies.push(techData.system_name);
-  if (techData.ai_methodology) technologies.push(techData.ai_methodology);
-  if (techData.deployment_environment) technologies.push(techData.deployment_environment);
-  
-  return technologies;
+  try {
+    const techData = project?.technical_data || {};
+    const technologies = [];
+    
+    if (techData.system_name && techData.system_name.trim() !== '') {
+      technologies.push(techData.system_name);
+    }
+    if (techData.ai_methodology && techData.ai_methodology.trim() !== '') {
+      technologies.push(techData.ai_methodology);
+    }
+    if (techData.deployment_environment && techData.deployment_environment.trim() !== '') {
+      technologies.push(techData.deployment_environment);
+    }
+    if (techData.data_types && Array.isArray(techData.data_types)) {
+      technologies.push(...techData.data_types.filter((type: string) => type && type.trim() !== ''));
+    }
+    if (techData.data_license_link && techData.data_license_link.trim() !== '') {
+      technologies.push(techData.data_license_link);
+    }
+    
+    return technologies;
+  } catch (err) {
+    console.error('Error extracting technologies:', err);
+    return [];
+  }
 }
 
 function extractEffectsSummary(project: any): any {
-  const effectsData = project.effects_data || {};
-  const effectDetails = effectsData.effectDetails || [];
-  
-  let totalMeasurements = 0;
-  let totalMonetaryValue = 0;
-  const effectTypes = new Set<string>();
-  
-  effectDetails.forEach((effect: any) => {
-    const measurements = effect.impactMeasurement?.measurements || [];
-    totalMeasurements += measurements.length;
+  try {
+    const effectsData = project?.effects_data || {};
+    const effectDetails = effectsData.effectDetails || [];
     
-    measurements.forEach((measurement: any) => {
-      if (measurement.effectChangeType) {
-        effectTypes.add(measurement.effectChangeType);
-      }
-      if (measurement.monetaryEstimate) {
-        totalMonetaryValue += parseFloat(measurement.monetaryEstimate);
-      }
+    let totalMeasurements = 0;
+    let totalMonetaryValue = 0;
+    const effectTypes = new Set<string>();
+    
+    effectDetails.forEach((effect: any) => {
+      const measurements = effect?.impactMeasurement?.measurements || [];
+      totalMeasurements += measurements.length;
+      
+      measurements.forEach((measurement: any) => {
+        if (measurement?.effectChangeType) {
+          effectTypes.add(measurement.effectChangeType);
+        }
+        if (measurement?.monetaryEstimate) {
+          totalMonetaryValue += parseFloat(measurement.monetaryEstimate) || 0;
+        }
+      });
     });
-  });
-  
-  return {
-    totalMeasurements,
-    totalMonetaryValue,
-    effectTypes: Array.from(effectTypes)
-  };
+    
+    return {
+      totalMeasurements,
+      totalMonetaryValue,
+      effectTypes: Array.from(effectTypes)
+    };
+  } catch (err) {
+    console.error('Error extracting effects summary:', err);
+    return { totalMeasurements: 0, totalMonetaryValue: 0, effectTypes: [] };
+  }
 }
 
 function calculateTotalBudget(projects: any[]): number {
-  return projects.reduce((total, project) => {
-    const budget = extractBudgetAmount(project);
-    return total + (budget || 0);
-  }, 0);
+  try {
+    return projects.reduce((total, project) => {
+      const budget = extractBudgetAmount(project);
+      return total + (budget || 0);
+    }, 0);
+  } catch (err) {
+    console.error('Error calculating total budget:', err);
+    return 0;
+  }
 }
 
 function calculateAverageBudget(projects: any[]): number {
-  const projectsWithBudget = projects.filter(p => extractBudgetAmount(p));
-  if (projectsWithBudget.length === 0) return 0;
-  return calculateTotalBudget(projectsWithBudget) / projectsWithBudget.length;
+  try {
+    const total = calculateTotalBudget(projects);
+    return projects.length > 0 ? total / projects.length : 0;
+  } catch (err) {
+    console.error('Error calculating average budget:', err);
+    return 0;
+  }
 }
 
 function calculateTotalROI(projects: any[]): number {
-  return projects.reduce((total, project) => {
-    const roi = calculateROI(project);
-    return total + (roi || 0);
-  }, 0);
+  try {
+    const rois = projects.map(project => calculateROI(project)).filter(roi => roi !== null);
+    return rois.length > 0 ? rois.reduce((sum, roi) => sum + roi, 0) : 0;
+  } catch (err) {
+    console.error('Error calculating total ROI:', err);
+    return 0;
+  }
 }
 
 function calculateAverageROI(projects: any[]): number {
-  const projectsWithROI = projects.filter(p => calculateROI(p) !== null);
-  if (projectsWithROI.length === 0) return 0;
-  return calculateTotalROI(projectsWithROI) / projectsWithROI.length;
+  try {
+    const rois = projects.map(project => calculateROI(project)).filter(roi => roi !== null);
+    return rois.length > 0 ? rois.reduce((sum, roi) => sum + roi, 0) / rois.length : 0;
+  } catch (err) {
+    console.error('Error calculating average ROI:', err);
+    return 0;
+  }
 }
 
 function groupBy(array: any[], key: string) {
-  return array.reduce((result, item) => {
-    const value = item[key] || 'Unknown';
-    result[value] = (result[value] || 0) + 1;
-    return result;
-  }, {});
+  try {
+    return array.reduce((groups, item) => {
+      const value = item[key];
+      groups[value] = (groups[value] || 0) + 1;
+      return groups;
+    }, {});
+  } catch (err) {
+    console.error('Error in groupBy:', err);
+    return {};
+  }
 }
 
 function analyzeByCounty(projects: any[]) {
-  const result: Record<string, number> = {};
-  projects.forEach(project => {
-    project.project_municipalities?.forEach((pm: any) => {
-      const county = pm.municipalities?.county;
-      if (county) {
-        result[county] = (result[county] || 0) + 1;
-      }
+  try {
+    const countyCounts: Record<string, number> = {};
+    projects.forEach(project => {
+      (project.project_municipalities || []).forEach((pm: any) => {
+        const county = pm.municipalities?.county;
+        if (county) {
+          countyCounts[county] = (countyCounts[county] || 0) + 1;
+        }
+      });
     });
-  });
-  return result;
+    return countyCounts;
+  } catch (err) {
+    console.error('Error analyzing by county:', err);
+    return {};
+  }
 }
 
 function analyzeByArea(projects: any[]) {
-  const result: Record<string, number> = {};
-  projects.forEach(project => {
-    project.project_areas?.forEach((pa: any) => {
-      const area = pa.areas?.name;
-      if (area) {
-        result[area] = (result[area] || 0) + 1;
-      }
+  try {
+    const areaCounts: Record<string, number> = {};
+    projects.forEach(project => {
+      (project.project_areas || []).forEach((pa: any) => {
+        const area = pa.areas?.name;
+        if (area) {
+          areaCounts[area] = (areaCounts[area] || 0) + 1;
+        }
+      });
     });
-  });
-  return result;
+    return areaCounts;
+  } catch (err) {
+    console.error('Error analyzing by area:', err);
+    return {};
+  }
 }
 
 function analyzeByValueDimension(projects: any[]) {
-  const result: Record<string, number> = {};
-  projects.forEach(project => {
-    project.project_value_dimensions?.forEach((pvd: any) => {
-      const dimension = pvd.value_dimensions?.name;
-      if (dimension) {
-        result[dimension] = (result[dimension] || 0) + 1;
-      }
+  try {
+    const dimensionCounts: Record<string, number> = {};
+    projects.forEach(project => {
+      (project.project_value_dimensions || []).forEach((pvd: any) => {
+        const dimension = pvd.value_dimensions?.name;
+        if (dimension) {
+          dimensionCounts[dimension] = (dimensionCounts[dimension] || 0) + 1;
+        }
+      });
     });
-  });
-  return result;
+    return dimensionCounts;
+  } catch (err) {
+    console.error('Error analyzing by value dimension:', err);
+    return {};
+  }
 }
 
 function analyzeByBudgetRange(projects: any[]) {
-  const ranges = {
-    '0-100k': 0,
-    '100k-500k': 0,
-    '500k-1M': 0,
-    '1M-5M': 0,
-    '5M+': 0,
-    'Unknown': 0
-  };
-  
-  projects.forEach(project => {
-    const budget = extractBudgetAmount(project);
-    if (!budget) {
-      ranges['Unknown']++;
-    } else if (budget < 100000) {
-      ranges['0-100k']++;
-    } else if (budget < 500000) {
-      ranges['100k-500k']++;
-    } else if (budget < 1000000) {
-      ranges['500k-1M']++;
-    } else if (budget < 5000000) {
-      ranges['1M-5M']++;
-    } else {
-      ranges['5M+']++;
-    }
-  });
-  
-  return ranges;
+  try {
+    const ranges: Record<string, number> = {
+      '0-100k': 0,
+      '100k-500k': 0,
+      '500k-1M': 0,
+      '1M-5M': 0,
+      '5M+': 0
+    };
+    
+    projects.forEach(project => {
+      const budget = extractBudgetAmount(project) || 0;
+      if (budget <= 100000) ranges['0-100k']++;
+      else if (budget <= 500000) ranges['100k-500k']++;
+      else if (budget <= 1000000) ranges['500k-1M']++;
+      else if (budget <= 5000000) ranges['1M-5M']++;
+      else ranges['5M+']++;
+    });
+    
+    return ranges;
+  } catch (err) {
+    console.error('Error analyzing by budget range:', err);
+    return {};
+  }
 }
 
 function analyzeByTechnology(projects: any[]) {
-  const result: Record<string, number> = {};
-  projects.forEach(project => {
-    const technologies = extractTechnologies(project);
-    technologies.forEach(tech => {
-      result[tech] = (result[tech] || 0) + 1;
+  try {
+    const techCounts: Record<string, number> = {};
+    projects.forEach(project => {
+      const technologies = extractTechnologies(project);
+      technologies.forEach(tech => {
+        techCounts[tech] = (techCounts[tech] || 0) + 1;
+      });
     });
-  });
-  return result;
+    return techCounts;
+  } catch (err) {
+    console.error('Error analyzing by technology:', err);
+    return {};
+  }
 }
 
 function analyzeByAffectedGroups(projects: any[]) {
-  const result: Record<string, number> = {};
-  projects.forEach(project => {
-    const groups = extractAffectedGroups(project);
-    groups.forEach(group => {
-      result[group] = (result[group] || 0) + 1;
+  try {
+    const groupCounts: Record<string, number> = {};
+    projects.forEach(project => {
+      const groups = extractAffectedGroups(project);
+      groups.forEach(group => {
+        groupCounts[group] = (groupCounts[group] || 0) + 1;
+      });
     });
-  });
-  return result;
+    return groupCounts;
+  } catch (err) {
+    console.error('Error analyzing by affected groups:', err);
+    return {};
+  }
 }
 
 function analyzeCostTypes(projects: any[]) {
-  const result: Record<string, { count: number, totalCost: number }> = {};
-  
-  projects.forEach(project => {
-    const costData = project.cost_data || {};
-    const costEntries = costData.actualCostDetails?.costEntries || [];
+  try {
+    const costTypeData: Record<string, { count: number; totalCost: number }> = {};
     
-    costEntries.forEach((entry: any) => {
-      const type = entry.costType || 'Unknown';
-      const rate = parseFloat(entry.costRate) || 0;
-      const hours = parseFloat(entry.costHours) || 0;
-      const fixed = parseFloat(entry.costFixed) || 0;
-      const cost = (hours * rate) + fixed;
-      
-      if (!result[type]) {
-        result[type] = { count: 0, totalCost: 0 };
-      }
-      result[type].count++;
-      result[type].totalCost = (result[type].totalCost || 0) + cost;
+    projects.forEach(project => {
+      const costEntries = project.cost_data?.actualCostDetails?.costEntries || [];
+      costEntries.forEach((entry: any) => {
+        if (entry?.costType) {
+          const cost = (entry.costHours || 0) * (entry.costRate || 0) + (entry.costFixed || 0);
+          if (!costTypeData[entry.costType]) {
+            costTypeData[entry.costType] = { count: 0, totalCost: 0 };
+          }
+          costTypeData[entry.costType].count++;
+          costTypeData[entry.costType].totalCost += cost;
+        }
+      });
     });
-  });
-  
-  return result;
+    
+    return costTypeData;
+  } catch (err) {
+    console.error('Error analyzing cost types:', err);
+    return {};
+  }
 }
 
 function analyzeBudgetVsActual(projects: any[]) {
-  return projects.map(project => ({
-    projectId: project.id,
-    title: project.title,
-    budget: extractBudgetAmount(project),
-    actualCost: calculateActualCost(project),
-    variance: calculateActualCost(project) - (extractBudgetAmount(project) || 0)
-  })).filter(p => p.budget && p.actualCost);
+  try {
+    return projects.map(project => {
+      const budget = extractBudgetAmount(project) || 0;
+      const actualCost = calculateActualCost(project);
+      return {
+        projectId: project.id,
+        title: project.title,
+        budget,
+        actualCost,
+        variance: actualCost - budget
+      };
+    });
+  } catch (err) {
+    console.error('Error analyzing budget vs actual:', err);
+    return [];
+  }
 }
 
 function analyzeCostPerHour(projects: any[]) {
-  const rates: number[] = [];
-  
-  projects.forEach(project => {
-    const costData = project.cost_data || {};
-    const costEntries = costData.actualCostDetails?.costEntries || [];
+  try {
+    const rates: number[] = [];
     
-    costEntries.forEach((entry: any) => {
-      if (entry.costRate) {
-        rates.push(parseFloat(entry.costRate));
-      }
+    projects.forEach(project => {
+      const costEntries = project.cost_data?.actualCostDetails?.costEntries || [];
+      costEntries.forEach((entry: any) => {
+        if (entry?.costRate) {
+          rates.push(entry.costRate);
+        }
+      });
     });
-  });
-  
-  if (rates.length === 0) return { average: 0, min: 0, max: 0, median: 0 };
-  
-  rates.sort((a, b) => a - b);
-  return {
-    average: rates.reduce((a, b) => a + b, 0) / rates.length,
-    min: rates[0],
-    max: rates[rates.length - 1],
-    median: rates[Math.floor(rates.length / 2)]
-  };
+    
+    if (rates.length === 0) {
+      return { average: 0, min: 0, max: 0, median: 0 };
+    }
+    
+    const sortedRates = rates.sort((a, b) => a - b);
+    const median = sortedRates[Math.floor(sortedRates.length / 2)];
+    
+    return {
+      average: rates.reduce((sum, rate) => sum + rate, 0) / rates.length,
+      min: Math.min(...rates),
+      max: Math.max(...rates),
+      median
+    };
+  } catch (err) {
+    console.error('Error analyzing cost per hour:', err);
+    return { average: 0, min: 0, max: 0, median: 0 };
+  }
 }
 
 function analyzeEffectTypes(projects: any[]) {
-  const result: Record<string, number> = {};
-  
-  projects.forEach(project => {
-    const effects = extractEffectsSummary(project);
-    effects.effectTypes.forEach((type: string) => {
-      result[type] = (result[type] || 0) + 1;
+  try {
+    const effectTypeCounts: Record<string, number> = {};
+    
+    projects.forEach(project => {
+      const effectDetails = project.effects_data?.effectDetails || [];
+      effectDetails.forEach((effect: any) => {
+        const measurements = effect?.impactMeasurement?.measurements || [];
+        measurements.forEach((measurement: any) => {
+          if (measurement?.effectChangeType) {
+            effectTypeCounts[measurement.effectChangeType] = (effectTypeCounts[measurement.effectChangeType] || 0) + 1;
+          }
+        });
+      });
     });
-  });
-  
-  return result;
+    
+    return effectTypeCounts;
+  } catch (err) {
+    console.error('Error analyzing effect types:', err);
+    return {};
+  }
 }
 
 function analyzeQuantifiableEffects(projects: any[]) {
-  let totalWithQuantifiable = 0;
-  let totalWithoutQuantifiable = 0;
-  
-  projects.forEach(project => {
-    const effectsData = project.effects_data || {};
-    const effectDetails = effectsData.effectDetails || [];
+  try {
+    let withQuantifiable = 0;
+    let withoutQuantifiable = 0;
     
-    let hasQuantifiable = false;
-    effectDetails.forEach((effect: any) => {
-      if (effect.hasQuantitative === true) {
-        hasQuantifiable = true;
+    projects.forEach(project => {
+      const effectDetails = project.effects_data?.effectDetails || [];
+      let hasQuantifiable = false;
+      
+      effectDetails.forEach((effect: any) => {
+        if (effect?.hasQuantitative) {
+          hasQuantifiable = true;
+        }
+      });
+      
+      if (hasQuantifiable) {
+        withQuantifiable++;
+      } else {
+        withoutQuantifiable++;
       }
     });
     
-    if (hasQuantifiable) {
-      totalWithQuantifiable++;
-    } else {
-      totalWithoutQuantifiable++;
-    }
-  });
-  
-  const total = totalWithQuantifiable + totalWithoutQuantifiable;
-  return {
-    withQuantifiable: totalWithQuantifiable,
-    withoutQuantifiable: totalWithoutQuantifiable,
-    percentage: total > 0 ? (totalWithQuantifiable / total) * 100 : 0
-  };
+    const total = withQuantifiable + withoutQuantifiable;
+    const percentage = total > 0 ? (withQuantifiable / total) * 100 : 0;
+    
+    return {
+      withQuantifiable,
+      withoutQuantifiable,
+      percentage
+    };
+  } catch (err) {
+    console.error('Error analyzing quantifiable effects:', err);
+    return { withQuantifiable: 0, withoutQuantifiable: 0, percentage: 0 };
+  }
 }
 
 function calculateTotalMonetaryValue(projects: any[]): number {
-  return projects.reduce((total, project) => {
-    return total + calculateProjectMonetaryValue(project);
-  }, 0);
+  try {
+    return projects.reduce((total, project) => {
+      return total + calculateProjectMonetaryValue(project);
+    }, 0);
+  } catch (err) {
+    console.error('Error calculating total monetary value:', err);
+    return 0;
+  }
 }
 
 function analyzeAffectedPopulation(projects: any[]) {
-  const groups = analyzeByAffectedGroups(projects);
-  const total = Object.values(groups).reduce((sum: number, count) => sum + (count as number), 0);
-  
-  return {
-    breakdown: groups,
-    totalAffected: total,
-    averageGroupsPerProject: projects.length > 0 ? total / projects.length : 0
-  };
+  try {
+    const groupBreakdown: Record<string, number> = {};
+    let totalAffected = 0;
+    let totalGroups = 0;
+    
+    projects.forEach(project => {
+      const groups = extractAffectedGroups(project);
+      totalGroups += groups.length;
+      
+      groups.forEach(group => {
+        groupBreakdown[group] = (groupBreakdown[group] || 0) + 1;
+        totalAffected++;
+      });
+    });
+    
+    return {
+      breakdown: groupBreakdown,
+      totalAffected,
+      averageGroupsPerProject: projects.length > 0 ? totalGroups / projects.length : 0
+    };
+  } catch (err) {
+    console.error('Error analyzing affected population:', err);
+    return { breakdown: {}, totalAffected: 0, averageGroupsPerProject: 0 };
+  }
 }
 
 function getMostUsedTechnologies(projects: any[]) {
-  const techCounts = analyzeByTechnology(projects);
-  return Object.entries(techCounts)
-    .sort(([,a], [,b]) => (b as number) - (a as number))
-    .slice(0, 10);
+  try {
+    const techCounts: Record<string, number> = {};
+    
+    projects.forEach(project => {
+      const technologies = extractTechnologies(project);
+      technologies.forEach(tech => {
+        techCounts[tech] = (techCounts[tech] || 0) + 1;
+      });
+    });
+    
+    return Object.entries(techCounts)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 10);
+  } catch (err) {
+    console.error('Error getting most used technologies:', err);
+    return [];
+  }
 }
 
 function analyzeDeploymentEnvironments(projects: any[]) {
-  const result: Record<string, number> = {};
-  projects.forEach(project => {
-    const techData = project.technical_data || {};
-    const env = techData.deployment_environment || 'Unknown';
-    result[env] = (result[env] || 0) + 1;
-  });
-  return result;
+  try {
+    const envCounts: Record<string, number> = {};
+    
+    projects.forEach(project => {
+      const env = project.technical_data?.deployment_environment;
+      if (env) {
+        envCounts[env] = (envCounts[env] || 0) + 1;
+      }
+    });
+    
+    return envCounts;
+  } catch (err) {
+    console.error('Error analyzing deployment environments:', err);
+    return {};
+  }
 }
 
 function analyzeDataTypes(projects: any[]) {
-  const result: Record<string, number> = {};
-  projects.forEach(project => {
-    const techData = project.technical_data || {};
-    const dataTypes = techData.data_types || [];
-    dataTypes.forEach((type: string) => {
-      result[type] = (result[type] || 0) + 1;
+  try {
+    const dataTypeCounts: Record<string, number> = {};
+    
+    projects.forEach(project => {
+      const dataTypes = project.technical_data?.data_types || [];
+      dataTypes.forEach((type: string) => {
+        dataTypeCounts[type] = (dataTypeCounts[type] || 0) + 1;
+      });
     });
-  });
-  return result;
+    
+    return dataTypeCounts;
+  } catch (err) {
+    console.error('Error analyzing data types:', err);
+    return {};
+  }
 }
 
 function analyzeIntegrationPatterns(projects: any[]) {
-  const result: Record<string, number> = {};
-  projects.forEach(project => {
-    const techData = project.technical_data || {};
-    const integrations = techData.integration_capabilities || [];
-    integrations.forEach((integration: string) => {
-      result[integration] = (result[integration] || 0) + 1;
+  try {
+    const patternCounts: Record<string, number> = {};
+    
+    projects.forEach(project => {
+      const patterns = project.technical_data?.integration_patterns || [];
+      patterns.forEach((pattern: string) => {
+        patternCounts[pattern] = (patternCounts[pattern] || 0) + 1;
+      });
     });
-  });
-  return result;
+    
+    return patternCounts;
+  } catch (err) {
+    console.error('Error analyzing integration patterns:', err);
+    return {};
+  }
 }
 
 function analyzeTechnicalChallenges(projects: any[]) {
-  const challenges: string[] = [];
-  const solutions: string[] = [];
-  
-  projects.forEach(project => {
-    const techData = project.technical_data || {};
-    if (techData.technical_obstacles) {
-      challenges.push(techData.technical_obstacles);
-    }
-    if (techData.technical_solutions) {
-      solutions.push(techData.technical_solutions);
-    }
-  });
-  
-  return {
-    totalChallenges: challenges.length,
-    totalSolutions: solutions.length,
-    resolutionRate: challenges.length > 0 ? (solutions.length / challenges.length) * 100 : 0,
-    challenges: challenges.slice(0, 10),
-    solutions: solutions.slice(0, 10)
-  };
+  try {
+    const challenges: string[] = [];
+    const solutions: string[] = [];
+    
+    projects.forEach(project => {
+      const techData = project.technical_data || {};
+      if (techData.challenges) {
+        challenges.push(...(Array.isArray(techData.challenges) ? techData.challenges : [techData.challenges]));
+      }
+      if (techData.solutions) {
+        solutions.push(...(Array.isArray(techData.solutions) ? techData.solutions : [techData.solutions]));
+      }
+    });
+    
+    return {
+      totalChallenges: challenges.length,
+      totalSolutions: solutions.length,
+      resolutionRate: challenges.length > 0 ? (solutions.length / challenges.length) * 100 : 0,
+      challenges: challenges.slice(0, 10),
+      solutions: solutions.slice(0, 10)
+    };
+  } catch (err) {
+    console.error('Error analyzing technical challenges:', err);
+    return { totalChallenges: 0, totalSolutions: 0, resolutionRate: 0, challenges: [], solutions: [] };
+  }
 }
 
 function getTopProjectsByROI(projects: any[], limit: number) {
-  return projects
-    .map(project => ({
-      ...project,
-      roi: calculateROI(project)
-    }))
-    .filter(p => p.roi !== null)
-    .sort((a, b) => (b.roi || 0) - (a.roi || 0))
-    .slice(0, limit);
+  try {
+    return projects
+      .map(project => ({
+        id: project.id,
+        title: project.title,
+        roi: calculateROI(project)
+      }))
+      .filter(project => project.roi !== null)
+      .sort((a, b) => (b.roi || 0) - (a.roi || 0))
+      .slice(0, limit);
+  } catch (err) {
+    console.error('Error getting top projects by ROI:', err);
+    return [];
+  }
 }
 
 function getTopProjectsByBudget(projects: any[], limit: number) {
-  return projects
-    .map(project => ({
-      ...project,
-      budget: extractBudgetAmount(project)
-    }))
-    .filter(p => p.budget)
-    .sort((a, b) => (b.budget || 0) - (a.budget || 0))
-    .slice(0, limit);
+  try {
+    return projects
+      .map(project => ({
+        id: project.id,
+        title: project.title,
+        budget: extractBudgetAmount(project) || 0
+      }))
+      .sort((a, b) => b.budget - a.budget)
+      .slice(0, limit);
+  } catch (err) {
+    console.error('Error getting top projects by budget:', err);
+    return [];
+  }
 }
 
 function getProjectsByAffectedGroups(projects: any[], limit: number) {
-  return projects
-    .map(project => ({
-      ...project,
-      affectedGroups: extractAffectedGroups(project)
-    }))
-    .sort((a, b) => b.affectedGroups.length - a.affectedGroups.length)
-    .slice(0, limit);
+  try {
+    return projects
+      .map(project => ({
+        id: project.id,
+        title: project.title,
+        affectedGroups: extractAffectedGroups(project)
+      }))
+      .sort((a, b) => b.affectedGroups.length - a.affectedGroups.length)
+      .slice(0, limit);
+  } catch (err) {
+    console.error('Error getting projects by affected groups:', err);
+    return [];
+  }
 }
 
 function getMostInnovativeProjects(projects: any[], limit: number) {
-  return projects
-    .map(project => {
-      const technologies = extractTechnologies(project);
-      const techData = project.technical_data || {};
-      const hasAI = techData.ai_methodology || technologies.some((t: string) => 
-        t.toLowerCase().includes('ai') || t.toLowerCase().includes('machine learning')
-      );
-      const innovationScore = technologies.length + (hasAI ? 2 : 0);
-      
-      return {
-        ...project,
-        innovationScore,
-        technologies
-      };
-    })
-    .sort((a, b) => b.innovationScore - a.innovationScore)
-    .slice(0, limit);
-}
-
-function calculateNationalImpact(projects: any[]): any {
-  if (!projects || projects.length === 0) {
-    return { totalSavings: 0, savingsPerCitizen: 0 };
+  try {
+    return projects
+      .filter(project => {
+        const valueDimensions = project.value_dimensions || [];
+        return valueDimensions.some((vd: string) => vd.includes('Innovation'));
+      })
+      .map(project => ({
+        id: project.id,
+        title: project.title,
+        valueDimensions: project.value_dimensions || []
+      }))
+      .slice(0, limit);
+  } catch (err) {
+    console.error('Error getting most innovative projects:', err);
+    return [];
   }
-
-  // Calculate total monetary savings for the projects we have
-  let totalSavingsObserved = 0;
-  const municipalitySet = new Set<number>();
-
-  projects.forEach((p: any) => {
-    const actualCost = calculateActualCost(p);
-    const monetaryValue = calculateProjectMonetaryValue(p);
-    if (monetaryValue && actualCost && monetaryValue > actualCost) {
-      totalSavingsObserved += (monetaryValue - actualCost);
-    }
-    // Count municipalities linked to this project
-    (p.project_municipalities || []).forEach((pm: any) => municipalitySet.add(pm.municipality_id));
-  });
-
-  const observedMunicipalities = municipalitySet.size || 1; // avoid div/0
-  const scaleFactor = 290 / observedMunicipalities; // Sweden has 290 municipalities
-  const nationalSavings = totalSavingsObserved * scaleFactor;
-  const savingsPerCitizen = nationalSavings / 10400000; // ~10.4 M inhabitants
-
-  return {
-    observedMunicipalities,
-    totalSavingsObserved,
-    nationalSavings,
-    savingsPerCitizen,
-  };
-}
-
-function analyzeDataCompleteness(projects: any[]): any {
-  if (!projects || projects.length === 0) return {};
-
-  const fields = [
-    'cost_data',
-    'effects_data',
-    'technical_data',
-    'leadership_data',
-    'legal_data',
-    'areas',
-    'value_dimensions',
-  ];
-
-  const completeness: Record<string, number> = {};
-  fields.forEach((field) => {
-    const filled = projects.filter((p: any) => {
-      const val = p[field];
-      if (Array.isArray(val)) return val.length > 0;
-      if (typeof val === 'object') return val && Object.keys(val).length > 0;
-      return !!val;
-    }).length;
-    completeness[field] = parseFloat(((filled / projects.length) * 100).toFixed(1));
-  });
-  return completeness;
 }

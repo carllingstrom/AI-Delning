@@ -58,7 +58,21 @@ export default function MapSwedenLeaflet({ aiFilter, valFilter, onSelectMunicipa
   }, [counts]);
 
   useEffect(() => {
-    fetch('/api/ideas').then(r => r.json()).then((d) => { setIdeas(d); setIdeaCount(d.length); });
+    fetch('/api/ideas')
+  .then(async r => {
+    if (!r.ok) {
+      const text = await r.text();
+      console.error(`Ideas API error (${r.status}):`, text);
+      throw new Error(`Ideas API failed: ${r.status} - ${text}`);
+    }
+    return r.json();
+  })
+  .then((d) => { setIdeas(d); setIdeaCount(d.length); })
+  .catch(error => {
+    console.error('Error loading ideas:', error);
+    setIdeas([]);
+    setIdeaCount(0);
+  });
   }, []);
 
   return (

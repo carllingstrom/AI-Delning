@@ -1,6 +1,6 @@
 // /src/app/api/municipalities/route.ts
 import { NextResponse } from 'next/server';
-import { createServerClient } from '@supabase/ssr';
+import { createServerSupabaseClient } from '@/lib/supabaseServer';
 
 /**
  * GET /api/municipalities  →  [{ id, name }]
@@ -8,39 +8,29 @@ import { createServerClient } from '@supabase/ssr';
  */
 export async function GET() {
   try {
-    // Check environment variables
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+    console.log('🔍 Municipalities API called');
     
-    if (!supabaseUrl || !supabaseKey) {
-      console.error('Missing Supabase environment variables');
-      return NextResponse.json({ 
-        error: 'Server configuration error: Missing Supabase credentials' 
-      }, { status: 500 });
-    }
-
-    const sb = createServerClient(supabaseUrl, supabaseKey, { 
-      cookies: { getAll: () => [], setAll: () => {} } 
-    });
+    const sb = createServerSupabaseClient();
 
     console.log('Fetching municipalities from Supabase...');
-    
     const { data, error } = await sb
       .from('municipalities')
       .select('id, name')
       .order('name');
+
+    console.log('Supabase response:', { data, error });
 
     if (error) {
       console.error('Supabase error:', error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    console.log(`Found ${data?.length || 0} municipalities`);
-    
-    // Ensure we always return an array
-    const municipalities = Array.isArray(data) ? data : [];
-    
-    if (municipalities.length === 0) {
+    if (!Array.isArray(data)) {
+      console.error('Supabase returned non-array data:', data);
+      return NextResponse.json({ error: 'Supabase returned non-array data', details: data }, { status: 500 });
+    }
+
+    if (data.length === 0) {
       console.warn('No municipalities found in database');
       // Return a few test municipalities as fallback
       return NextResponse.json([
@@ -50,8 +40,8 @@ export async function GET() {
       ]);
     }
     
-    return NextResponse.json(municipalities);
-    
+    console.log(`✅ Returning ${data.length} municipalities`);
+    return NextResponse.json(data);
   } catch (error) {
     console.error('Unexpected error in municipalities API:', error);
     return NextResponse.json({ 
