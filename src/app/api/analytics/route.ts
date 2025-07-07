@@ -40,7 +40,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    console.log(`Analytics: Found ${projects?.length || 0} projects`);
+
 
     // Apply additional filters and analyze
     const filteredProjects = (projects || []).filter(project => {
@@ -77,7 +77,7 @@ export async function GET(req: NextRequest) {
       }
     });
 
-    console.log(`Analytics: Filtered to ${filteredProjects.length} projects`);
+
 
     // --- National Savings Simulation ---
     let simulatedSavings = 0;
@@ -781,7 +781,7 @@ export async function GET(req: NextRequest) {
       console.error('Error calculating future trends forecast data:', err);
     }
 
-    console.log('Analytics: Building final analytics object...');
+
 
     const analytics = {
       summary: {
@@ -810,6 +810,7 @@ export async function GET(req: NextRequest) {
         quantifiableEffects: analyzeQuantifiableEffects(filteredProjects),
         monetaryValue: calculateTotalMonetaryValue(filteredProjects),
         affectedPopulation: analyzeAffectedPopulation(filteredProjects),
+        roiByValueDimension: analyzeROIByValueDimension(filteredProjects),
       },
       technologyInsights: {
         mostUsedTechnologies: getMostUsedTechnologies(filteredProjects),
@@ -817,6 +818,12 @@ export async function GET(req: NextRequest) {
         dataTypes: analyzeDataTypes(filteredProjects),
         integrationPatterns: analyzeIntegrationPatterns(filteredProjects),
         technicalChallenges: analyzeTechnicalChallenges(filteredProjects),
+      },
+      topPerformers: {
+        highestROI: getTopProjectsByROI(filteredProjects, 5),
+        largestBudget: getTopProjectsByBudget(filteredProjects, 5),
+        mostAffectedGroups: getProjectsByAffectedGroups(filteredProjects, 5),
+        mostInnovative: getMostInnovativeProjects(filteredProjects, 5),
       },
 
       projects: filteredProjects.map(project => ({
@@ -854,7 +861,7 @@ export async function GET(req: NextRequest) {
       futureTrendsForecastData,
     };
 
-    console.log('Analytics: Successfully built analytics object');
+
 
     return NextResponse.json(analytics);
 
@@ -868,7 +875,18 @@ export async function GET(req: NextRequest) {
 function extractBudgetAmount(project: any): number | null {
   try {
     const costData = project?.cost_data || {};
-    return costData.budgetDetails?.budgetAmount || null;
+    const budgetAmount = costData.budgetDetails?.budgetAmount;
+    
+    // Ensure we return a number, not a string
+    if (budgetAmount === null || budgetAmount === undefined) {
+      return null;
+    }
+    
+    // Convert string to number if needed
+    const numericBudget = typeof budgetAmount === 'string' ? parseFloat(budgetAmount) : budgetAmount;
+    
+    // Return null if conversion failed or result is NaN
+    return isNaN(numericBudget) ? null : numericBudget;
   } catch (err) {
     console.error('Error extracting budget amount:', err);
     return null;
@@ -881,16 +899,42 @@ function calculateActualCost(project: any): number {
     const costEntries = costData.actualCostDetails?.costEntries || [];
     
     return costEntries.reduce((total: number, entry: any) => {
-      // Handle string values that should be numbers
-      const hours = typeof entry?.costHours === 'string' ? parseFloat(entry.costHours) || 0 : (entry?.costHours || 0);
-      const rate = typeof entry?.costRate === 'string' ? parseFloat(entry.costRate) || 0 : (entry?.costRate || 0);
-      const fixed = typeof entry?.costFixed === 'string' ? parseFloat(entry.costFixed) || 0 : (entry?.costFixed || 0);
+      if (!entry) return total;
       
-      // Skip invalid entries (negative hours, empty strings)
-      if (hours < 0 || rate < 0 || fixed < 0) return total;
+      let entryTotal = 0;
       
-      const hourCost = hours * rate;
-      return total + hourCost + fixed;
+      // Use new cost structure
+      switch (entry.costUnit) {
+        case 'hours':
+          const hours = Number(entry.hoursDetails?.hours) || 0;
+          const rate = Number(entry.hoursDetails?.hourlyRate) || 0;
+          entryTotal = hours * rate;
+          break;
+        case 'fixed':
+          entryTotal = Number(entry.fixedDetails?.fixedAmount) || 0;
+          break;
+        case 'monthly':
+          const monthlyAmount = Number(entry.monthlyDetails?.monthlyAmount) || 0;
+          const monthlyDuration = Number(entry.monthlyDetails?.monthlyDuration) || 1;
+          entryTotal = monthlyAmount * monthlyDuration;
+          break;
+        case 'yearly':
+          const yearlyAmount = Number(entry.yearlyDetails?.yearlyAmount) || 0;
+          const yearlyDuration = Number(entry.yearlyDetails?.yearlyDuration) || 1;
+          entryTotal = yearlyAmount * yearlyDuration;
+          break;
+        default:
+          // Fallback to old structure for legacy data
+          const hours_old = typeof entry?.costHours === 'string' ? parseFloat(entry.costHours) || 0 : (entry?.costHours || 0);
+          const rate_old = typeof entry?.costRate === 'string' ? parseFloat(entry.costRate) || 0 : (entry?.costRate || 0);
+          const fixed_old = typeof entry?.costFixed === 'string' ? parseFloat(entry.costFixed) || 0 : (entry?.costFixed || 0);
+          
+          if (hours_old >= 0 && rate_old >= 0 && fixed_old >= 0) {
+            entryTotal = (hours_old * rate_old) + fixed_old;
+          }
+      }
+      
+      return total + entryTotal;
     }, 0);
   } catch (err) {
     console.error('Error calculating actual cost:', err);
@@ -900,13 +944,52 @@ function calculateActualCost(project: any): number {
 
 function calculateROI(project: any): number | null {
   try {
-    const actualCost = calculateActualCost(project);
-    const monetaryValue = calculateProjectMonetaryValue(project);
+    // Use the new comprehensive ROI calculator
+    const { calculateROI: newCalculateROI } = require('@/lib/roiCalculator');
     
-    if (!actualCost || actualCost === 0) return null;
-    if (!monetaryValue || monetaryValue === 0) return null;
+    const effectEntries = project.effects_data?.effectDetails || [];
+    const costEntries = project.cost_data?.actualCostDetails?.costEntries || [];
     
-    return ((monetaryValue - actualCost) / actualCost) * 100;
+    if (effectEntries.length === 0) return null;
+    
+    // Calculate total investment from cost entries
+    const totalInvestment = costEntries.reduce((total: number, entry: any) => {
+      if (!entry) return total;
+      
+      let entryTotal = 0;
+      
+      switch (entry.costUnit) {
+        case 'hours':
+          const hours = Number(entry.hoursDetails?.hours) || 0;
+          const rate = Number(entry.hoursDetails?.hourlyRate) || 0;
+          entryTotal = hours * rate;
+          break;
+        case 'fixed':
+          entryTotal = Number(entry.fixedDetails?.fixedAmount) || 0;
+          break;
+        case 'monthly':
+          const monthlyAmount = Number(entry.monthlyDetails?.monthlyAmount) || 0;
+          const monthlyDuration = Number(entry.monthlyDetails?.monthlyDuration) || 1;
+          entryTotal = monthlyAmount * monthlyDuration;
+          break;
+        case 'yearly':
+          const yearlyAmount = Number(entry.yearlyDetails?.yearlyAmount) || 0;
+          const yearlyDuration = Number(entry.yearlyDetails?.yearlyDuration) || 1;
+          entryTotal = yearlyAmount * yearlyDuration;
+          break;
+        default:
+          entryTotal = 0;
+      }
+      
+      return total + entryTotal;
+    }, 0);
+    
+    const roiMetrics = newCalculateROI({ 
+      effectEntries, 
+      totalProjectInvestment: totalInvestment 
+    });
+    
+    return roiMetrics.economicROI * 100; // Convert to percentage
   } catch (err) {
     console.error('Error calculating ROI:', err);
     return null;
@@ -915,24 +998,76 @@ function calculateROI(project: any): number | null {
 
 function calculateProjectMonetaryValue(project: any): number {
   try {
-    const effectsData = project?.effects_data || {};
-    const effectDetails = effectsData.effectDetails || [];
+    // Use the new comprehensive ROI calculator to get total monetary value
+    const { calculateROI: newCalculateROI } = require('@/lib/roiCalculator');
     
-    let totalValue = 0;
+    const effectEntries = project.effects_data?.effectDetails || [];
+    const costEntries = project.cost_data?.actualCostDetails?.costEntries || [];
     
-    effectDetails.forEach((effect: any) => {
-      const measurements = effect?.impactMeasurement?.measurements || [];
-      measurements.forEach((measurement: any) => {
-        if (measurement?.monetaryEstimate) {
-          totalValue += parseFloat(measurement.monetaryEstimate) || 0;
-        }
-      });
+    if (effectEntries.length === 0) return 0;
+    
+    // Calculate total investment from cost entries
+    const totalInvestment = costEntries.reduce((total: number, entry: any) => {
+      if (!entry) return total;
+      
+      let entryTotal = 0;
+      
+      switch (entry.costUnit) {
+        case 'hours':
+          const hours = Number(entry.hoursDetails?.hours) || 0;
+          const rate = Number(entry.hoursDetails?.hourlyRate) || 0;
+          entryTotal = hours * rate;
+          break;
+        case 'fixed':
+          entryTotal = Number(entry.fixedDetails?.fixedAmount) || 0;
+          break;
+        case 'monthly':
+          const monthlyAmount = Number(entry.monthlyDetails?.monthlyAmount) || 0;
+          const monthlyDuration = Number(entry.monthlyDetails?.monthlyDuration) || 1;
+          entryTotal = monthlyAmount * monthlyDuration;
+          break;
+        case 'yearly':
+          const yearlyAmount = Number(entry.yearlyDetails?.yearlyAmount) || 0;
+          const yearlyDuration = Number(entry.yearlyDetails?.yearlyDuration) || 1;
+          entryTotal = yearlyAmount * yearlyDuration;
+          break;
+        default:
+          entryTotal = 0;
+      }
+      
+      return total + entryTotal;
+    }, 0);
+    
+    const roiMetrics = newCalculateROI({ 
+      effectEntries, 
+      totalProjectInvestment: totalInvestment 
     });
     
-    return totalValue;
+    return roiMetrics.totalMonetaryValue || 0;
   } catch (err) {
     console.error('Error calculating project monetary value:', err);
-    return 0;
+    
+    // Fallback to old calculation method
+    try {
+      const effectsData = project?.effects_data || {};
+      const effectDetails = effectsData.effectDetails || [];
+      
+      let totalValue = 0;
+      
+      effectDetails.forEach((effect: any) => {
+        const measurements = effect?.impactMeasurement?.measurements || [];
+        measurements.forEach((measurement: any) => {
+          if (measurement?.monetaryEstimate) {
+            totalValue += parseFloat(measurement.monetaryEstimate) || 0;
+          }
+        });
+      });
+      
+      return totalValue;
+    } catch (fallbackErr) {
+      console.error('Error in fallback monetary value calculation:', fallbackErr);
+      return 0;
+    }
   }
 }
 
@@ -1022,10 +1157,13 @@ function extractEffectsSummary(project: any): any {
 
 function calculateTotalBudget(projects: any[]): number {
   try {
-    return projects.reduce((total, project) => {
+    const total = projects.reduce((total, project) => {
       const budget = extractBudgetAmount(project);
       return total + (budget || 0);
     }, 0);
+    
+
+    return total;
   } catch (err) {
     console.error('Error calculating total budget:', err);
     return 0;
@@ -1035,7 +1173,10 @@ function calculateTotalBudget(projects: any[]): number {
 function calculateAverageBudget(projects: any[]): number {
   try {
     const total = calculateTotalBudget(projects);
-    return projects.length > 0 ? total / projects.length : 0;
+    const average = projects.length > 0 ? total / projects.length : 0;
+    
+
+    return average;
   } catch (err) {
     console.error('Error calculating average budget:', err);
     return 0;
@@ -1044,7 +1185,10 @@ function calculateAverageBudget(projects: any[]): number {
 
 function calculateTotalROI(projects: any[]): number {
   try {
-    const rois = projects.map(project => calculateROI(project)).filter(roi => roi !== null);
+    // Only include projects with valid ROI (non-null, non-zero, finite numbers)
+    const rois = projects
+      .map(project => calculateROI(project))
+      .filter((roi): roi is number => roi !== null && roi !== 0 && isFinite(roi as number));
     return rois.length > 0 ? rois.reduce((sum, roi) => sum + roi, 0) : 0;
   } catch (err) {
     console.error('Error calculating total ROI:', err);
@@ -1054,7 +1198,10 @@ function calculateTotalROI(projects: any[]): number {
 
 function calculateAverageROI(projects: any[]): number {
   try {
-    const rois = projects.map(project => calculateROI(project)).filter(roi => roi !== null);
+    // Only include projects with valid ROI (non-null, non-zero, finite numbers)
+    const rois = projects
+      .map(project => calculateROI(project))
+      .filter((roi): roi is number => roi !== null && roi !== 0 && isFinite(roi as number));
     return rois.length > 0 ? rois.reduce((sum, roi) => sum + roi, 0) / rois.length : 0;
   } catch (err) {
     console.error('Error calculating average ROI:', err);
@@ -1194,13 +1341,47 @@ function analyzeCostTypes(projects: any[]) {
     projects.forEach(project => {
       const costEntries = project.cost_data?.actualCostDetails?.costEntries || [];
       costEntries.forEach((entry: any) => {
-        if (entry?.costType) {
-          const cost = (entry.costHours || 0) * (entry.costRate || 0) + (entry.costFixed || 0);
-          if (!costTypeData[entry.costType]) {
-            costTypeData[entry.costType] = { count: 0, totalCost: 0 };
+        let costType = entry?.costType;
+        let cost = 0;
+        
+        // Use new cost structure
+        if (entry?.costUnit) {
+          costType = entry.costType || entry.costUnit; // Use costUnit if costType is not available
+          
+          switch (entry.costUnit) {
+            case 'hours':
+              const hours = Number(entry.hoursDetails?.hours) || 0;
+              const rate = Number(entry.hoursDetails?.hourlyRate) || 0;
+              cost = hours * rate;
+              break;
+            case 'fixed':
+              cost = Number(entry.fixedDetails?.fixedAmount) || 0;
+              break;
+            case 'monthly':
+              const monthlyAmount = Number(entry.monthlyDetails?.monthlyAmount) || 0;
+              const monthlyDuration = Number(entry.monthlyDetails?.monthlyDuration) || 1;
+              cost = monthlyAmount * monthlyDuration;
+              break;
+            case 'yearly':
+              const yearlyAmount = Number(entry.yearlyDetails?.yearlyAmount) || 0;
+              const yearlyDuration = Number(entry.yearlyDetails?.yearlyDuration) || 1;
+              cost = yearlyAmount * yearlyDuration;
+              break;
           }
-          costTypeData[entry.costType].count++;
-          costTypeData[entry.costType].totalCost += cost;
+        } else if (entry?.costType) {
+          // Fallback to old structure
+          const hours = typeof entry.costHours === 'string' ? parseFloat(entry.costHours) || 0 : (entry.costHours || 0);
+          const rate = typeof entry.costRate === 'string' ? parseFloat(entry.costRate) || 0 : (entry.costRate || 0);
+          const fixed = typeof entry.costFixed === 'string' ? parseFloat(entry.costFixed) || 0 : (entry.costFixed || 0);
+          cost = hours * rate + fixed;
+        }
+        
+        if (costType && cost > 0) {
+          if (!costTypeData[costType]) {
+            costTypeData[costType] = { count: 0, totalCost: 0 };
+          }
+          costTypeData[costType].count++;
+          costTypeData[costType].totalCost += cost;
         }
       });
     });
@@ -1238,8 +1419,18 @@ function analyzeCostPerHour(projects: any[]) {
     projects.forEach(project => {
       const costEntries = project.cost_data?.actualCostDetails?.costEntries || [];
       costEntries.forEach((entry: any) => {
-        if (entry?.costRate) {
-          rates.push(entry.costRate);
+        let rate = 0;
+        
+        // Use new cost structure
+        if (entry?.costUnit === 'hours' && entry?.hoursDetails?.hourlyRate) {
+          rate = Number(entry.hoursDetails.hourlyRate) || 0;
+        } else if (entry?.costRate) {
+          // Fallback to old structure
+          rate = typeof entry.costRate === 'string' ? parseFloat(entry.costRate) || 0 : (entry.costRate || 0);
+        }
+        
+        if (rate > 0) {
+          rates.push(rate);
         }
       });
     });
@@ -1465,13 +1656,19 @@ function analyzeTechnicalChallenges(projects: any[]) {
 function getTopProjectsByROI(projects: any[], limit: number) {
   try {
     return projects
-      .map(project => ({
-        id: project.id,
-        title: project.title,
-        roi: calculateROI(project)
-      }))
-      .filter(project => project.roi !== null)
-      .sort((a, b) => (b.roi || 0) - (a.roi || 0))
+      .map(project => {
+        const roi = calculateROI(project);
+        const actualCost = calculateActualCost(project);
+        return {
+          id: project.id,
+          title: project.title,
+          roi: roi,
+          budget: actualCost
+        };
+      })
+      .filter((project): project is { id: string; title: string; roi: number; budget: number } => 
+        project.roi !== null && project.roi !== 0 && isFinite(project.roi))
+      .sort((a, b) => b.roi - a.roi)
       .slice(0, limit);
   } catch (err) {
     console.error('Error getting top projects by ROI:', err);
@@ -1527,5 +1724,47 @@ function getMostInnovativeProjects(projects: any[], limit: number) {
   } catch (err) {
     console.error('Error getting most innovative projects:', err);
     return [];
+  }
+}
+
+function analyzeROIByValueDimension(projects: any[]) {
+  try {
+    const dimensionROI: Record<string, { count: number; totalROI: number; averageROI: number }> = {};
+    
+    projects.forEach(project => {
+      const roi = calculateROI(project);
+      // Only include projects with valid, non-zero ROI
+      if (roi !== null && roi !== 0 && isFinite(roi)) {
+        // Use the value_dimensions array directly from the project
+        const valueDimensions = project.value_dimensions || [];
+        valueDimensions.forEach((dimensionName: string) => {
+          if (!dimensionROI[dimensionName]) {
+            dimensionROI[dimensionName] = { count: 0, totalROI: 0, averageROI: 0 };
+          }
+          dimensionROI[dimensionName].count++;
+          dimensionROI[dimensionName].totalROI += roi;
+        });
+      }
+    });
+    
+    // Calculate averages and sort by average ROI
+    Object.keys(dimensionROI).forEach(dimension => {
+      const data = dimensionROI[dimension];
+      data.averageROI = data.count > 0 ? data.totalROI / data.count : 0;
+    });
+    
+    // Return only top 5 dimensions by average ROI
+    const sortedDimensions = Object.entries(dimensionROI)
+      .sort(([,a], [,b]) => b.averageROI - a.averageROI)
+      .slice(0, 5)
+      .reduce((acc, [key, value]) => {
+        acc[key] = value;
+        return acc;
+      }, {} as Record<string, { count: number; totalROI: number; averageROI: number }>);
+    
+    return sortedDimensions;
+  } catch (err) {
+    console.error('Error analyzing ROI by value dimension:', err);
+    return {};
   }
 }

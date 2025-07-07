@@ -1,18 +1,20 @@
-import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
+import { createServerSupabaseClient } from '@/lib/supabaseServer'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-const sb = () => createClient(supabaseUrl, supabaseKey)
+const sb = () => createServerSupabaseClient()
 
 export async function GET(request: NextRequest) {
   try {
+
+    
     // First get all idea projects
     const { data: projects, error: projectsError } = await sb()
       .from('projects')
       .select('*')
       .eq('phase', 'idea')
       .order('created_at', { ascending: false })
+
+
 
     if (projectsError) {
       console.error('Ideas API error:', projectsError)
@@ -33,6 +35,8 @@ export async function GET(request: NextRequest) {
         municipalities(name)
       `)
       .in('project_id', projectIds)
+
+
 
     if (mappingsError) {
       console.error('Ideas API mappings error:', mappingsError)
@@ -56,6 +60,7 @@ export async function GET(request: NextRequest) {
       municipality: municipalityMap.get(project.id) || 'Okänd kommun',
       created_at: project.created_at
     })) || []
+
 
     return NextResponse.json(ideas)
   } catch (error) {

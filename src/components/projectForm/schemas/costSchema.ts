@@ -78,33 +78,104 @@ export const costSectionSchema: SectionSchema = {
               id: 'costLabel',
               type: 'text',
               label: 'Roll, aktivitet eller benämning',
+              placeholder: 't.ex. "Senior utvecklare", "Azure-licens", "Workshop"',
             },
             {
-              id: 'costHours',
-              type: 'number',
-              label: 'Antal timmar',
-              placeholder: 't.ex. 40',
-              optional: true,
+              id: 'costUnit',
+              type: 'select',
+              label: 'Enhet för kostnad',
+              options: [
+                { value: 'hours', label: 'Timmar' },
+                { value: 'fixed', label: 'Fast belopp (SEK)' },
+                { value: 'monthly', label: 'Månadsavgift (SEK)' },
+                { value: 'yearly', label: 'Årsavgift (SEK)' },
+              ],
             },
+            // Timmar-baserade kostnader
             {
-              id: 'costRate',
-              type: 'number',
-              label: 'Kostnad per timme (SEK)',
-              placeholder: 't.ex. 800',
-              optional: true,
+              id: 'hoursDetails',
+              type: 'group',
+              label: 'Timmar-baserad kostnad',
+              condition: { id: 'costUnit', value: 'hours' },
+              questions: [
+                {
+                  id: 'hours',
+                  type: 'number',
+                  label: 'Antal timmar',
+                  placeholder: 't.ex. 40',
+                },
+                {
+                  id: 'hourlyRate',
+                  type: 'number',
+                  label: 'Kostnad per timme (SEK)',
+                  placeholder: 't.ex. 800',
+                },
+              ],
             },
+            // Fast belopp
             {
-              id: 'costFixed',
-              type: 'number',
-              label: 'Fast kostnad / Overhead (SEK)',
-              placeholder: 't.ex. 15000 för licens',
-              optional: true,
+              id: 'fixedDetails',
+              type: 'group',
+              label: 'Fast belopp',
+              condition: { id: 'costUnit', value: 'fixed' },
+              questions: [
+                {
+                  id: 'fixedAmount',
+                  type: 'number',
+                  label: 'Belopp (SEK)',
+                  placeholder: 't.ex. 15000',
+                },
+              ],
             },
+            // Månadsavgift
+            {
+              id: 'monthlyDetails',
+              type: 'group',
+              label: 'Månadsavgift',
+              condition: { id: 'costUnit', value: 'monthly' },
+              questions: [
+                {
+                  id: 'monthlyAmount',
+                  type: 'number',
+                  label: 'Månadsavgift (SEK)',
+                  placeholder: 't.ex. 5000',
+                },
+                {
+                  id: 'monthlyDuration',
+                  type: 'number',
+                  label: 'Antal månader',
+                  placeholder: 't.ex. 12',
+                },
+              ],
+            },
+            // Årsavgift
+            {
+              id: 'yearlyDetails',
+              type: 'group',
+              label: 'Årsavgift',
+              condition: { id: 'costUnit', value: 'yearly' },
+              questions: [
+                {
+                  id: 'yearlyAmount',
+                  type: 'number',
+                  label: 'Årsavgift (SEK)',
+                  placeholder: 't.ex. 50000',
+                },
+                {
+                  id: 'yearlyDuration',
+                  type: 'number',
+                  label: 'Antal år',
+                  placeholder: 't.ex. 3',
+                },
+              ],
+            },
+
             {
               id: 'costComment',
               type: 'text',
               label: 'Kommentar (valfri)',
               optional: true,
+              placeholder: 'T.ex. osäkerheter, särskilda omständigheter',
             },
           ],
         },

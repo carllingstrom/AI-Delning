@@ -1,9 +1,7 @@
-import { createClient } from '@supabase/supabase-js'
 import { NextRequest, NextResponse } from 'next/server'
+import { createServerSupabaseClient } from '@/lib/supabaseServer'
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!
-const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY!
-const sb = () => createClient(supabaseUrl, supabaseKey)
+const sb = () => createServerSupabaseClient()
 
 export async function GET(
   request: NextRequest,
@@ -12,7 +10,28 @@ export async function GET(
   try {
     const { data, error } = await sb()
       .from('projects')
-      .select('*')
+      .select(`
+        *,
+        project_municipalities(
+          municipalities(
+            id,
+            name,
+            county
+          )
+        ),
+        project_areas(
+          areas(
+            id,
+            name
+          )
+        ),
+        project_value_dimensions(
+          value_dimensions(
+            id,
+            name
+          )
+        )
+      `)
       .eq('id', params.id)
       .single()
 

@@ -163,9 +163,6 @@ export async function POST(req: NextRequest) {
 
 // GET /api/projects?municipality_id=123 (optional)
 export async function GET(req: NextRequest) {
-  console.log('🔍 Projects API called');
-  console.log('URL:', req.url);
-  console.log('Search params:', Object.fromEntries(req.nextUrl.searchParams.entries()));
   const sb = serverSupabase();
   const municipality_id = req.nextUrl.searchParams.get('municipality_id');
   
@@ -194,13 +191,13 @@ export async function GET(req: NextRequest) {
           )
         )
       `);
-    console.log('Query constructed');
+
 
     // If municipality_id is provided, filter by it
     if (municipality_id) {
       const municipalityIdNum = Number(municipality_id);
       if (isNaN(municipalityIdNum)) {
-        console.log('Invalid municipality_id');
+
         return NextResponse.json({ error: 'Invalid municipality_id' }, { status: 400 });
       }
       
@@ -209,7 +206,7 @@ export async function GET(req: NextRequest) {
         .from('project_municipalities')
         .select('project_id')
         .eq('municipality_id', municipalityIdNum);
-      console.log('Fetched projectIds', projectIds, projectIdsError);
+
 
       if (projectIdsError) {
         console.error('Project IDs fetch error:', projectIdsError);
@@ -221,13 +218,13 @@ export async function GET(req: NextRequest) {
         query = query.in('id', ids);
       } else {
         // No projects found for this municipality
-        console.log('No projects found for municipality');
+
         return NextResponse.json([]);
       }
     }
 
     const { data, error } = await query;
-    console.log('Query result', data, error);
+
 
     if (error) {
       console.error('Projects fetch error:', error);
@@ -240,9 +237,7 @@ export async function GET(req: NextRequest) {
         !project.project_municipalities || project.project_municipalities.length === 0
       );
       if (projectsWithoutMunicipality.length > 0) {
-        console.log('⚠️  Projects without municipality relationships:', 
-          projectsWithoutMunicipality.map((p: any) => ({ id: p.id, title: p.title }))
-        );
+
       }
     }
 
@@ -325,7 +320,7 @@ export async function GET(req: NextRequest) {
         municipality_info: project.project_municipalities?.map((pm: any) => pm.municipalities).filter(Boolean) || []
       };
     });
-    console.log('Transformed projects', transformedProjects);
+
 
     return NextResponse.json(transformedProjects);
 

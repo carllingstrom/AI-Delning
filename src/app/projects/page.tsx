@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react';
 import Header from '@/components/Header';
 import Link from 'next/link';
+import ProjectScoreBar from '@/components/ProjectScoreBar';
+import { calculateProjectScore } from '@/lib/projectScore';
 
 interface AnalyticsData {
   summary: {
@@ -50,6 +52,7 @@ interface AnalyticsData {
       totalAffected: number;
       averageGroupsPerProject: number;
     };
+    roiByValueDimension: Record<string, { count: number; totalROI: number; averageROI: number }>;
   };
   technologyInsights: {
     mostUsedTechnologies: [string, number][];
@@ -111,7 +114,8 @@ export default function ProjectsPage() {
     hasROI: '',
     technology: '',
     affectedGroups: '',
-    search: ''
+    search: '',
+    scoreLevel: ''
   });
 
   // Generic text normalization (no hardcoded terms)
@@ -507,6 +511,13 @@ export default function ProjectsPage() {
             project.calculatedMetrics?.roi && project.calculatedMetrics.roi > 0
           );
         }
+
+        if (filtersToUse.scoreLevel) {
+          filteredProjects = filteredProjects.filter((project: Project) => {
+            const score = calculateProjectScore(project);
+            return score.level === filtersToUse.scoreLevel;
+          });
+        }
         
         setProjects(filteredProjects);
       }
@@ -526,7 +537,7 @@ export default function ProjectsPage() {
     const clearedFilters = {
       phase: '', county: '', area: '', valueDimension: '',
       minBudget: '', maxBudget: '', hasROI: '', technology: '',
-      affectedGroups: '', search: ''
+      affectedGroups: '', search: '', scoreLevel: ''
     };
     setFilters(clearedFilters);
     fetchData(clearedFilters);
@@ -548,11 +559,8 @@ export default function ProjectsPage() {
   const getPhaseColor = (phase: string) => {
     switch (phase) {
       case 'idea': return 'bg-blue-500';
-      case 'planning': return 'bg-yellow-500';
       case 'pilot': return 'bg-orange-500';
-      case 'implementation': return 'bg-purple-500';
       case 'implemented': return 'bg-green-500';
-      case 'completed': return 'bg-gray-500';
       default: return 'bg-gray-400';
     }
   };
@@ -560,11 +568,8 @@ export default function ProjectsPage() {
   const getPhaseLabel = (phase: string) => {
     switch (phase) {
       case 'idea': return 'Idé';
-      case 'planning': return 'Planering';
       case 'pilot': return 'Pilot';
-      case 'implementation': return 'Genomförande';
-      case 'implemented': return 'Genomförd';
-      case 'completed': return 'Avslutat';
+      case 'implemented': return 'Implementerat';
       default: return phase;
     }
   };
@@ -637,201 +642,306 @@ export default function ProjectsPage() {
           </div>
         </div>
 
-        {/* Filters Section */}
-        <div className="bg-[#1E3A4A] p-6 rounded-lg mb-8">
-          <h2 className="text-xl font-bold text-[#FECB00] mb-4">Filter & Sök</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            <div>
-              <label className="block text-sm font-medium mb-2">Sök projekt</label>
-              <input
-                type="text"
-                value={filters.search}
-                onChange={(e) => setFilters({...filters, search: e.target.value})}
-                className="w-full p-2 bg-[#0D1B2A] border border-gray-600 rounded text-white"
-                placeholder="AI, kommun, teknik... (fuzzy search)"
-                onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-              />
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium mb-2">Projektfas</label>
-              <select
-                value={filters.phase}
-                onChange={(e) => setFilters({...filters, phase: e.target.value})}
-                className="w-full p-2 bg-[#0D1B2A] border border-gray-600 rounded text-white"
-              >
-                <option value="">Alla faser</option>
-                <option value="idea">Idé</option>
-                <option value="planning">Planering</option>
-                <option value="pilot">Pilot</option>
-                <option value="implementation">Genomförande</option>
-                <option value="implemented">Genomförd</option>
-                <option value="completed">Avslutat</option>
-              </select>
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium mb-2">Minsta budget (SEK)</label>
-              <input
-                type="number"
-                value={filters.minBudget}
-                onChange={(e) => setFilters({...filters, minBudget: e.target.value})}
-                className="w-full p-2 bg-[#0D1B2A] border border-gray-600 rounded text-white"
-                placeholder="t.ex. 100000"
-                onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-2">Största budget (SEK)</label>
-              <input
-                type="number"
-                value={filters.maxBudget}
-                onChange={(e) => setFilters({...filters, maxBudget: e.target.value})}
-                className="w-full p-2 bg-[#0D1B2A] border border-gray-600 rounded text-white"
-                placeholder="t.ex. 1000000"
-                onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-2">Teknik</label>
-              <input
-                type="text"
-                value={filters.technology}
-                onChange={(e) => setFilters({...filters, technology: e.target.value})}
-                className="w-full p-2 bg-[#0D1B2A] border border-gray-600 rounded text-white"
-                placeholder="AI, maskinlärning, ChatGPT... (fuzzy)"
-                onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-2">Påverkade grupper</label>
-              <select
-                value={filters.affectedGroups}
-                onChange={(e) => setFilters({...filters, affectedGroups: e.target.value})}
-                className="w-full p-2 bg-[#0D1B2A] border border-gray-600 rounded text-white"
-              >
-                <option value="">Alla grupper</option>
-                <option value="Medborgare">Medborgare</option>
-                <option value="Anställda">Anställda</option>
-                <option value="Förvaltning/avdelning">Förvaltning/avdelning</option>
-                <option value="Externa aktörer">Externa aktörer</option>
-              </select>
-            </div>
-
-            <div className="flex items-end">
-              <label className="flex items-center">
-                <input
-                  type="checkbox"
-                  checked={filters.hasROI === 'true'}
-                  onChange={(e) => setFilters({...filters, hasROI: e.target.checked ? 'true' : ''})}
-                  className="mr-2"
-                />
-                Endast projekt med positiv ROI
-              </label>
-            </div>
-
-            <div className="flex items-end">
-              {/* Empty div for spacing */}
-            </div>
-          </div>
-
-          {/* Search and Clear buttons */}
-          <div className="flex gap-4">
-            <button
-              onClick={handleSearch}
-              disabled={searching}
-              className="px-6 py-2 bg-[#FECB00] text-[#0D1B2A] font-bold rounded hover:bg-[#e0b400] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
-            >
-              {searching ? 'Söker...' : (
-                <>
-                  <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
-                  </svg>
-                  <span className="font-bold">Sök projekt</span>
-                </>
-              )}
-            </button>
-            
-            <button
-              onClick={handleClearFilters}
-              className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors"
-            >
-              Rensa filter
-            </button>
-          </div>
-        </div>
-
         {/* Content based on active tab */}
         {activeTab === 'overview' && (
           <div className="space-y-8">
             {analytics ? (
               <>
-                {/* Summary Cards */}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
-                  <div className="bg-[#1E3A4A] p-6 rounded-lg">
-                    <h3 className="text-lg font-semibold text-[#FECB00] mb-2">Totalt Projekt</h3>
-                    <p className="text-3xl font-bold">{analytics?.summary?.totalProjects || 0}</p>
-                  </div>
-                  
-                  <div className="bg-[#1E3A4A] p-6 rounded-lg">
-                    <h3 className="text-lg font-semibold text-[#FECB00] mb-2">Total Budget</h3>
-                    <p className="text-2xl font-bold">{formatCurrency(analytics?.summary?.totalBudget || 0)}</p>
-                  </div>
-                  
-                  <div className="bg-[#1E3A4A] p-6 rounded-lg">
-                    <h3 className="text-lg font-semibold text-[#FECB00] mb-2">Genomsnittlig Budget</h3>
-                    <p className="text-2xl font-bold">{formatCurrency(analytics?.summary?.averageBudget || 0)}</p>
-                  </div>
-                  
-                  <div className="bg-[#1E3A4A] p-6 rounded-lg">
-                    <h3 className="text-lg font-semibold text-[#FECB00] mb-2">Total ROI</h3>
-                    <p className="text-2xl font-bold">{formatPercent(analytics?.summary?.totalROI || 0)}</p>
-                  </div>
-                  
-                  <div className="bg-[#1E3A4A] p-6 rounded-lg">
-                    <h3 className="text-lg font-semibold text-[#FECB00] mb-2">Genomsnittlig ROI</h3>
-                    <p className="text-2xl font-bold">{formatPercent(analytics?.summary?.averageROI || 0)}</p>
+                {/* Key Metrics Section */}
+                <div className="bg-[#1E3A4A] p-8 rounded-lg">
+                  <h2 className="text-2xl font-bold text-[#FECB00] mb-6">Nyckeltal</h2>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="text-center">
+                      <h3 className="text-lg font-semibold text-[#FECB00] mb-2">Totalt antal projekt</h3>
+                      <p className="text-4xl font-bold text-white">{Number(analytics?.summary?.totalProjects) || 0}</p>
+                    </div>
+                    
+                    <div className="text-center">
+                      <h3 className="text-lg font-semibold text-[#FECB00] mb-2">Genomsnittlig budget</h3>
+                      <p className="text-3xl font-bold text-white">{formatCurrency(Number(analytics?.summary?.averageBudget) || 0)}</p>
+                    </div>
+                    
+                    <div className="text-center">
+                      <h3 className="text-lg font-semibold text-[#FECB00] mb-2">Genomsnittlig ROI</h3>
+                      <p className="text-3xl font-bold text-white">{formatPercent(Number(analytics?.summary?.averageROI) || 0)}</p>
+                    </div>
                   </div>
                 </div>
 
-                {/* Quick Insights */}
+                {/* Cost Analysis Section */}
+                <div className="bg-[#1E3A4A] p-8 rounded-lg">
+                  <h2 className="text-2xl font-bold text-[#FECB00] mb-6">Kostnadsanalys</h2>
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    <div>
+                      <h3 className="text-xl font-bold text-[#FECB00] mb-4">Kostnadstyper (genomsnitt/projekt)</h3>
+                      <div className="space-y-3">
+                        {analytics?.costAnalysis?.byCostType && Object.entries(analytics.costAnalysis.byCostType).map(([type, data]) => {
+                          const avgCostPerProject = data.count > 0 ? data.totalCost / data.count : 0;
+                          return (
+                            <div key={type}>
+                              <div className="flex justify-between items-center">
+                                <span className="text-sm truncate mr-2">{type}</span>
+                                <span className="text-[#FECB00] font-semibold">{formatCurrency(avgCostPerProject)}</span>
+                              </div>
+                              <div className="text-xs text-gray-400">
+                                {Number(data.count)} projekt • {formatCurrency(Number(data.totalCost))} totalt
+                              </div>
+                            </div>
+                          );
+                        }) || (
+                          <div className="text-gray-400 text-sm">Ingen kostnadsdata tillgänglig</div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div>
+                      <h3 className="text-xl font-bold text-[#FECB00] mb-4">Kostnad per timme</h3>
+                      <div className="space-y-3">
+                        {analytics?.costAnalysis?.costPerHour ? (
+                          <>
+                            <div className="flex justify-between">
+                              <span>Genomsnitt:</span>
+                              <span className="text-[#FECB00] font-semibold">
+                                {formatCurrency(Number(analytics.costAnalysis.costPerHour.average) || 0)}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>Median:</span>
+                              <span className="text-[#FECB00] font-semibold">
+                                {formatCurrency(Number(analytics.costAnalysis.costPerHour.median) || 0)}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>Min:</span>
+                              <span className="text-gray-300">
+                                {formatCurrency(Number(analytics.costAnalysis.costPerHour.min) || 0)}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>Max:</span>
+                              <span className="text-gray-300">
+                                {formatCurrency(Number(analytics.costAnalysis.costPerHour.max) || 0)}
+                              </span>
+                            </div>
+                          </>
+                        ) : (
+                          <div className="text-gray-400 text-sm">Ingen timkostnadsdata tillgänglig</div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div>
+                      <h3 className="text-xl font-bold text-[#FECB00] mb-4">Kostnadstakeaways</h3>
+                      <div className="space-y-3">
+                        <div className="flex justify-between">
+                          <span>Total budget:</span>
+                          <span className="text-[#FECB00] font-semibold">
+                            {formatCurrency(Number(analytics?.summary?.totalBudget) || 0)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Genomsnittlig projektkostnad:</span>
+                          <span className="text-[#FECB00] font-semibold">
+                            {analytics?.costAnalysis?.byCostType ? 
+                              formatCurrency(
+                                Object.values(analytics.costAnalysis.byCostType).reduce((sum, data) => sum + data.totalCost, 0) / 
+                                Math.max(analytics.summary.totalProjects, 1)
+                              ) : 
+                              formatCurrency(0)
+                            }
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Projekt med kostnadsdata:</span>
+                          <span className="text-[#FECB00] font-semibold">
+                            {analytics?.costAnalysis?.byCostType ? 
+                              Object.values(analytics.costAnalysis.byCostType).reduce((sum, data) => sum + data.count, 0) : 
+                              0
+                            } / {analytics?.summary?.totalProjects || 0}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Effects Analysis Section */}
+                <div className="bg-[#1E3A4A] p-8 rounded-lg">
+                  <h2 className="text-2xl font-bold text-[#FECB00] mb-6">Effektanalys</h2>
+                  <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+                    <div>
+                      <h3 className="text-xl font-bold text-[#FECB00] mb-4">Kvalitativa effekter</h3>
+                      <div className="space-y-3">
+                        <div className="flex justify-between">
+                          <span>Med kvantifierbara mått:</span>
+                          <span className="text-[#FECB00] font-semibold">
+                            {Number(analytics?.effectsAnalysis?.quantifiableEffects?.withQuantifiable) || 0}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Utan kvantifierbara mått:</span>
+                          <span className="text-gray-300">
+                            {Number(analytics?.effectsAnalysis?.quantifiableEffects?.withoutQuantifiable) || 0}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Kvantifieringsgrad:</span>
+                          <span className="text-[#FECB00] font-semibold">
+                            {formatPercent(Number(analytics?.effectsAnalysis?.quantifiableEffects?.percentage) || 0)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <h3 className="text-xl font-bold text-[#FECB00] mb-4">Effektstatistik</h3>
+                      <div className="space-y-3">
+                        <div className="flex justify-between">
+                          <span>Projekt med uppmätta effekter:</span>
+                          <span className="text-[#FECB00] font-semibold">
+                            {Number(analytics?.effectsAnalysis?.quantifiableEffects?.withQuantifiable) || 0} / {analytics?.summary?.totalProjects || 0}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Total monetär effekt:</span>
+                          <span className="text-[#FECB00] font-semibold">
+                            {formatCurrency(Number(analytics?.effectsAnalysis?.monetaryValue) || 0)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span>Genomsnittlig ROI:</span>
+                          <span className="text-[#FECB00] font-semibold">
+                            {formatPercent(Number(analytics?.summary?.averageROI) || 0)}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="bg-[#1E3A4A] p-6 rounded-lg">
+                      <h3 className="text-xl font-bold text-[#FECB00] mb-4">Effekt/värdedimension</h3>
+                      <div className="space-y-3">
+                        {analytics?.effectsAnalysis?.roiByValueDimension && Object.entries(analytics.effectsAnalysis.roiByValueDimension).slice(0, 5).map(([dimension, data]) => (
+                          <div key={dimension} className="flex justify-between items-center">
+                            <span className="text-white text-sm">{dimension}</span>
+                            <div className="text-right">
+                              <div className="text-[#FECB00] font-semibold">{formatPercent(data.averageROI)}</div>
+                              <div className="text-xs text-gray-400">{data.count} projekt</div>
+                            </div>
+                          </div>
+                        )) || (
+                          <div className="text-gray-400 text-sm">Ingen ROI-data tillgänglig</div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="bg-[#1E3A4A] p-6 rounded-lg">
+                      <h3 className="text-xl font-bold text-[#FECB00] mb-4">Top 5 effekt-projekt</h3>
+                      <div className="space-y-3">
+                        {analytics?.topPerformers?.highestROI?.slice(0, 5).map((project: any, index: number) => (
+                          <div key={project.id} className="flex justify-between items-center">
+                            <span className="text-white text-sm">{index + 1}. {project.title}</span>
+                            <div className="text-right">
+                              <div className="text-[#FECB00] font-semibold">{formatPercent(project.roi)}</div>
+                              <div className="text-xs text-gray-400">{formatCurrency(project.budget)} kostnad</div>
+                            </div>
+                          </div>
+                        )) || (
+                          <div className="text-gray-400 text-sm">Ingen ROI-data tillgänglig</div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Technology Insights Section */}
+                <div className="bg-[#1E3A4A] p-8 rounded-lg">
+                  <h2 className="text-2xl font-bold text-[#FECB00] mb-6">Teknologi-insikter</h2>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <div>
+                      <h3 className="text-lg font-semibold text-white mb-3">Mest använda teknologier</h3>
+                      <div className="space-y-2">
+                        {analytics?.technologyInsights?.mostUsedTechnologies?.slice(0, 5).map(([tech, count]) => (
+                          <div key={tech} className="flex justify-between items-center">
+                            <span className="text-white text-sm">{tech}</span>
+                            <span className="text-[#FECB00] font-semibold">{Number(count)}</span>
+                          </div>
+                        )) || (
+                          <div className="text-gray-400 text-sm">Ingen teknologidata tillgänglig</div>
+                        )}
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <h3 className="text-lg font-semibold text-white mb-3">Deployment-miljöer</h3>
+                      <div className="space-y-2">
+                        {analytics?.technologyInsights?.deploymentEnvironments && Object.entries(analytics.technologyInsights.deploymentEnvironments).map(([env, count]) => (
+                          <div key={env} className="flex justify-between items-center">
+                            <span className="text-white text-sm">{env}</span>
+                            <span className="text-[#FECB00] font-semibold">{Number(count)}</span>
+                          </div>
+                        )) || (
+                          <div className="text-gray-400 text-sm">Ingen deployment-data tillgänglig</div>
+                        )}
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <h3 className="text-lg font-semibold text-white mb-3">Datatyper</h3>
+                      <div className="space-y-2">
+                        {analytics?.technologyInsights?.dataTypes && Object.entries(analytics.technologyInsights.dataTypes).map(([type, count]) => (
+                          <div key={type} className="flex justify-between items-center">
+                            <span className="text-white text-sm">{type}</span>
+                            <span className="text-[#FECB00] font-semibold">{Number(count)}</span>
+                          </div>
+                        )) || (
+                          <div className="text-gray-400 text-sm">Ingen datatypdata tillgänglig</div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Project Distribution Overview */}
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                   <div className="bg-[#1E3A4A] p-6 rounded-lg">
-                    <h3 className="text-xl font-bold text-[#FECB00] mb-4">Projekt per Fas</h3>
+                    <h3 className="text-xl font-bold text-[#FECB00] mb-4">Projekt per fas</h3>
                     <div className="space-y-3">
-                      {Object.entries(analytics?.breakdowns?.byPhase || {}).map(([phase, count]) => (
+                      {analytics?.breakdowns?.byPhase && Object.entries(analytics.breakdowns.byPhase).map(([phase, count]) => (
                         <div key={phase} className="flex justify-between items-center">
-                          <span className="capitalize">{getPhaseLabel(phase)}</span>
-                          <span className="text-[#FECB00] font-semibold">{count}</span>
+                          <span className="capitalize text-white">{getPhaseLabel(phase)}</span>
+                          <span className="text-[#FECB00] font-semibold">{Number(count)}</span>
                         </div>
-                      ))}
+                      )) || (
+                        <div className="text-gray-400 text-sm">Ingen fasdata tillgänglig</div>
+                      )}
                     </div>
                   </div>
 
                   <div className="bg-[#1E3A4A] p-6 rounded-lg">
-                    <h3 className="text-xl font-bold text-[#FECB00] mb-4">Mest Använda Teknologier</h3>
+                    <h3 className="text-xl font-bold text-[#FECB00] mb-4">Projekt per område</h3>
                     <div className="space-y-3">
-                      {(analytics?.technologyInsights?.mostUsedTechnologies || []).slice(0, 5).map(([tech, count]) => (
-                        <div key={tech} className="flex justify-between items-center">
-                          <span className="truncate mr-4">{tech}</span>
-                          <span className="text-[#FECB00] font-semibold">{count}</span>
+                      {analytics?.breakdowns?.byArea && Object.entries(analytics.breakdowns.byArea).map(([area, count]) => (
+                        <div key={area} className="flex justify-between items-center">
+                          <span className="text-white text-sm">{area}</span>
+                          <span className="text-[#FECB00] font-semibold">{Number(count)}</span>
                         </div>
-                      ))}
+                      )) || (
+                        <div className="text-gray-400 text-sm">Ingen områdesdata tillgänglig</div>
+                      )}
                     </div>
                   </div>
 
                   <div className="bg-[#1E3A4A] p-6 rounded-lg">
-                    <h3 className="text-xl font-bold text-[#FECB00] mb-4">Påverkade Grupper</h3>
+                    <h3 className="text-xl font-bold text-[#FECB00] mb-4">Projekt per värdedimension</h3>
                     <div className="space-y-3">
-                      {Object.entries(analytics?.breakdowns?.byAffectedGroups || {}).map(([group, count]) => (
-                        <div key={group} className="flex justify-between items-center">
-                          <span>{group}</span>
-                          <span className="text-[#FECB00] font-semibold">{count}</span>
+                      {analytics?.breakdowns?.byValueDimension && Object.entries(analytics.breakdowns.byValueDimension).map(([dimension, count]) => (
+                        <div key={dimension} className="flex justify-between items-center">
+                          <span className="text-white text-sm">{dimension}</span>
+                          <span className="text-[#FECB00] font-semibold">{Number(count)}</span>
                         </div>
-                      ))}
+                      )) || (
+                        <div className="text-gray-400 text-sm">Ingen värdedimensionsdata tillgänglig</div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -841,8 +951,8 @@ export default function ProjectsPage() {
                 <h3 className="text-xl font-bold text-[#FECB00] mb-4">Laddar översiktsdata...</h3>
                 <p className="text-gray-300 mb-6">Samlar projektstatistik och analysdata</p>
                 <div className="animate-pulse">
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
-                    {[...Array(5)].map((_, i) => (
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {[...Array(3)].map((_, i) => (
                       <div key={i} className="bg-[#2A4A5A] h-24 rounded"></div>
                     ))}
                   </div>
@@ -854,6 +964,134 @@ export default function ProjectsPage() {
 
         {activeTab === 'projects' && (
           <div className="space-y-6">
+            {/* Filters Section - Only show in projects tab */}
+            <div className="bg-[#1E3A4A] p-6 rounded-lg">
+              <h2 className="text-xl font-bold text-[#FECB00] mb-4">Filter & Sök</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                <div>
+                  <label className="block text-sm font-medium mb-2">Sök projekt</label>
+                  <input
+                    type="text"
+                    value={filters.search}
+                    onChange={(e) => setFilters({...filters, search: e.target.value})}
+                    className="w-full p-2 bg-[#0D1B2A] border border-gray-600 rounded text-white"
+                    placeholder="Sök på titel, beskrivning..."
+                    onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium mb-2">Projektfas</label>
+                  <select
+                    value={filters.phase}
+                    onChange={(e) => setFilters({...filters, phase: e.target.value})}
+                    className="w-full p-2 bg-[#0D1B2A] border border-gray-600 rounded text-white"
+                  >
+                    <option value="">Alla faser</option>
+                    <option value="idea">Idé</option>
+                    <option value="pilot">Pilot</option>
+                    <option value="implemented">Implementerat</option>
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium mb-2">Område</label>
+                  <select
+                    value={filters.area}
+                    onChange={(e) => setFilters({...filters, area: e.target.value})}
+                    className="w-full p-2 bg-[#0D1B2A] border border-gray-600 rounded text-white"
+                  >
+                    <option value="">Alla områden</option>
+                    <option value="Utbildning och skola">Utbildning och skola</option>
+                    <option value="Primärvård & e-hälsa">Primärvård & e-hälsa</option>
+                    <option value="Miljö & klimat">Miljö & klimat</option>
+                    <option value="Transport & infrastruktur">Transport & infrastruktur</option>
+                    <option value="Socialtjänst">Socialtjänst</option>
+                    <option value="Äldre- & funktionsstöd">Äldre- & funktionsstöd</option>
+                    <option value="Kultur & fritid">Kultur & fritid</option>
+                    <option value="Samhällsbyggnad & stadsplanering">Samhällsbyggnad & stadsplanering</option>
+                    <option value="Säkerhet & krisberedskap">Säkerhet & krisberedskap</option>
+                    <option value="Ledning och styrning">Ledning och styrning</option>
+                    <option value="Intern administration">Intern administration</option>
+                    <option value="Medborgarservice & kommunikation">Medborgarservice & kommunikation</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2">Värdedimension</label>
+                  <select
+                    value={filters.valueDimension}
+                    onChange={(e) => setFilters({...filters, valueDimension: e.target.value})}
+                    className="w-full p-2 bg-[#0D1B2A] border border-gray-600 rounded text-white"
+                  >
+                    <option value="">Alla värdedimensioner</option>
+                    <option value="Innovation (nya tjänster)">Innovation (nya tjänster)</option>
+                    <option value="Etik, hållbarhet & ansvarsfull AI">Etik, hållbarhet & ansvarsfull AI</option>
+                    <option value="Kostnadsbesparing">Kostnadsbesparing</option>
+                    <option value="Tidsbesparing">Tidsbesparing</option>
+                    <option value="Kvalitet / noggrannhet">Kvalitet / noggrannhet</option>
+                    <option value="Medborgarnytta, upplevelse & service">Medborgarnytta, upplevelse & service</option>
+                    <option value="Kompetens & lärande">Kompetens & lärande</option>
+                    <option value="Riskreduktion & säkerhet">Riskreduktion & säkerhet</option>
+                    <option value="Ökade intäkter">Ökade intäkter</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2">Delningspoäng</label>
+                  <select
+                    value={filters.scoreLevel}
+                    onChange={(e) => setFilters({...filters, scoreLevel: e.target.value})}
+                    className="w-full p-2 bg-[#0D1B2A] border border-gray-600 rounded text-white"
+                  >
+                    <option value="">Alla nivåer</option>
+                    <option value="Exemplarisk">95%+ (Exemplarisk)</option>
+                    <option value="Komplett">85-94% (Komplett)</option>
+                    <option value="Avancerad">70-84% (Avancerad)</option>
+                    <option value="Utvecklad">50-69% (Utvecklad)</option>
+                    <option value="Grundläggande">&lt;50% (Grundläggande)</option>
+                  </select>
+                </div>
+
+                <div className="flex items-end">
+                  <label className="flex items-center">
+                    <input
+                      type="checkbox"
+                      checked={filters.hasROI === 'true'}
+                      onChange={(e) => setFilters({...filters, hasROI: e.target.checked ? 'true' : ''})}
+                      className="mr-2"
+                    />
+                    Endast projekt med positiv ROI
+                  </label>
+                </div>
+              </div>
+
+              {/* Search and Clear buttons */}
+              <div className="flex gap-4">
+                <button
+                  onClick={handleSearch}
+                  disabled={searching}
+                  className="px-6 py-2 bg-[#FECB00] text-[#0D1B2A] font-bold rounded hover:bg-[#e0b400] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                >
+                  {searching ? 'Söker...' : (
+                    <>
+                      <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
+                      </svg>
+                      <span className="font-bold">Sök projekt</span>
+                    </>
+                  )}
+                </button>
+                
+                <button
+                  onClick={handleClearFilters}
+                  className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors"
+                >
+                  Rensa filter
+                </button>
+              </div>
+            </div>
+
             <div className="flex justify-between items-center">
               <h2 className="text-2xl font-bold text-[#FECB00]">
                 Projekt ({projects.length})
@@ -879,9 +1117,10 @@ export default function ProjectsPage() {
               <>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {projects.map((project) => (
-                    <div key={project.id} className="bg-[#1E3A4A] p-6 rounded-lg hover:bg-[#2A4A5A] transition-colors">
+                    <div key={project.id} className="bg-[#1E3A4A] p-6 rounded-lg hover:bg-[#2A4A5A] transition-colors cursor-pointer group"
+                         onClick={() => window.location.href = `/projects/${project.id}`}>
                       <div className="flex justify-between items-start mb-3">
-                        <h3 className="text-lg font-semibold text-white truncate pr-4">{project.title}</h3>
+                        <h3 className="text-lg font-semibold text-white truncate pr-4 group-hover:text-[#FECB00] transition-colors">{project.title}</h3>
                         <span className={`px-2 py-1 rounded text-xs font-medium text-white ${getPhaseColor(project.phase)}`}>
                           {getPhaseLabel(project.phase)}
                         </span>
@@ -910,7 +1149,7 @@ export default function ProjectsPage() {
                         {project.calculatedMetrics?.budget && (
                           <div>
                             <span className="text-[#FECB00] font-medium">Budget: </span>
-                            <span className="text-gray-300">{formatCurrency(project.calculatedMetrics.budget)}</span>
+                            <span className="text-gray-300">{formatCurrency(Number(project.calculatedMetrics.budget))}</span>
                           </div>
                         )}
                         
@@ -924,12 +1163,22 @@ export default function ProjectsPage() {
                         )}
                       </div>
                       
-                      <Link 
-                        href={`/map?project=${project.id}`}
-                        className="inline-block mt-4 text-[#FECB00] hover:text-[#e0b400] font-medium text-sm"
-                      >
-                        Visa på kartan →
-                      </Link>
+                      <ProjectScoreBar project={project} />
+                      
+                      <div className="flex items-center justify-between mt-4">
+                        <span className="text-[#FECB00] hover:text-[#e0b400] font-medium text-sm group-hover:text-[#e0b400] transition-colors">
+                          Se detaljer →
+                        </span>
+                        <button 
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            window.location.href = `/map?project=${project.id}`;
+                          }}
+                          className="text-gray-400 hover:text-[#FECB00] text-sm transition-colors"
+                        >
+                          Visa på karta
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -954,86 +1203,6 @@ export default function ProjectsPage() {
           <div className="space-y-8">
             {analytics ? (
               <>
-                {/* Cost Analysis */}
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                  <div className="bg-[#1E3A4A] p-6 rounded-lg">
-                    <h3 className="text-xl font-bold text-[#FECB00] mb-4">Kostnadstyper</h3>
-                    <div className="space-y-3">
-                      {Object.entries(analytics?.costAnalysis?.byCostType || {}).map(([type, data]) => (
-                        <div key={type}>
-                          <div className="flex justify-between items-center">
-                            <span className="text-sm truncate mr-2">{type}</span>
-                            <span className="text-[#FECB00] font-semibold">{data.count}</span>
-                          </div>
-                          <div className="text-xs text-gray-400">
-                            {formatCurrency(data.totalCost)}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="bg-[#1E3A4A] p-6 rounded-lg">
-                    <h3 className="text-xl font-bold text-[#FECB00] mb-4">Kostnad per Timme</h3>
-                    <div className="space-y-3">
-                      <div className="flex justify-between">
-                        <span>Genomsnitt:</span>
-                        <span className="text-[#FECB00] font-semibold">
-                          {formatCurrency(analytics?.costAnalysis?.costPerHour?.average || 0)}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Median:</span>
-                        <span className="text-[#FECB00] font-semibold">
-                          {formatCurrency(analytics?.costAnalysis?.costPerHour?.median || 0)}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Min:</span>
-                        <span className="text-gray-300">
-                          {formatCurrency(analytics?.costAnalysis?.costPerHour?.min || 0)}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Max:</span>
-                        <span className="text-gray-300">
-                          {formatCurrency(analytics?.costAnalysis?.costPerHour?.max || 0)}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="bg-[#1E3A4A] p-6 rounded-lg">
-                    <h3 className="text-xl font-bold text-[#FECB00] mb-4">Effektanalys</h3>
-                    <div className="space-y-3">
-                      <div className="flex justify-between">
-                        <span>Med kvantifierbara mått:</span>
-                        <span className="text-[#FECB00] font-semibold">
-                          {analytics?.effectsAnalysis?.quantifiableEffects?.withQuantifiable || 0}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Utan kvantifierbara mått:</span>
-                        <span className="text-gray-300">
-                          {analytics?.effectsAnalysis?.quantifiableEffects?.withoutQuantifiable || 0}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Kvantifieringsgrad:</span>
-                        <span className="text-[#FECB00] font-semibold">
-                          {formatPercent(analytics?.effectsAnalysis?.quantifiableEffects?.percentage || 0)}
-                        </span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>Totalt monetärt värde:</span>
-                        <span className="text-[#FECB00] font-semibold">
-                          {formatCurrency(analytics?.effectsAnalysis?.monetaryValue || 0)}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
                 {/* Top Performers */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                   <div className="bg-[#1E3A4A] p-6 rounded-lg">
@@ -1043,7 +1212,7 @@ export default function ProjectsPage() {
                         <div key={project.id} className="border-b border-gray-600 pb-2">
                           <div className="font-semibold truncate">{project.title}</div>
                           <div className="text-sm text-gray-400">
-                            ROI: <span className="text-[#FECB00]">{formatPercent(project.roi)}</span>
+                            ROI: <span className="text-[#FECB00]">{formatPercent(Number(project.roi))}</span>
                           </div>
                         </div>
                       ))}
@@ -1057,7 +1226,7 @@ export default function ProjectsPage() {
                         <div key={project.id} className="border-b border-gray-600 pb-2">
                           <div className="font-semibold truncate">{project.title}</div>
                           <div className="text-sm text-gray-400">
-                            Budget: <span className="text-[#FECB00]">{formatCurrency(project.budget)}</span>
+                            Budget: <span className="text-[#FECB00]">{formatCurrency(Number(project.budget))}</span>
                           </div>
                         </div>
                       ))}
@@ -1072,9 +1241,9 @@ export default function ProjectsPage() {
                     <div>
                       <h4 className="font-semibold mb-2">Statistik</h4>
                       <div className="space-y-2 text-sm">
-                        <div>Totalt utmaningar: <span className="text-[#FECB00]">{analytics?.technologyInsights?.technicalChallenges?.totalChallenges || 0}</span></div>
-                        <div>Totalt lösningar: <span className="text-[#FECB00]">{analytics?.technologyInsights?.technicalChallenges?.totalSolutions || 0}</span></div>
-                        <div>Lösningsgrad: <span className="text-[#FECB00]">{formatPercent(analytics?.technologyInsights?.technicalChallenges?.resolutionRate || 0)}</span></div>
+                        <div>Totalt utmaningar: <span className="text-[#FECB00]">{Number(analytics?.technologyInsights?.technicalChallenges?.totalChallenges) || 0}</span></div>
+                        <div>Totalt lösningar: <span className="text-[#FECB00]">{Number(analytics?.technologyInsights?.technicalChallenges?.totalSolutions) || 0}</span></div>
+                        <div>Lösningsgrad: <span className="text-[#FECB00]">{formatPercent(Number(analytics?.technologyInsights?.technicalChallenges?.resolutionRate) || 0)}</span></div>
                       </div>
                     </div>
                     
@@ -1121,7 +1290,7 @@ export default function ProjectsPage() {
 
         {/* Footer Info */}
         <div className="text-center text-gray-400 text-sm mt-12 pt-8 border-t border-gray-600">
-          Analysdata baserad på {analytics?.summary?.totalProjects || 0} projekt. 
+          Analysdata baserad på {Number(analytics?.summary?.totalProjects) || 0} projekt. 
           Senast uppdaterad: {new Date().toLocaleDateString('sv-SE')}
         </div>
       </div>

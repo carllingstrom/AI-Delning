@@ -1,5 +1,6 @@
 import React from 'react';
 import { UseFormRegister, UseFormWatch, UseFormSetValue, Control, useFieldArray } from 'react-hook-form';
+import ROISummary from './ROISummary';
 
 export type Question = {
   id: string;
@@ -96,18 +97,43 @@ function RepeatField({
       {(() => {
         const firstEntry = watch(`${fieldId}.0`) || {};
         
-        // For cost entries: require costType, costLabel, and at least one cost value
+
+        
+        // For cost entries: require costType, costLabel, costUnit, and at least one cost value
+        // Check nested fields based on costUnit
+        let hasCostValue = false;
+        if (firstEntry.costUnit === 'hours') {
+          hasCostValue = firstEntry.hoursDetails?.hours || firstEntry.hoursDetails?.hourlyRate;
+        } else if (firstEntry.costUnit === 'fixed') {
+          hasCostValue = firstEntry.fixedDetails?.fixedAmount;
+        } else if (firstEntry.costUnit === 'monthly') {
+          hasCostValue = firstEntry.monthlyDetails?.monthlyAmount || firstEntry.monthlyDetails?.monthlyDuration;
+        } else if (firstEntry.costUnit === 'yearly') {
+          hasCostValue = firstEntry.yearlyDetails?.yearlyAmount || firstEntry.yearlyDetails?.yearlyDuration;
+        }
+        
         const hasRequiredFields = firstEntry.costType && 
                                  firstEntry.costLabel && 
-                                 (firstEntry.costHours || firstEntry.costRate || firstEntry.costFixed);
+                                 firstEntry.costUnit && 
+                                 hasCostValue;
         
-        // For measurement entries: require measurementName, affectedGroups, and effectChangeType
-        const hasRequiredMeasurementFields = firstEntry.measurementName && 
-                                           firstEntry.affectedGroups && 
-                                           firstEntry.effectChangeType;
+        // For effect entries: require at least one effect type (qualitative or quantitative)
+        // Handle both boolean and string values from form
+        const hasRequiredEffectFields = (firstEntry.hasQualitative === true || firstEntry.hasQualitative === 'true' || 
+                                        firstEntry.hasQuantitative === true || firstEntry.hasQuantitative === 'true');
         
-        // Show add button if either cost or measurement requirements are met
-        const canAddMore = hasRequiredFields || hasRequiredMeasurementFields;
+        // Debug: log the first effect entry to see what fields are actually present
+        console.log('First effect entry data:', firstEntry);
+        console.log('Effect field ID:', fieldId);
+        console.log('Has required effect fields:', hasRequiredEffectFields);
+        console.log('valueDimension:', firstEntry.valueDimension);
+        console.log('hasQualitative:', firstEntry.hasQualitative);
+        console.log('hasQuantitative:', firstEntry.hasQuantitative);
+        
+        // Show add button if either cost or effect requirements are met
+        const canAddMore = hasRequiredFields || hasRequiredEffectFields;
+        
+
         
         return canAddMore && (
           <button
@@ -131,6 +157,16 @@ export default function DynamicFormSection({ schema, register, watch, setValue, 
     const formValues = watch(); // get entire form values
     if (!schema.condition(formValues)) return null;
   }
+
+  // Check if this section contains effectEntries (for ROI summary)
+  const effectEntries = watch('effectEntries') || [];
+  const costEntries = watch('actualCostDetails.costEntries') || [];
+  const hasEffectEntries = schema.questions?.some(q => q.id === 'effectEntries');
+  
+  console.log('DynamicFormSection - hasEffectEntries:', hasEffectEntries);
+  console.log('DynamicFormSection - effectEntries:', effectEntries);
+  console.log('DynamicFormSection - costEntries:', costEntries);
+  console.log('DynamicFormSection - schema.title:', schema.title);
 
   function renderQuestion(q: Question, parentPath = ''): React.ReactNode {
     // 1. Handle conditional rendering
@@ -301,7 +337,14 @@ export default function DynamicFormSection({ schema, register, watch, setValue, 
         
         {(q.type === 'text' || q.type === 'number') && (
            <input
-             {...register(fieldId)}
+             {...register(fieldId, {
+               valueAsNumber: q.type === 'number',
+               min: q.type === 'number' ? 0 : undefined,
+               validate: q.type === 'number' ? (value) => {
+                 if (value < 0) return 'Värdet kan inte vara negativt';
+                 return true;
+               } : undefined
+             })}
              type={q.type}
              placeholder={q.placeholder || ''}
              className="w-full p-3 rounded border border-gray-600 bg-[#121F2B]"
@@ -313,8 +356,30 @@ export default function DynamicFormSection({ schema, register, watch, setValue, 
 
   return (
     <div className="bg-[#121F2B] rounded-lg p-6 space-y-6 shadow mt-8">
-      <h2 className="text-xl font-bold text-[#FFD600] mb-2">{schema.title}</h2>
+      <div className="flex justify-between items-center mb-2">
+        <h2 className="text-xl font-bold text-[#FFD600]">{schema.title}</h2>
+        {hasEffectEntries && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              console.log('Info button clicked, dispatching openROIInfo event');
+              // This will be handled by the ROISummary component
+              const event = new CustomEvent('openROIInfo');
+              window.dispatchEvent(event);
+            }}
+            className="text-[#FFD600] hover:text-yellow-300 text-sm font-medium underline"
+          >
+            Förklaring av beräkningar
+          </button>
+        )}
+      </div>
       {schema.questions?.map(q => <React.Fragment key={q.id}>{renderQuestion(q)}</React.Fragment>)}
+      {/* ROI-sammanfattning för effekter */}
+      {hasEffectEntries && (
+        <ROISummary effectEntries={effectEntries} costEntries={costEntries} />
+      )}
     </div>
   );
 }

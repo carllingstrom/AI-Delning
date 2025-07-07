@@ -8,17 +8,17 @@ import { createServerSupabaseClient } from '@/lib/supabaseServer';
  */
 export async function GET() {
   try {
-    console.log('🔍 Municipalities API called');
+
     
     const sb = createServerSupabaseClient();
 
-    console.log('Fetching municipalities from Supabase...');
+    
     const { data, error } = await sb
       .from('municipalities')
       .select('id, name')
       .order('name');
 
-    console.log('Supabase response:', { data, error });
+
 
     if (error) {
       console.error('Supabase error:', error);
@@ -29,7 +29,7 @@ export async function GET() {
       console.error('Supabase returned non-array data:', data);
       return NextResponse.json({ error: 'Supabase returned non-array data', details: data }, { status: 500 });
     }
-
+    
     if (data.length === 0) {
       console.warn('No municipalities found in database');
       // Return a few test municipalities as fallback
@@ -40,7 +40,7 @@ export async function GET() {
       ]);
     }
     
-    console.log(`✅ Returning ${data.length} municipalities`);
+    
     return NextResponse.json(data);
   } catch (error) {
     console.error('Unexpected error in municipalities API:', error);

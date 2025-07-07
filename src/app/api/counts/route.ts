@@ -1,6 +1,6 @@
 // GET /api/counts?ai=Kultur%20och%20fritid,Miljö%20och%20hållbarhet&val=Effektivisering,Kvalitet
 import { NextRequest, NextResponse } from 'next/server';
-import { createServerClient } from '@supabase/ssr';
+import { createServerSupabaseClient } from '@/lib/supabaseServer';
 
 const AI_CATEGORIES = [
   'Administration och personal',
@@ -24,11 +24,7 @@ const VALUE_CATEGORIES = [
 ];
 
 function sb() {
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { cookies: { getAll: () => [], setAll: () => {} } },
-  );
+  return createServerSupabaseClient();
 }
 
 export async function GET(req: NextRequest) {

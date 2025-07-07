@@ -36,7 +36,7 @@ const BASE_DEFAULTS = {
   areas: [],
   valueDimensions: [],
   phase: 'idea',
-  effectDetails: [],
+  effectEntries: [],
   // Add common form fields to prevent TypeScript errors
   hasDedicatedBudget: false,
   budgetDetails: {},
@@ -144,7 +144,7 @@ function ProjectWizardContent() {
           
           // Load effects data
           if (project.effects_data) {
-            setValue('effectDetails', project.effects_data.effectDetails || []);
+            setValue('effectEntries', project.effects_data.effectDetails || []);
             setValue('otherEffectsText', project.effects_data.otherEffectsText);
           }
           
@@ -239,7 +239,7 @@ function ProjectWizardContent() {
             costSummaryComment: formData.costSummaryComment,
           },
           effects_data: {
-            effectDetails: formData.effectDetails || [],
+            effectDetails: formData.effectEntries || [],
             otherEffectsText: formData.otherEffectsText,
           },
           technical_data: {
@@ -300,9 +300,9 @@ function ProjectWizardContent() {
 
         const project = await response.json();
         
-        // Success! Redirect to project list or show success message
+        // Success! Redirect to project page or show success message
         alert(isEditing ? 'Projektet har uppdaterats!' : 'Projektet har sparats!');
-        window.location.href = '/map'; // Redirect back to map to see the changes
+        window.location.href = '/projects'; // Redirect to project page to see the new project
         
       } catch (error) {
         console.error(`Error ${isEditing ? 'updating' : 'saving'} project:`, error);
