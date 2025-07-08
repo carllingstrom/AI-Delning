@@ -330,7 +330,7 @@ export function calculateROI(input: ROIInput): ROIMetrics {
         totalQualitativeEffects += totalValue;
       }
       
-      const roi = totalInvestment > 0 ? (totalValue - totalInvestment) / totalInvestment : 0;
+      const roi = totalInvestment > 0 ? (totalValue / totalInvestment) * 100 : 0;
       
       qualitativeEffects.push({
         dimension,
@@ -360,7 +360,7 @@ export function calculateROI(input: ROIInput): ROIMetrics {
         totalMonetaryValue += totalValue;
         totalFinancialEffects += totalValue;
         
-        const roi = totalInvestment > 0 ? (totalValue - totalInvestment) / totalInvestment : 0;
+        const roi = totalInvestment > 0 ? (totalValue / totalInvestment) * 100 : 0;
         
         financialEffects.push({
           dimension,
@@ -422,7 +422,7 @@ export function calculateROI(input: ROIInput): ROIMetrics {
           totalRedistributionEffects += totalValue;
         }
         
-        const roi = totalInvestment > 0 ? (totalValue - totalInvestment) / totalInvestment : 0;
+        const roi = totalInvestment > 0 ? (totalValue / totalInvestment) * 100 : 0;
         
         redistributionEffects.push({
           dimension,
@@ -441,7 +441,7 @@ export function calculateROI(input: ROIInput): ROIMetrics {
   });
 
   // Calculate overall ROI metrics
-  const economicROI = totalInvestment > 0 ? (totalMonetaryValue - totalInvestment) / totalInvestment : 0;
+  const economicROI = totalInvestment > 0 ? ((totalMonetaryValue - totalInvestment) / totalInvestment) * 100 : 0;
   
   // Calculate qualitative ROI as average improvement percentage
   const qualitativeImprovements = qualitativeEffects.map(e => e.improvementPercentage);
@@ -450,15 +450,25 @@ export function calculateROI(input: ROIInput): ROIMetrics {
     : 0;
   
   // Combined ROI (economic + qualitative)
-  const combinedROI = economicROI + (qualitativeROI / 100); // Convert percentage to decimal for combination
+  const combinedROI = economicROI + qualitativeROI; // Both are now percentages
   
-  const paybackPeriod = calculatePaybackPeriod(totalInvestment, totalMonetaryValue);
+  // Calculate annual monetary value for payback period
+  const annualMonetaryValue = totalMonetaryValue > 0 ? 
+    (totalFinancialEffects + totalRedistributionEffects + totalQualitativeEffects) / 
+    Math.max(1, Math.max(...effectEntries.map(e => 
+      Math.max(
+        e.qualitativeDetails?.annualizationYears || 1,
+        e.quantitativeDetails?.financialDetails?.annualizationYears || 1,
+        e.quantitativeDetails?.redistributionDetails?.annualizationYears || 1
+      )
+    ))) : 0;
+  const paybackPeriod = calculatePaybackPeriod(totalInvestment, annualMonetaryValue);
 
   // Calculate summary statistics
   const allEconomicROIs = [...financialEffects, ...redistributionEffects].map(e => e.roi).filter(r => !isNaN(r) && isFinite(r));
   const averageEconomicROI = allEconomicROIs.length > 0 ? allEconomicROIs.reduce((a, b) => a + b, 0) / allEconomicROIs.length : 0;
   const averageQualitativeROI = qualitativeROI;
-  const allROIs = [...allEconomicROIs, qualitativeROI];
+  const allROIs = [...allEconomicROIs, qualitativeROI].filter(r => !isNaN(r) && isFinite(r));
   const highestROI = allROIs.length > 0 ? Math.max(...allROIs) : 0;
   const lowestROI = allROIs.length > 0 ? Math.min(...allROIs) : 0;
 

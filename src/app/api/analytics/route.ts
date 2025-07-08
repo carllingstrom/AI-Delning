@@ -1048,25 +1048,25 @@ function calculateProjectMonetaryValue(project: any): number {
     console.error('Error calculating project monetary value:', err);
     
     // Fallback to old calculation method
-    try {
-      const effectsData = project?.effects_data || {};
-      const effectDetails = effectsData.effectDetails || [];
-      
-      let totalValue = 0;
-      
-      effectDetails.forEach((effect: any) => {
-        const measurements = effect?.impactMeasurement?.measurements || [];
-        measurements.forEach((measurement: any) => {
-          if (measurement?.monetaryEstimate) {
-            totalValue += parseFloat(measurement.monetaryEstimate) || 0;
-          }
-        });
+  try {
+    const effectsData = project?.effects_data || {};
+    const effectDetails = effectsData.effectDetails || [];
+    
+    let totalValue = 0;
+    
+    effectDetails.forEach((effect: any) => {
+      const measurements = effect?.impactMeasurement?.measurements || [];
+      measurements.forEach((measurement: any) => {
+        if (measurement?.monetaryEstimate) {
+          totalValue += parseFloat(measurement.monetaryEstimate) || 0;
+        }
       });
-      
-      return totalValue;
+    });
+    
+    return totalValue;
     } catch (fallbackErr) {
       console.error('Error in fallback monetary value calculation:', fallbackErr);
-      return 0;
+    return 0;
     }
   }
 }
@@ -1429,8 +1429,8 @@ function analyzeCostPerHour(projects: any[]) {
           rate = typeof entry.costRate === 'string' ? parseFloat(entry.costRate) || 0 : (entry.costRate || 0);
         }
         
-        if (rate > 0) {
-          rates.push(rate);
+          if (rate > 0) {
+            rates.push(rate);
         }
       });
     });
@@ -1660,8 +1660,8 @@ function getTopProjectsByROI(projects: any[], limit: number) {
         const roi = calculateROI(project);
         const actualCost = calculateActualCost(project);
         return {
-          id: project.id,
-          title: project.title,
+        id: project.id,
+        title: project.title,
           roi: roi,
           budget: actualCost
         };

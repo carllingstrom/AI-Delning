@@ -51,6 +51,7 @@ export default function ProjectDetailPage() {
   const [project, setProject] = useState<Project | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
     if (params.id) {
@@ -60,6 +61,7 @@ export default function ProjectDetailPage() {
 
   const fetchProject = async (id: string) => {
     try {
+      setLoading(true);
       const response = await fetch(`/api/projects/${id}`);
       if (!response.ok) {
         throw new Error('Project not found');
@@ -67,9 +69,34 @@ export default function ProjectDetailPage() {
       const data = await response.json();
       setProject(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load project');
+      setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const deleteProject = async () => {
+    if (!project || !confirm('Är du säker på att du vill ta bort detta projekt? Denna åtgärd kan inte ångras.')) {
+      return;
+    }
+
+    try {
+      setIsDeleting(true);
+      const response = await fetch(`/api/projects/${project.id}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to delete project');
+      }
+
+      // Redirect to projects page after successful deletion
+      router.push('/projects');
+    } catch (err) {
+      alert('Ett fel uppstod när projektet skulle tas bort. Försök igen.');
+      console.error('Delete error:', err);
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -115,8 +142,43 @@ export default function ProjectDetailPage() {
       style: 'currency',
       currency: 'SEK',
       minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
+      maximumFractionDigits: 0
     }).format(amount);
+  };
+
+  // Helper function to get meaningful effect names
+  const getEffectName = (effect: any, index: number) => {
+    try {
+      // Check if it's a quantitative effect with financial details
+      if (effect.hasQuantitative && effect.quantitativeDetails) {
+        const quantDetails = effect.quantitativeDetails;
+        
+        // For financial effects, use measurementName
+        if (quantDetails.effectType === 'financial' && quantDetails.financialDetails?.measurementName) {
+          return quantDetails.financialDetails.measurementName;
+        }
+        
+        // For redistribution effects, use resourceType
+        if (quantDetails.effectType === 'redistribution' && quantDetails.redistributionDetails?.resourceType) {
+          return quantDetails.redistributionDetails.resourceType;
+        }
+      }
+      
+      // Check if it's a qualitative effect with a factor name
+      if (effect.hasQualitative && effect.qualitativeDetails?.factor) {
+        return effect.qualitativeDetails.factor;
+      }
+      
+      // Use value dimension if available
+      if (effect.valueDimension) {
+        return effect.valueDimension;
+      }
+      
+      // Fall back to generic name
+      return `Effekt ${index + 1}`;
+    } catch (error) {
+      return `Effekt ${index + 1}`;
+    }
   };
 
   const parseFinancialDetails = (details: any) => {
@@ -206,7 +268,7 @@ export default function ProjectDetailPage() {
                     
                     if (financialData) {
                       rows.push({
-                        name: `Effekt ${index + 1}`,
+                        name: getEffectName(effect, index),
                         type: 'Kvantitativ (Finansiell)',
                         description: financialData.description,
                         value: financialData.value
@@ -215,7 +277,7 @@ export default function ProjectDetailPage() {
                     
                     if (redistributionData) {
                       rows.push({
-                        name: `Effekt ${index + 1}`,
+                        name: getEffectName(effect, index),
                         type: 'Kvantitativ (Omfördelning)',
                         description: redistributionData.description,
                         value: redistributionData.value
@@ -225,7 +287,7 @@ export default function ProjectDetailPage() {
                   
                   if (effect.hasQualitative && effect.qualitativeDetails?.description) {
                     rows.push({
-                      name: `Effekt ${index + 1}`,
+                      name: getEffectName(effect, index),
                       type: 'Kvalitativ effekt',
                       description: effect.qualitativeDetails.description,
                       value: effect.qualitativeDetails.monetaryEstimate ? 
@@ -333,7 +395,7 @@ export default function ProjectDetailPage() {
           <div className="space-y-6">
             {effectEntries.map((effect: any, index: number) => (
               <div key={index} className="border-l-4 border-[#FECB00] pl-6">
-                <h4 className="text-white font-semibold mb-3">Effekt {index + 1}</h4>
+                <h4 className="text-white font-semibold mb-3">{getEffectName(effect, index)}</h4>
                 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   {effect.hasQuantitative && effect.quantitativeDetails && (
@@ -580,26 +642,26 @@ export default function ProjectDetailPage() {
                         const hours = Number(entry.hoursDetails?.hours) || 0;
                         const rate = Number(entry.hoursDetails?.hourlyRate) || 0;
                         total = hours * rate;
-                        description = `${hours} timmar`;
+                        description = entry.costLabel || `${hours} timmar`;
                         amount = `${formatCurrency(rate)}/tim`;
                         break;
                       case 'fixed':
                         total = Number(entry.fixedDetails?.fixedAmount) || 0;
-                        description = 'Fast kostnad';
+                        description = entry.costLabel || 'Fast kostnad';
                         amount = formatCurrency(total);
                         break;
                       case 'monthly':
                         const monthlyAmount = Number(entry.monthlyDetails?.monthlyAmount) || 0;
                         const monthlyDuration = Number(entry.monthlyDetails?.monthlyDuration) || 1;
                         total = monthlyAmount * monthlyDuration;
-                        description = `${monthlyDuration} månader`;
+                        description = entry.costLabel || `${monthlyDuration} månader`;
                         amount = `${formatCurrency(monthlyAmount)}/mån`;
                         break;
                       case 'yearly':
                         const yearlyAmount = Number(entry.yearlyDetails?.yearlyAmount) || 0;
                         const yearlyDuration = Number(entry.yearlyDetails?.yearlyDuration) || 1;
                         total = yearlyAmount * yearlyDuration;
-                        description = `${yearlyDuration} år`;
+                        description = entry.costLabel || `${yearlyDuration} år`;
                         amount = `${formatCurrency(yearlyAmount)}/år`;
                         break;
                     }
@@ -874,13 +936,14 @@ export default function ProjectDetailPage() {
               </svg>
               Tillbaka till projekt
             </button>
-            
+          </div>
+
+          <div className="flex items-center gap-4 mb-4">
+            <h1 className="text-4xl font-extrabold text-[#FECB00]">{project.title}</h1>
             <span className={`px-3 py-1 rounded-full text-sm font-medium text-white ${getPhaseColor(project.phase)}`}>
               {getPhaseLabel(project.phase)}
             </span>
           </div>
-
-          <h1 className="text-4xl font-extrabold text-[#FECB00] mb-4">{project.title}</h1>
           {project.intro && (
             <p className="text-xl text-gray-300 mb-6">{project.intro}</p>
           )}
@@ -899,82 +962,108 @@ export default function ProjectDetailPage() {
             )}
           </div>
 
-          {/* Project Overview Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-            <div className="border border-gray-600 p-4 rounded-lg">
-              <div className="text-2xl font-bold text-[#FECB00] mb-1">{score.percentage}%</div>
-              <div className="text-gray-400 text-sm">Delningspoäng</div>
-              <ProjectScoreBar project={project} showDetails={false} />
+          {/* Project Profile */}
+          <div className="mb-8">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold text-white">Projektprofil</h2>
             </div>
             
-            <div className="border border-gray-600 p-4 rounded-lg">
-              <div className="text-2xl font-bold text-[#FECB00] mb-1">
-                {(() => {
-                  try {
-                    const { calculateROI } = require('@/lib/roiCalculator');
-                    const costEntries = project.cost_data?.actualCostDetails?.costEntries || [];
-                    const effectEntries = project.effects_data?.effectDetails || [];
-                    
-                    if (costEntries.length > 0 && effectEntries.length > 0) {
-                      const totalInvestment = costEntries.reduce((total: number, entry: any) => {
-                        let entryTotal = 0;
-                        switch (entry?.costUnit) {
-                          case 'hours':
-                            entryTotal = (Number(entry.hoursDetails?.hours) || 0) * (Number(entry.hoursDetails?.hourlyRate) || 0);
-                            break;
-                          case 'fixed':
-                            entryTotal = Number(entry.fixedDetails?.fixedAmount) || 0;
-                            break;
-                          case 'monthly':
-                            entryTotal = (Number(entry.monthlyDetails?.monthlyAmount) || 0) * (Number(entry.monthlyDetails?.monthlyDuration) || 1);
-                            break;
-                          case 'yearly':
-                            entryTotal = (Number(entry.yearlyDetails?.yearlyAmount) || 0) * (Number(entry.yearlyDetails?.yearlyDuration) || 1);
-                            break;
-                        }
-                        return total + entryTotal;
-                      }, 0);
+            {/* Progress bar */}
+            <div className="w-full bg-gray-700 rounded-full h-2 shadow-sm mb-6">
+              <div 
+                className="h-2 rounded-full transition-all duration-300"
+                style={{ 
+                  width: `${score.percentage}%`,
+                  backgroundColor: (() => {
+                    const { getScoreBarColor } = require('@/lib/projectScore');
+                    return getScoreBarColor(score.percentage);
+                  })()
+                }}
+              />
+            </div>
+            
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
+              <div>
+                <div className="text-2xl font-bold mb-1" style={{
+                  color: (() => {
+                    const { getScoreBarColor } = require('@/lib/projectScore');
+                    return getScoreBarColor(score.percentage);
+                  })()
+                }}>
+                  {score.percentage}%
+                </div>
+                <div className="text-gray-400 text-sm">Delningspoäng</div>
+              </div>
+
+              <div>
+                <div className="text-2xl font-bold text-[#FECB00] mb-1">
+                  {(() => {
+                    try {
+                      const { calculateROI } = require('@/lib/roiCalculator');
+                      const costEntries = project.cost_data?.actualCostDetails?.costEntries || [];
+                      const effectEntries = project.effects_data?.effectDetails || [];
                       
-                      if (totalInvestment > 0) {
-                        const roiMetrics = calculateROI({ effectEntries, totalProjectInvestment: totalInvestment });
-                        return `${roiMetrics.economicROI.toFixed(1)}%`;
+                      if (costEntries.length > 0 && effectEntries.length > 0) {
+                        const totalInvestment = costEntries.reduce((total: number, entry: any) => {
+                          let entryTotal = 0;
+                          switch (entry?.costUnit) {
+                            case 'hours':
+                              entryTotal = (Number(entry.hoursDetails?.hours) || 0) * (Number(entry.hoursDetails?.hourlyRate) || 0);
+                              break;
+                            case 'fixed':
+                              entryTotal = Number(entry.fixedDetails?.fixedAmount) || 0;
+                              break;
+                            case 'monthly':
+                              entryTotal = (Number(entry.monthlyDetails?.monthlyAmount) || 0) * (Number(entry.monthlyDetails?.monthlyDuration) || 1);
+                              break;
+                            case 'yearly':
+                              entryTotal = (Number(entry.yearlyDetails?.yearlyAmount) || 0) * (Number(entry.yearlyDetails?.yearlyDuration) || 1);
+                              break;
+                          }
+                          return total + entryTotal;
+                        }, 0);
+                        
+                        if (totalInvestment > 0) {
+                          const roiMetrics = calculateROI({ effectEntries, totalProjectInvestment: totalInvestment });
+                          return `${roiMetrics.economicROI.toFixed(1)}%`;
+                        }
                       }
+                      return '—';
+                    } catch (error) {
+                      return '—';
                     }
-                    return '—';
-                  } catch (error) {
-                    return '—';
-                  }
-                })()}
+                  })()}
+                </div>
+                <div className="text-gray-400 text-sm">Monetär ROI</div>
               </div>
-              <div className="text-gray-400 text-sm">Monetär ROI</div>
-            </div>
 
-            <div className="border border-gray-600 p-4 rounded-lg">
-              <div className="text-2xl font-bold text-[#FECB00] mb-1">
-                {(project.project_municipalities?.length || 0)}
+              <div>
+                <div className="text-2xl font-bold text-[#FECB00] mb-1">
+                  {(() => {
+                    const effectEntries = project.effects_data?.effectDetails || [];
+                    let totalQuantitativeValue = 0;
+                    
+                    effectEntries.forEach((effect: any) => {
+                      if (effect.hasQuantitative && effect.quantitativeDetails) {
+                        const financialData = parseFinancialDetails(effect.quantitativeDetails.financialDetails);
+                        const redistributionData = parseFinancialDetails(effect.quantitativeDetails.redistributionDetails);
+                        if (financialData) totalQuantitativeValue += financialData.value;
+                        if (redistributionData) totalQuantitativeValue += redistributionData.value;
+                      }
+                    });
+                    
+                    return totalQuantitativeValue > 0 ? formatCurrency(totalQuantitativeValue) : '—';
+                  })()}
+                </div>
+                <div className="text-gray-400 text-sm">Total nytta</div>
               </div>
-              <div className="text-gray-400 text-sm">Kommuner</div>
-            </div>
 
-            <div className="border border-gray-600 p-4 rounded-lg">
-              <div className="text-2xl font-bold text-[#FECB00] mb-1">
-                {(() => {
-                  const effectEntries = project.effects_data?.effectDetails || [];
-                  let totalQuantitativeValue = 0;
-                  
-                  effectEntries.forEach((effect: any) => {
-                    if (effect.hasQuantitative && effect.quantitativeDetails) {
-                      const financialData = parseFinancialDetails(effect.quantitativeDetails.financialDetails);
-                      const redistributionData = parseFinancialDetails(effect.quantitativeDetails.redistributionDetails);
-                      if (financialData) totalQuantitativeValue += financialData.value;
-                      if (redistributionData) totalQuantitativeValue += redistributionData.value;
-                    }
-                  });
-                  
-                  return totalQuantitativeValue > 0 ? formatCurrency(totalQuantitativeValue) : '—';
-                })()}
+              <div>
+                <div className="text-2xl font-bold text-[#FECB00] mb-1">
+                  {(project.project_municipalities?.length || 0)}
+                </div>
+                <div className="text-gray-400 text-sm">Kommuner</div>
               </div>
-              <div className="text-gray-400 text-sm">Total nytta</div>
             </div>
           </div>
 
@@ -1327,19 +1416,30 @@ export default function ProjectDetailPage() {
 
         {/* Additional Actions */}
         <div className="mt-12 flex justify-center space-x-4">
-          <button
-            onClick={() => router.push(`/map?project=${project.id}`)}
-            className="px-8 py-3 bg-[#FECB00] text-[#0D1B2A] font-semibold rounded-lg hover:bg-[#e0b400] transition-colors"
-          >
-            Visa på kartan
-          </button>
-          
-          <button
-            onClick={() => router.push(`/projects/new?edit=${project.id}`)}
-            className="px-8 py-3 bg-[#1E3A4A] border border-[#FECB00] text-[#FECB00] font-semibold rounded-lg hover:bg-[#2A4A5A] transition-colors"
-          >
-            Redigera projekt
-          </button>
+          <div className="flex flex-wrap gap-3">
+            <button
+              onClick={() => router.push('/map')}
+              className="flex items-center px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors"
+            >
+              <span className="mr-2"></span>
+              Visa på kartan
+            </button>
+            <button
+              onClick={() => router.push(`/projects/${project.id}/edit`)}
+              className="flex items-center px-4 py-2 bg-[#FECB00] hover:bg-[#e6b800] text-black rounded-lg transition-colors"
+            >
+              <span className="mr-2"></span>
+              Redigera projekt
+            </button>
+            <button
+              onClick={deleteProject}
+              disabled={isDeleting}
+              className="flex items-center px-4 py-2 bg-red-600 hover:bg-red-700 disabled:bg-red-400 disabled:cursor-not-allowed text-white rounded-lg transition-colors"
+            >
+              <span className="mr-2"></span>
+              {isDeleting ? 'Tar bort...' : 'Ta bort projekt'}
+            </button>
+          </div>
         </div>
       </div>
     </div>
