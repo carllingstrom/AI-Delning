@@ -707,168 +707,262 @@ export default function ProjectDetailPage() {
       );
     }
 
-    const technicalFields = [
-      { key: 'system_name', label: 'Systemnamn' },
-      { key: 'ai_methodology', label: 'AI-metodik' },
-      { key: 'deployment_environment', label: 'Driftmiljö' },
-      { key: 'data_types', label: 'Datatyper' },
-      { key: 'data_sources', label: 'Datakällor' },
-      { key: 'integration_capabilities', label: 'Integrationsmöjligheter' },
-      { key: 'data_sensitivity_level', label: 'Känslighetsnivå' },
-      { key: 'data_freshness', label: 'Aktualitet' },
-      { key: 'data_quality', label: 'Datakvalitet' },
-      { key: 'data_license', label: 'Datalicens' },
-    ];
+    // Helper function to get deployment environment insight
+    const getDeploymentInsight = (env: string) => {
+      switch(env) {
+        case 'Self-hostad': return { icon: '🏢', insight: 'Fullt kontroll över data och säkerhet, men kräver intern infrastruktur' };
+        case 'Molnbaserad (t.ex. Azure, GCP)': return { icon: '☁️', insight: 'Skalbar och kostnadseffektiv, förlitar sig på extern leverantör' };
+        case 'Hybrid': return { icon: '🔄', insight: 'Balanserar kontroll och flexibilitet, komplex arkitektur' };
+        default: return { icon: '❓', insight: 'Okänd driftmiljö' };
+      }
+    };
+
+    // Helper function to get data sensitivity insight
+    const getSensitivityInsight = (level: string) => {
+      switch(level) {
+        case 'Innehåller personuppgifter': return { color: 'text-yellow-400', risk: 'Medel', requirement: 'GDPR-compliance krävs' };
+        case 'Känsliga personuppgifter': return { color: 'text-orange-400', risk: 'Hög', requirement: 'Särskilda säkerhetsåtgärder krävs' };
+        case 'Skyddsklassad information': return { color: 'text-red-400', risk: 'Kritisk', requirement: 'Säkerhetsgodkännande krävs' };
+        case 'Ej känslig': return { color: 'text-green-400', risk: 'Låg', requirement: 'Grundläggande säkerhet' };
+        default: return { color: 'text-gray-400', risk: 'Okänd', requirement: 'Riskbedömning behövs' };
+      }
+    };
 
     return (
       <div className="space-y-8">
-        {/* Technical Specification */}
+        {/* AI Solution Overview - Most Critical Information */}
         <div>
-          <h3 className="text-lg font-semibold text-white mb-4">Teknisk specifikation</h3>
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse">
-              <thead>
-                <tr className="border-b border-gray-600">
-                  <th className="text-left py-3 text-[#FECB00] font-medium">Kategori</th>
-                  <th className="text-left py-3 text-[#FECB00] font-medium">Information</th>
-                </tr>
-              </thead>
-              <tbody>
-                {technicalFields.map((field) => {
-                  const value = techData[field.key];
-                  if (!value) return null;
-                  
-                  const displayValue = Array.isArray(value) ? value.join(', ') : String(value);
-                  
-                  return (
-                    <tr key={field.key} className="border-b border-gray-700">
-                      <td className="py-3 text-gray-300 font-medium">{field.label}</td>
-                      <td className="py-3 text-white">{displayValue}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        {/* Data Analysis */}
-        <div>
-          <h3 className="text-lg font-semibold text-white mb-4">Dataanalys</h3>
-          <div className="space-y-4">
+          <h3 className="text-lg font-semibold text-white mb-4">🤖 AI-lösning & Implementation</h3>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             
-            {/* Data Description */}
-            {techData.data_description_free && (
-              <div className="border-l-4 border-gray-600 pl-4">
-                <div className="text-white font-medium">Databeskrivning</div>
-                <div className="text-gray-300">{techData.data_description_free}</div>
-              </div>
-            )}
-
-            {/* Data License Details */}
-            {techData.data_license_link && (
-              <div className="border-l-4 border-gray-600 pl-4">
-                <div className="text-white font-medium">Licensreferens</div>
-                <div className="text-gray-300">
-                  <a href={techData.data_license_link} target="_blank" rel="noopener noreferrer" className="text-[#FECB00] underline">
-                    {techData.data_license_link}
-                  </a>
-                </div>
-              </div>
-            )}
-
-            {/* Technical Challenges */}
-            {techData.technical_obstacles && (
-              <div className="border-l-4 border-gray-600 pl-4">
-                <div className="text-white font-medium">Tekniska hinder</div>
-                <div className="text-gray-300">{techData.technical_obstacles}</div>
-              </div>
-            )}
-
-            {/* Technical Solutions */}
-            {techData.technical_solutions && (
-              <div className="border-l-4 border-gray-600 pl-4">
-                <div className="text-white font-medium">Tekniska lösningar</div>
-                <div className="text-gray-300">{techData.technical_solutions}</div>
-              </div>
-            )}
-
-            {/* Deployment Environment Details */}
-            {techData.deployment_environment_description && (
-              <div className="border-l-4 border-gray-600 pl-4">
-                <div className="text-white font-medium">Beskrivning av driftmiljö</div>
-                <div className="text-gray-300">{techData.deployment_environment_description}</div>
-              </div>
-            )}
-
-            {/* Integration Details */}
-            {techData.integration_capabilities_text && (
-              <div className="border-l-4 border-gray-600 pl-4">
-                <div className="text-white font-medium">Övriga integrationsmöjligheter</div>
-                <div className="text-gray-300">{techData.integration_capabilities_text}</div>
-              </div>
-            )}
-
-            {/* Other Data Types */}
-            {techData.data_type_other && (
-              <div className="border-l-4 border-gray-600 pl-4">
-                <div className="text-white font-medium">Övriga datatyper</div>
-                <div className="text-gray-300">{techData.data_type_other}</div>
-              </div>
-            )}
-
-            {/* Other Data Sources */}
-            {techData.data_source_other && (
-              <div className="border-l-4 border-gray-600 pl-4">
-                <div className="text-white font-medium">Övriga datakällor</div>
-                <div className="text-gray-300">{techData.data_source_other}</div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Data Sources and Types (if arrays) */}
-        {(techData.data_sources?.length > 0 || techData.data_types?.length > 0) && (
-          <div>
-            <h3 className="text-lg font-semibold text-white mb-4">Datahantering</h3>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {techData.data_sources?.length > 0 && (
-                <div>
-                  <h4 className="font-medium text-[#FECB00] mb-3">Datakällor ({techData.data_sources.length})</h4>
-                  <div className="space-y-2">
-                    {techData.data_sources.map((source: string, index: number) => (
-                      <div key={index} className="border-l-4 border-gray-600 pl-3 text-gray-300 text-sm">
-                        {source}
-                      </div>
-                    ))}
+            {/* AI Solution Details */}
+            <div className="bg-[#1E3A4A] p-6 rounded-lg">
+              <h4 className="text-[#FECB00] font-medium mb-4">Teknisk Lösning</h4>
+              <div className="space-y-3">
+                {techData.system_name && (
+                  <div>
+                    <span className="text-gray-400 text-sm">System/Plattform:</span>
+                    <div className="text-white font-semibold text-lg">{techData.system_name}</div>
                   </div>
-                </div>
-              )}
-              {techData.data_types?.length > 0 && (
-                <div>
-                  <h4 className="font-medium text-[#FECB00] mb-3">Datatyper ({techData.data_types.length})</h4>
-                  <div className="space-y-2">
-                    {techData.data_types.map((type: string, index: number) => (
-                      <div key={index} className="border-l-4 border-gray-600 pl-3 text-gray-300 text-sm">
-                        {type}
-                      </div>
-                    ))}
+                )}
+                {techData.ai_methodology && (
+                  <div>
+                    <span className="text-gray-400 text-sm">AI-metod/Modell:</span>
+                    <div className="text-white font-semibold">{techData.ai_methodology}</div>
                   </div>
+                )}
+                {!techData.system_name && !techData.ai_methodology && (
+                  <div className="text-gray-400 italic">Ingen AI-lösning specificerad</div>
+                )}
+              </div>
+            </div>
+
+            {/* Deployment Environment */}
+            <div className="bg-[#1E3A4A] p-6 rounded-lg">
+              <h4 className="text-[#FECB00] font-medium mb-4">Driftmiljö & Infrastructure</h4>
+              {techData.deployment_environment ? (
+                <div className="space-y-3">
+                  <div className="flex items-start gap-3">
+                    <span className="text-2xl">{getDeploymentInsight(techData.deployment_environment).icon}</span>
+                    <div>
+                      <div className="text-white font-semibold">{techData.deployment_environment}</div>
+                      <div className="text-gray-300 text-sm mt-1">
+                        {getDeploymentInsight(techData.deployment_environment).insight}
+                      </div>
+                    </div>
+                  </div>
+                  {techData.deployment_environment_description && (
+                    <div className="border-l-4 border-gray-600 pl-3 text-gray-300 text-sm">
+                      {techData.deployment_environment_description}
+                    </div>
+                  )}
                 </div>
+              ) : (
+                <div className="text-gray-400 italic">Driftmiljö ej specificerad</div>
               )}
             </div>
           </div>
-        )}
+        </div>
 
-        {/* Integration Capabilities */}
-        {techData.integration_capabilities?.length > 0 && (
+        {/* Data Characteristics - Critical for AI */}
+        <div>
+          <h3 className="text-lg font-semibold text-white mb-4">📊 Datahantering & Känslighet</h3>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            {/* Data Types & Sources */}
+            <div className="bg-[#1E3A4A] p-6 rounded-lg">
+              <h4 className="text-[#FECB00] font-medium mb-4">Data Input</h4>
+              <div className="space-y-3">
+                {techData.data_types?.length > 0 && (
+                  <div>
+                    <span className="text-gray-400 text-sm">Datatyper:</span>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {techData.data_types.map((type: string, index: number) => (
+                        <span key={index} className="bg-gray-700 text-white px-2 py-1 rounded text-xs">
+                          {type}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {techData.data_sources?.length > 0 && (
+                  <div>
+                    <span className="text-gray-400 text-sm">Källor:</span>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {techData.data_sources.map((source: string, index: number) => (
+                        <span key={index} className="bg-gray-700 text-white px-2 py-1 rounded text-xs">
+                          {source}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {(!techData.data_types?.length && !techData.data_sources?.length) && (
+                  <div className="text-gray-400 italic text-sm">Datakällor ej specificerade</div>
+                )}
+              </div>
+            </div>
+
+            {/* Data Sensitivity & Risk */}
+            <div className="bg-[#1E3A4A] p-6 rounded-lg">
+              <h4 className="text-[#FECB00] font-medium mb-4">Säkerhet & Risk</h4>
+              {techData.data_sensitivity_level ? (
+                <div className="space-y-3">
+                  <div>
+                    <span className="text-gray-400 text-sm">Känslighetsnivå:</span>
+                    <div className={`font-semibold ${getSensitivityInsight(techData.data_sensitivity_level).color}`}>
+                      {techData.data_sensitivity_level}
+                    </div>
+                  </div>
+                  <div className="border-l-4 border-gray-600 pl-3">
+                    <div className="text-gray-400 text-xs">Risknivå:</div>
+                    <div className={`font-medium ${getSensitivityInsight(techData.data_sensitivity_level).color}`}>
+                      {getSensitivityInsight(techData.data_sensitivity_level).risk}
+                    </div>
+                    <div className="text-gray-300 text-xs mt-1">
+                      {getSensitivityInsight(techData.data_sensitivity_level).requirement}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="text-gray-400 italic text-sm">Känslighetsnivå ej angiven</div>
+              )}
+            </div>
+
+            {/* Data Quality & Freshness */}
+            <div className="bg-[#1E3A4A] p-6 rounded-lg">
+              <h4 className="text-[#FECB00] font-medium mb-4">Kvalitet & Aktualitet</h4>
+              <div className="space-y-3">
+                {techData.data_quality && (
+                  <div>
+                    <span className="text-gray-400 text-sm">Datakvalitet:</span>
+                    <div className="text-white font-medium">{techData.data_quality}</div>
+                  </div>
+                )}
+                {techData.data_freshness && (
+                  <div>
+                    <span className="text-gray-400 text-sm">Uppdateringsfrekvens:</span>
+                    <div className="text-white font-medium">{techData.data_freshness}</div>
+                  </div>
+                )}
+                {(!techData.data_quality && !techData.data_freshness) && (
+                  <div className="text-gray-400 italic text-sm">Kvalitetsinfo ej angiven</div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Implementation Details - Secondary Information */}
+        <div>
+          <h3 className="text-lg font-semibold text-white mb-4">⚙️ Implementation & Utmaningar</h3>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            
+            {/* Integration Capabilities */}
+            {techData.integration_capabilities?.length > 0 && (
+              <div className="bg-[#1E3A4A] p-6 rounded-lg">
+                <h4 className="text-[#FECB00] font-medium mb-4">Integrationsmöjligheter</h4>
+                <div className="space-y-2">
+                  <div className="text-gray-300 text-sm">
+                    Systemet stöder <span className="text-white font-semibold">{techData.integration_capabilities.length}</span> olika integrationsmetoder:
+                  </div>
+                  <div className="flex flex-wrap gap-1">
+                    {techData.integration_capabilities.map((capability: string, index: number) => (
+                      <span key={index} className="bg-gray-700 text-white px-2 py-1 rounded text-xs">
+                        {capability}
+                      </span>
+                    ))}
+                  </div>
+                  {techData.integration_capabilities_text && (
+                    <div className="border-l-4 border-gray-600 pl-3 text-gray-300 text-sm mt-2">
+                      {techData.integration_capabilities_text}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Technical Challenges & Solutions */}
+            {(techData.technical_obstacles || techData.technical_solutions) && (
+              <div className="bg-[#1E3A4A] p-6 rounded-lg">
+                <h4 className="text-[#FECB00] font-medium mb-4">Tekniska Utmaningar</h4>
+                <div className="space-y-3">
+                  {techData.technical_obstacles && (
+                    <div>
+                      <div className="text-red-400 text-sm font-medium mb-1">🚧 Identifierade hinder:</div>
+                      <div className="text-gray-300 text-sm">{techData.technical_obstacles}</div>
+                    </div>
+                  )}
+                  {techData.technical_solutions && (
+                    <div>
+                      <div className="text-green-400 text-sm font-medium mb-1">✅ Lösningsstrategier:</div>
+                      <div className="text-gray-300 text-sm">{techData.technical_solutions}</div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Additional Details - Tertiary Information */}
+        {(techData.data_description_free || techData.data_license_link || techData.data_type_other || techData.data_source_other) && (
           <div>
-            <h3 className="text-lg font-semibold text-white mb-4">Integrationsmöjligheter</h3>
-            <div className="border-l-4 border-gray-600 pl-4">
-              <div className="text-white font-medium mb-2">Tillgängliga integrationer</div>
-              <div className="text-gray-300">
-                Systemet stöder <span className="text-white font-semibold">{techData.integration_capabilities.length}</span> olika 
-                integrationsmetoder: {techData.integration_capabilities.join(', ')}.
+            <h3 className="text-lg font-semibold text-white mb-4">📋 Övrig Information</h3>
+            <div className="space-y-4">
+              
+              {techData.data_description_free && (
+                <div className="border-l-4 border-gray-600 pl-4">
+                  <div className="text-white font-medium">Databeskrivning</div>
+                  <div className="text-gray-300">{techData.data_description_free}</div>
+                </div>
+              )}
+
+              {techData.data_license_link && (
+                <div className="border-l-4 border-gray-600 pl-4">
+                  <div className="text-white font-medium">Licensreferens</div>
+                  <div className="text-gray-300">
+                    <a href={techData.data_license_link} target="_blank" rel="noopener noreferrer" className="text-[#FECB00] underline">
+                      {techData.data_license_link}
+                    </a>
+                  </div>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {techData.data_type_other && (
+                  <div className="border-l-4 border-gray-600 pl-4">
+                    <div className="text-white font-medium">Övriga datatyper</div>
+                    <div className="text-gray-300">{techData.data_type_other}</div>
+                  </div>
+                )}
+
+                {techData.data_source_other && (
+                  <div className="border-l-4 border-gray-600 pl-4">
+                    <div className="text-white font-medium">Övriga datakällor</div>
+                    <div className="text-gray-300">{techData.data_source_other}</div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
