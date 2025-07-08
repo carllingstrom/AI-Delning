@@ -344,6 +344,7 @@ export default function ProjectDetailPage() {
 
               {(() => {
                 try {
+                  const { calculateROI } = require('@/lib/roiCalculator');
                   const costEntries = projectCostData?.actualCostDetails?.costEntries || [];
                   let totalCost = 0;
                   costEntries.forEach((entry: any) => {
@@ -363,18 +364,17 @@ export default function ProjectDetailPage() {
                     }
                   });
 
-                  if (totalCost > 0 && totalQuantitativeValue > 0) {
-                    const paybackMonths = Math.round((totalCost / (totalQuantitativeValue / 12)) * 10) / 10;
-                    const roi = ((totalQuantitativeValue - totalCost) / totalCost * 100);
+                  if (totalCost > 0 && effectEntries.length > 0) {
+                    const roiMetrics = calculateROI({ effectEntries, totalProjectInvestment: totalCost });
                     
                     return (
                       <div className="border-l-4 border-gray-600 pl-4">
                         <div className="text-white font-medium">Investeringsanalys</div>
                         <div className="text-gray-300">
                           Investeringen på <span className="text-white font-semibold">{formatCurrency(totalCost)}</span> förväntas 
-                          betala tillbaka sig på <span className="text-white font-semibold">{paybackMonths} månader</span> med 
-                          en total ROI på <span className={`font-semibold ${roi > 0 ? 'text-green-400' : 'text-red-400'}`}>
-                            {roi.toFixed(1)}%
+                          betala tillbaka sig på <span className="text-white font-semibold">{roiMetrics.paybackPeriod.toFixed(1)} år</span> med 
+                          en total ROI på <span className={`font-semibold ${roiMetrics.economicROI > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                            {roiMetrics.economicROI.toFixed(1)}%
                           </span>.
                         </div>
                       </div>
