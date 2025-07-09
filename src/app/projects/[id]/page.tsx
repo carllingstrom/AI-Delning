@@ -710,10 +710,16 @@ export default function ProjectDetailPage() {
     // Helper function to get deployment environment insight
     const getDeploymentInsight = (env: string) => {
       switch(env) {
-        case 'Self-hostad': return { icon: '🏢', insight: 'Fullt kontroll över data och säkerhet, men kräver intern infrastruktur' };
-        case 'Molnbaserad (t.ex. Azure, GCP)': return { icon: '☁️', insight: 'Skalbar och kostnadseffektiv, förlitar sig på extern leverantör' };
-        case 'Hybrid': return { icon: '🔄', insight: 'Balanserar kontroll och flexibilitet, komplex arkitektur' };
-        default: return { icon: '❓', insight: 'Okänd driftmiljö' };
+        case 'Self-hostad (on-prem)': return { icon: '', insight: 'Fullt kontroll över data och säkerhet, men kräver intern infrastruktur' };
+        case 'Molnbaserad': return { icon: '', insight: 'Skalbar och kostnadseffektiv, förlitar sig på extern leverantör' };
+        case 'Säker svensk hosting': return { icon: '', insight: 'Molnbaserad lösning med svensk jurisdiktion och dataskydd' };
+        case 'Hybridlösning': return { icon: '', insight: 'Balanserar kontroll och flexibilitet, komplex arkitektur' };
+        case 'Vet ej': return { icon: '', insight: 'Driftmiljö behöver utredas för säkerhets- och kostnadsbedömning' };
+        // Legacy compatibility
+        case 'Self-hostad': return { icon: '', insight: 'Fullt kontroll över data och säkerhet, men kräver intern infrastruktur' };
+        case 'Molnbaserad (t.ex. Azure, GCP)': return { icon: '', insight: 'Skalbar och kostnadseffektiv, förlitar sig på extern leverantör' };
+        case 'Hybrid': return { icon: '', insight: 'Balanserar kontroll och flexibilitet, komplex arkitektur' };
+        default: return { icon: '', insight: 'Okänd driftmiljö' };
       }
     };
 
@@ -732,7 +738,7 @@ export default function ProjectDetailPage() {
       <div className="space-y-8">
         {/* AI Solution Overview - Most Critical Information */}
         <div>
-          <h3 className="text-lg font-semibold text-white mb-4">🤖 AI-lösning & Implementation</h3>
+          <h3 className="text-lg font-semibold text-white mb-4">AI-lösning & Implementation</h3>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             
             {/* AI Solution Details */}
@@ -762,13 +768,10 @@ export default function ProjectDetailPage() {
               <h4 className="text-[#FECB00] font-medium mb-4">Driftmiljö & Infrastructure</h4>
               {techData.deployment_environment ? (
                 <div className="space-y-3">
-                  <div className="flex items-start gap-3">
-                    <span className="text-2xl">{getDeploymentInsight(techData.deployment_environment).icon}</span>
-                    <div>
-                      <div className="text-white font-semibold">{techData.deployment_environment}</div>
-                      <div className="text-gray-300 text-sm mt-1">
-                        {getDeploymentInsight(techData.deployment_environment).insight}
-                      </div>
+                  <div>
+                    <div className="text-white font-semibold">{techData.deployment_environment}</div>
+                    <div className="text-gray-300 text-sm mt-1">
+                      {getDeploymentInsight(techData.deployment_environment).insight}
                     </div>
                   </div>
                   {techData.deployment_environment_description && (
@@ -786,7 +789,7 @@ export default function ProjectDetailPage() {
 
         {/* Data Characteristics - Critical for AI */}
         <div>
-          <h3 className="text-lg font-semibold text-white mb-4">📊 Datahantering & Känslighet</h3>
+          <h3 className="text-lg font-semibold text-white mb-4">Datahantering & Känslighet</h3>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             
             {/* Data Types & Sources */}
@@ -875,7 +878,7 @@ export default function ProjectDetailPage() {
 
         {/* Implementation Details - Secondary Information */}
         <div>
-          <h3 className="text-lg font-semibold text-white mb-4">⚙️ Implementation & Utmaningar</h3>
+          <h3 className="text-lg font-semibold text-white mb-4">Implementation & Utmaningar</h3>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             
             {/* Integration Capabilities */}
