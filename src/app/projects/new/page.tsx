@@ -276,10 +276,28 @@ function ProjectWizardContent() {
             lessonsLearned: formData.lessonsLearned,
           },
           legal_data: {
-            // Store all legal-related form fields
-            ...Object.keys(formData)
-              .filter(key => key.startsWith('legal_') || key.startsWith('gdpr_') || key.startsWith('security_'))
-              .reduce((obj: any, key) => ({ ...obj, [key]: formData[key] }), {})
+            // Full legal schema fields
+            processes_personal_data: formData.processes_personal_data,
+            data_categories: formData.data_categories,
+            legal_basis: formData.legal_basis,
+            dpia_done: formData.dpia_done,
+            data_controller: formData.data_controller,
+            processor_agreement: formData.processor_agreement,
+            procurement_type: formData.procurement_type,
+            reusable_contract: formData.reusable_contract,
+            supplier_contract_clauses: formData.supplier_contract_clauses,
+            high_risk_ai: formData.high_risk_ai,
+            ce_marked: formData.ce_marked,
+            fundamental_rights_assessment: formData.fundamental_rights_assessment,
+            data_access_rights: formData.data_access_rights,
+            is_open_source: formData.is_open_source,
+            open_source_link: formData.open_source_link,
+            accessibility: formData.accessibility,
+            security_measures: formData.security_measures,
+            // IDEA version fields (backward compatibility)
+            gdpr_assessment: formData.gdpr_assessment,
+            data_privacy: formData.data_privacy,
+            legal_review: formData.legal_review,
           },
           overview_details: {
             valueDimensionOther: formData.valueDimensionOther,
