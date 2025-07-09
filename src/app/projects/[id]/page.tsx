@@ -1267,62 +1267,64 @@ export default function ProjectDetailPage() {
                   <div>
                     <h3 className="text-lg font-semibold text-white mb-4">Organisation & Ledarskap</h3>
                     <div className="space-y-4">
-                      {/* Leadership Involvement */}
-                      {project.leadership_data.leadershipInvolved && (
+                      {/* Project Ownership */}
+                      {project.leadership_data.projectOwnership && (
                         <div className="border-l-4 border-gray-600 pl-4">
-                          <div className="text-white font-medium">Ledningsstöd</div>
+                          <div className="text-white font-medium">Projektansvar</div>
                           <div className="text-gray-300">
-                            {project.leadership_data.leadershipInvolved === 'yes' ? 'Ja, projektet har haft stöd från ledningen' : 'Nej, begränsat stöd från ledningen'}
+                            {project.leadership_data.projectOwnership === 'it' && 'IT-avdelning'}
+                            {project.leadership_data.projectOwnership === 'operations' && 'Verksamheten'}
+                            {project.leadership_data.projectOwnership === 'joint' && 'Gemensamt ansvar'}
+                            {project.leadership_data.projectOwnership === 'other' && 'Annat'}
                           </div>
                         </div>
                       )}
 
-                      {/* Strategy Alignment */}
-                      {project.leadership_data.strategyAlignment && (
+                      {/* Organizational Change */}
+                      {project.leadership_data.organizationalChange && Array.isArray(project.leadership_data.organizationalChange) && project.leadership_data.organizationalChange.length > 0 && (
                         <div className="border-l-4 border-gray-600 pl-4">
-                          <div className="text-white font-medium">Strategisk förankring</div>
+                          <div className="text-white font-medium">Organisationsförändringar</div>
                           <div className="text-gray-300">
-                            {project.leadership_data.strategyAlignment === 'explicit' && 'Uttryckligen förankrat i kommunens strategier'}
-                            {project.leadership_data.strategyAlignment === 'indirect' && 'Indirekt stöd i strategierna'}
-                            {project.leadership_data.strategyAlignment === 'no' && 'Ej strategiskt förankrat'}
+                            {project.leadership_data.organizationalChange.join(', ')}
                           </div>
                         </div>
                       )}
 
-                      {/* Competence Needs */}
-                      {project.leadership_data.competenceNeeds && (
+                      {/* Staff Involvement */}
+                      {project.leadership_data.staffInvolvement && (
                         <div className="border-l-4 border-gray-600 pl-4">
-                          <div className="text-white font-medium">Kompetenssäkring</div>
+                          <div className="text-white font-medium">Medarbetarinvolvering</div>
                           <div className="text-gray-300">
-                            {Array.isArray(project.leadership_data.competenceNeeds) 
-                              ? project.leadership_data.competenceNeeds.map((need: string) => {
-                                  switch(need) {
-                                    case 'internal_development': return 'Intern kompetensutveckling';
-                                    case 'recruitment': return 'Rekrytering av AI-kompetens';
-                                    case 'consultants': return 'Anlitade konsulter/partners';
-                                    case 'no_new_needs': return 'Inga nya behov';
-                                    default: return need;
-                                  }
-                                }).join(', ')
-                              : String(project.leadership_data.competenceNeeds)
-                            }
+                            {project.leadership_data.staffInvolvement === 'early' && 'Ja, från start'}
+                            {project.leadership_data.staffInvolvement === 'later' && 'Ja, men först senare'}
+                            {project.leadership_data.staffInvolvement === 'no' && 'Nej'}
                           </div>
                         </div>
                       )}
 
-                      {/* Strategic Alignment Details */}
-                      {project.leadership_data.strategicAlignment && (
+                      {/* Change Management Efforts */}
+                      {project.leadership_data.changeManagementEfforts && (
                         <div className="border-l-4 border-gray-600 pl-4">
-                          <div className="text-white font-medium">Strategisk beskrivning</div>
-                          <div className="text-gray-300">{project.leadership_data.strategicAlignment}</div>
+                          <div className="text-white font-medium">Förändringsledning</div>
+                          <div className="text-gray-300">{project.leadership_data.changeManagementEfforts}</div>
                         </div>
                       )}
 
-                      {/* Management Support Details */}
-                      {project.leadership_data.managementSupport && (
+                      {/* SDG Alignment */}
+                      {project.leadership_data.sdgAlignment && Array.isArray(project.leadership_data.sdgAlignment) && project.leadership_data.sdgAlignment.length > 0 && (
                         <div className="border-l-4 border-gray-600 pl-4">
-                          <div className="text-white font-medium">Ledningens stöd</div>
-                          <div className="text-gray-300">{project.leadership_data.managementSupport}</div>
+                          <div className="text-white font-medium">Agenda 2030-mål</div>
+                          <div className="text-gray-300">
+                            {project.leadership_data.sdgAlignment.join(', ')}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* SDG Description */}
+                      {project.leadership_data.sdgDescription && (
+                        <div className="border-l-4 border-gray-600 pl-4">
+                          <div className="text-white font-medium">Koppling till Agenda 2030</div>
+                          <div className="text-gray-300">{project.leadership_data.sdgDescription}</div>
                         </div>
                       )}
 
@@ -1541,4 +1543,4 @@ export default function ProjectDetailPage() {
       </div>
     </div>
   );
-} 
+}

@@ -606,50 +606,57 @@ export default function MapPage() {
               {(selectedProject as any).leadership_data && Object.keys((selectedProject as any).leadership_data).some(key => (selectedProject as any).leadership_data[key]) && (
                 <CollapsibleSection title="Organisation & Ledarskap" icon="👥">
                   <div className="space-y-3">
-                    {(selectedProject as any).leadership_data.leadershipInvolved && (
+                    {(selectedProject as any).leadership_data.projectOwnership && (
                       <div>
-                        <span className="font-semibold text-[#004D66] text-xs">Ledningens engagemang:</span>
-                        <p className="text-xs mt-1">{(selectedProject as any).leadership_data.leadershipInvolved === 'yes' ? 'Ja' : 'Nej'}</p>
-                      </div>
-                    )}
-                    
-                    {(selectedProject as any).leadership_data.strategyAlignment && (
-                      <div>
-                        <span className="font-semibold text-[#004D66] text-xs">Strategisk förankring:</span>
+                        <span className="font-semibold text-[#004D66] text-xs">Projektansvar:</span>
                         <p className="text-xs mt-1">
-                          {(selectedProject as any).leadership_data.strategyAlignment === 'explicit' ? 'Ja, uttryckligen i strategier' :
-                           (selectedProject as any).leadership_data.strategyAlignment === 'indirect' ? 'Ja, indirekt stöd' : 'Nej'}
+                          {(selectedProject as any).leadership_data.projectOwnership === 'it' ? 'IT-avdelning' :
+                           (selectedProject as any).leadership_data.projectOwnership === 'operations' ? 'Verksamheten' :
+                           (selectedProject as any).leadership_data.projectOwnership === 'joint' ? 'Gemensamt ansvar' : 'Annat'}
                         </p>
                       </div>
                     )}
                     
-                    {(selectedProject as any).leadership_data.competenceNeeds && Array.isArray((selectedProject as any).leadership_data.competenceNeeds) && (
+                    {(selectedProject as any).leadership_data.organizationalChange && Array.isArray((selectedProject as any).leadership_data.organizationalChange) && (selectedProject as any).leadership_data.organizationalChange.length > 0 && (
                       <div>
-                        <span className="font-semibold text-[#004D66] text-xs">Kompetenssäkring:</span>
+                        <span className="font-semibold text-[#004D66] text-xs">Organisationsförändringar:</span>
                         <div className="flex flex-wrap gap-1 mt-1">
-                          {(selectedProject as any).leadership_data.competenceNeeds.map((need: string, i: number) => (
+                          {(selectedProject as any).leadership_data.organizationalChange.map((change: string, i: number) => (
                             <span key={i} className="px-1 py-0.5 bg-purple-100 text-purple-700 rounded text-xs">
-                              {need === 'internal_development' ? 'Intern utveckling' :
-                               need === 'recruitment' ? 'Rekrytering' :
-                               need === 'consultants' ? 'Konsulter' :
-                               need === 'no_new_needs' ? 'Inga nya behov' : need}
+                              {change}
                             </span>
                           ))}
                         </div>
                       </div>
                     )}
                     
-                    {(selectedProject as any).leadership_data.strategicAlignment && (
+                    {(selectedProject as any).leadership_data.staffInvolvement && (
                       <div>
-                        <span className="font-semibold text-[#004D66] text-xs">Strategisk förankring:</span>
-                        <p className="text-xs mt-1 text-gray-700">{(selectedProject as any).leadership_data.strategicAlignment}</p>
+                        <span className="font-semibold text-[#004D66] text-xs">Medarbetarinvolvering:</span>
+                        <p className="text-xs mt-1">
+                          {(selectedProject as any).leadership_data.staffInvolvement === 'early' ? 'Ja, från start' :
+                           (selectedProject as any).leadership_data.staffInvolvement === 'later' ? 'Ja, men först senare' : 'Nej'}
+                        </p>
                       </div>
                     )}
                     
-                    {(selectedProject as any).leadership_data.managementSupport && (
+                    {(selectedProject as any).leadership_data.changeManagementEfforts && (
                       <div>
-                        <span className="font-semibold text-[#004D66] text-xs">Ledningens stöd:</span>
-                        <p className="text-xs mt-1 text-gray-700">{(selectedProject as any).leadership_data.managementSupport}</p>
+                        <span className="font-semibold text-[#004D66] text-xs">Förändringsledning:</span>
+                        <p className="text-xs mt-1 text-gray-700">{(selectedProject as any).leadership_data.changeManagementEfforts}</p>
+                      </div>
+                    )}
+                    
+                    {(selectedProject as any).leadership_data.sdgAlignment && Array.isArray((selectedProject as any).leadership_data.sdgAlignment) && (selectedProject as any).leadership_data.sdgAlignment.length > 0 && (
+                      <div>
+                        <span className="font-semibold text-[#004D66] text-xs">Agenda 2030-mål:</span>
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {(selectedProject as any).leadership_data.sdgAlignment.map((goal: string, i: number) => (
+                            <span key={i} className="px-1 py-0.5 bg-green-100 text-green-700 rounded text-xs">
+                              {goal}
+                            </span>
+                          ))}
+                        </div>
                       </div>
                     )}
                     

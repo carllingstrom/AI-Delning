@@ -265,10 +265,15 @@ function ProjectWizardContent() {
             technical_solutions: formData.technical_solutions,
           },
           leadership_data: {
-            // Store all leadership-related form fields
-            ...Object.keys(formData)
-              .filter(key => key.startsWith('leadership_') || key.startsWith('organization_') || key.startsWith('change_'))
-              .reduce((obj: any, key) => ({ ...obj, [key]: formData[key] }), {})
+            // Store leadership schema fields directly
+            projectOwnership: formData.projectOwnership,
+            organizationalChange: formData.organizationalChange,
+            staffInvolvement: formData.staffInvolvement,
+            changeManagementEfforts: formData.changeManagementEfforts,
+            sdgAlignment: formData.sdgAlignment,
+            sdgDescription: formData.sdgDescription,
+            nextSteps: formData.nextSteps,
+            lessonsLearned: formData.lessonsLearned,
           },
           legal_data: {
             // Store all legal-related form fields
