@@ -741,13 +741,6 @@ export default function MapPage() {
                         <p className="text-xs mt-1 text-gray-700">{(selectedProject as any).legal_data.security_measures}</p>
                       </div>
                     )}
-                    
-                    {(selectedProject as any).legal_data.accessibility && (
-                      <div>
-                        <span className="font-semibold text-[#004D66] text-xs">WCAG-kompatibilitet:</span>
-                        <p className="text-xs mt-1">{(selectedProject as any).legal_data.accessibility}</p>
-                      </div>
-                    )}
                   </div>
                 </CollapsibleSection>
               )}

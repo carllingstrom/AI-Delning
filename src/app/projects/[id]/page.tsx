@@ -171,6 +171,10 @@ export default function ProjectDetailPage() {
       
       // Use value dimension if available
       if (effect.valueDimension) {
+        // If value dimension is "Annat" and there's a custom description, use that
+        if (effect.valueDimension === 'Annat' && effect.customValueDimension) {
+          return effect.customValueDimension;
+        }
         return effect.valueDimension;
       }
       
@@ -184,7 +188,7 @@ export default function ProjectDetailPage() {
   const parseFinancialDetails = (details: any) => {
     if (!details || typeof details !== 'object') return null;
     
-    const { valueUnit, countDetails, hoursDetails, otherDetails, measurementName, annualizationYears } = details;
+    const { valueUnit, countDetails, hoursDetails, otherDetails, measurementName, annualizationYears, currencyDetails, percentageDetails } = details;
     
     let value = 0;
     let description = '';
@@ -192,21 +196,42 @@ export default function ProjectDetailPage() {
     if (valueUnit === 'count' && countDetails) {
       value = (countDetails.count || 0) * (countDetails.valuePerUnit || 0);
       const timescale = countDetails.timescale === 'per_month' ? '/månad' : countDetails.timescale === 'per_year' ? '/år' : '';
-      description = `${countDetails.count} ${measurementName || 'enheter'} ${timescale} × ${formatCurrency(countDetails.valuePerUnit || 0)}`;
+      description = `${countDetails.count} enheter ${timescale} × ${formatCurrency(countDetails.valuePerUnit || 0)}`;
       if (annualizationYears) {
         value *= (annualizationYears * (countDetails.timescale === 'per_month' ? 12 : 1));
         description += ` under ${annualizationYears} år`;
       }
     } else if (valueUnit === 'hours' && hoursDetails) {
       value = (hoursDetails.hours || 0) * (hoursDetails.hourlyRate || 0);
-      description = `${hoursDetails.hours} timmar × ${formatCurrency(hoursDetails.hourlyRate || 0)}/timme`;
+      const timescale = hoursDetails.timescale === 'per_month' ? '/månad' : hoursDetails.timescale === 'per_year' ? '/år' : '';
+      description = `${hoursDetails.hours} timmar ${timescale} × ${formatCurrency(hoursDetails.hourlyRate || 0)}/timme`;
+      if (annualizationYears) {
+        value *= (annualizationYears * (hoursDetails.timescale === 'per_month' ? 12 : 1));
+        description += ` under ${annualizationYears} år`;
+      }
+    } else if (valueUnit === 'currency' && details.currencyDetails) {
+      const currDetails = details.currencyDetails;
+      value = currDetails.amount || 0;
+      const timescale = currDetails.timescale === 'per_month' ? '/månad' : currDetails.timescale === 'per_year' ? '/år' : currDetails.timescale === 'one_time' ? ' (engångsbelopp)' : '';
+      description = `${formatCurrency(currDetails.amount || 0)} ${timescale}`;
+      if (annualizationYears && currDetails.timescale !== 'one_time') {
+        value *= (annualizationYears * (currDetails.timescale === 'per_month' ? 12 : 1));
+        description += ` under ${annualizationYears} år`;
+      }
+    } else if (valueUnit === 'percentage' && details.percentageDetails) {
+      const percDetails = details.percentageDetails;
+      value = (percDetails.percentage || 0) * (percDetails.baseValue || 0) / 100;
+      const timescale = percDetails.timescale === 'per_month' ? '/månad' : percDetails.timescale === 'per_year' ? '/år' : '';
+      description = `${percDetails.percentage}% av ${formatCurrency(percDetails.baseValue || 0)} ${timescale}`;
+      if (annualizationYears) {
+        value *= (annualizationYears * (percDetails.timescale === 'per_month' ? 12 : 1));
+        description += ` under ${annualizationYears} år`;
+      }
     } else if (valueUnit === 'other' && otherDetails) {
-      const current = otherDetails.currentAmount || 0;
-      const newAmount = otherDetails.newAmount || 0;
-      const diff = newAmount - current;
-      value = Math.abs(diff) * (otherDetails.valuePerUnit || 0);
+      value = (otherDetails.amount || 0) * (otherDetails.valuePerUnit || 0);
+      const unit = otherDetails.customUnit || 'enheter';
       const timescale = otherDetails.timescale === 'per_month' ? '/månad' : otherDetails.timescale === 'per_year' ? '/år' : '';
-      description = `${diff > 0 ? 'Ökning' : 'Minskning'} med ${Math.abs(diff)} ${otherDetails.customUnit || 'enheter'} ${timescale}`;
+      description = `${otherDetails.amount || 0} ${unit} ${timescale} × ${formatCurrency(otherDetails.valuePerUnit || 0)}`;
       if (annualizationYears) {
         value *= (annualizationYears * (otherDetails.timescale === 'per_month' ? 12 : 1));
         description += ` under ${annualizationYears} år`;
@@ -214,6 +239,85 @@ export default function ProjectDetailPage() {
     }
     
     return { value, description, measurementName };
+  };
+
+  const parseRedistributionDetails = (details: any) => {
+    if (!details || typeof details !== 'object') return null;
+    
+    const { valueUnit, resourceType, annualizationYears, hoursDetails, currencyDetails, countDetails, otherDetails } = details;
+    
+    let value = 0;
+    let description = '';
+    let savedAmount = 0;
+    
+    if (valueUnit === 'hours' && hoursDetails) {
+      const currentHours = hoursDetails.currentHours || 0;
+      const newHours = hoursDetails.newHours || 0;
+      savedAmount = currentHours - newHours;
+      const hourlyRate = hoursDetails.hourlyRate || 0;
+      value = Math.abs(savedAmount) * hourlyRate;
+      
+      const timescale = hoursDetails.timescale === 'per_month' ? '/månad' : hoursDetails.timescale === 'per_year' ? '/år' : '';
+      description = `${Math.abs(savedAmount)} ${savedAmount > 0 ? 'besparade' : 'extra'} timmar ${timescale}`;
+      if (hourlyRate > 0) {
+        description += ` × ${formatCurrency(hourlyRate)}/timme`;
+      }
+      
+      if (annualizationYears) {
+        value *= (annualizationYears * (hoursDetails.timescale === 'per_month' ? 12 : 1));
+        description += ` under ${annualizationYears} år`;
+      }
+    } else if (valueUnit === 'currency' && currencyDetails) {
+      const currentAmount = currencyDetails.currentAmount || 0;
+      const newAmount = currencyDetails.newAmount || 0;
+      savedAmount = currentAmount - newAmount;
+      value = Math.abs(savedAmount);
+      
+      const timescale = currencyDetails.timescale === 'per_month' ? '/månad' : currencyDetails.timescale === 'per_year' ? '/år' : '';
+      description = `${formatCurrency(Math.abs(savedAmount))} ${savedAmount > 0 ? 'besparade' : 'extra kostnad'} ${timescale}`;
+      
+      if (annualizationYears) {
+        value *= (annualizationYears * (currencyDetails.timescale === 'per_month' ? 12 : 1));
+        description += ` under ${annualizationYears} år`;
+      }
+    } else if (valueUnit === 'count' && countDetails) {
+      const currentCount = countDetails.currentCount || 0;
+      const newCount = countDetails.newCount || 0;
+      savedAmount = currentCount - newCount;
+      const valuePerUnit = countDetails.valuePerUnit || 0;
+      value = Math.abs(savedAmount) * valuePerUnit;
+      
+      const timescale = countDetails.timescale === 'per_month' ? '/månad' : countDetails.timescale === 'per_year' ? '/år' : '';
+      description = `${Math.abs(savedAmount)} ${savedAmount > 0 ? 'färre' : 'fler'} enheter ${timescale}`;
+      if (valuePerUnit > 0) {
+        description += ` × ${formatCurrency(valuePerUnit)}/enhet`;
+      }
+      
+      if (annualizationYears) {
+        value *= (annualizationYears * (countDetails.timescale === 'per_month' ? 12 : 1));
+        description += ` under ${annualizationYears} år`;
+      }
+    } else if (valueUnit === 'other' && otherDetails) {
+      const currentAmount = otherDetails.currentAmount || 0;
+      const newAmount = otherDetails.newAmount || 0;
+      savedAmount = currentAmount - newAmount;
+      const valuePerUnit = otherDetails.valuePerUnit || 0;
+      value = Math.abs(savedAmount) * valuePerUnit;
+      const unit = otherDetails.customUnit || 'enheter';
+      
+      const timescale = otherDetails.timescale === 'per_month' ? '/månad' : otherDetails.timescale === 'per_year' ? '/år' : '';
+      description = `${Math.abs(savedAmount)} ${savedAmount > 0 ? 'färre' : 'fler'} ${unit} ${timescale}`;
+      if (valuePerUnit > 0) {
+        description += ` × ${formatCurrency(valuePerUnit)}/${unit}`;
+      }
+      
+      if (annualizationYears) {
+        value *= (annualizationYears * (otherDetails.timescale === 'per_month' ? 12 : 1));
+        description += ` under ${annualizationYears} år`;
+      }
+    }
+    
+    return { value, description, resourceType, savedAmount };
   };
 
   const renderEffectsData = (effectsData: any, projectCostData?: any) => {
@@ -234,11 +338,11 @@ export default function ProjectDetailPage() {
     effectEntries.forEach((effect: any) => {
       if (effect.hasQuantitative && effect.quantitativeDetails) {
         const financialData = parseFinancialDetails(effect.quantitativeDetails.financialDetails);
-        const redistributionData = parseFinancialDetails(effect.quantitativeDetails.redistributionDetails);
+        const redistributionData = parseRedistributionDetails(effect.quantitativeDetails.redistributionDetails);
         if (financialData) totalQuantitativeValue += financialData.value;
         if (redistributionData) totalQuantitativeValue += redistributionData.value;
       }
-      if (effect.hasQualitative && effect.qualitativeDetails?.description) {
+      if (effect.hasQualitative && effect.qualitativeDetails?.factor) {
         totalQualitativeEffects++;
       }
     });
@@ -264,7 +368,7 @@ export default function ProjectDetailPage() {
                   
                   if (effect.hasQuantitative && effect.quantitativeDetails) {
                     const financialData = parseFinancialDetails(effect.quantitativeDetails.financialDetails);
-                    const redistributionData = parseFinancialDetails(effect.quantitativeDetails.redistributionDetails);
+                    const redistributionData = parseRedistributionDetails(effect.quantitativeDetails.redistributionDetails);
                     
                     if (financialData) {
                       rows.push({
@@ -285,15 +389,7 @@ export default function ProjectDetailPage() {
                     }
                   }
                   
-                  if (effect.hasQualitative && effect.qualitativeDetails?.description) {
-                    rows.push({
-                      name: getEffectName(effect, index),
-                      type: 'Kvalitativ effekt',
-                      description: effect.qualitativeDetails.description,
-                      value: effect.qualitativeDetails.monetaryEstimate ? 
-                        parseFinancialDetails(effect.qualitativeDetails.monetaryEstimate)?.value || 0 : null
-                    });
-                  }
+                  // Kvalitativa effekter visas inte i monetära tabellen - endast i detaljerad analys
                   
                   return rows.map((row, rowIndex) => (
                     <tr key={`${index}-${rowIndex}`} className="border-b border-gray-700">
@@ -336,8 +432,27 @@ export default function ProjectDetailPage() {
                 <div className="border-l-4 border-gray-600 pl-4">
                   <div className="text-white font-medium">Kvalitativa effekter</div>
                   <div className="text-gray-300">
-                    <span className="text-white font-semibold">{totalQualitativeEffects}</span> kvalitativa effekter identifierade 
-                    som bidrar till förbättrad service, ökad tillgänglighet och bättre användarupplevelse.
+                    <span className="text-white font-semibold">{totalQualitativeEffects}</span> kvalitativa effekter identifierade:
+                    <div className="mt-2">
+                      {effectEntries.filter((effect: any) => 
+                        effect.hasQualitative && effect.qualitativeDetails?.factor
+                      ).map((effect: any, idx: number) => {
+                        const qual = effect.qualitativeDetails;
+                        const improvement = qual.targetRating - qual.currentRating;
+                        const improvementPercent = qual.currentRating > 0 ? ((improvement / qual.currentRating) * 100).toFixed(1) : '0';
+                        
+                        return (
+                          <div key={idx} className="text-sm mt-1">
+                            • <span className="text-white font-medium">{qual.factor}</span>: 
+                            {improvement > 0 ? (
+                              <span className="text-green-400"> +{improvementPercent}% förbättring</span>
+                            ) : (
+                              <span className="text-gray-400"> ingen förändring</span>
+                            )} över {qual.annualizationYears} år
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
               )}
@@ -402,52 +517,70 @@ export default function ProjectDetailPage() {
                     <div>
                       <h5 className="text-[#FECB00] font-medium mb-3">Kvantifierbara effekter</h5>
                       <div className="space-y-3 text-sm">
-                        {effect.quantitativeDetails.expectedValue && (
+                        {effect.quantitativeDetails.effectType && (
                           <div>
-                            <span className="text-gray-400">Förväntat värde: </span>
-                            <span className="text-white">{effect.quantitativeDetails.expectedValue}</span>
-                          </div>
-                        )}
-                        {effect.quantitativeDetails.timeframe && (
-                          <div>
-                            <span className="text-gray-400">Tidsram: </span>
-                            <span className="text-white">{effect.quantitativeDetails.timeframe}</span>
-                          </div>
-                        )}
-                        {effect.quantitativeDetails.measurementMethod && (
-                          <div>
-                            <span className="text-gray-400">Mätmetod: </span>
-                            <span className="text-white">{effect.quantitativeDetails.measurementMethod}</span>
+                            <span className="text-gray-400">Typ av effekt: </span>
+                            <span className="text-white">
+                              {effect.quantitativeDetails.effectType === 'financial' ? 'Finansiell effekt' : 'Omfördelad resurs'}
+                            </span>
                           </div>
                         )}
                         
                         {effect.quantitativeDetails.financialDetails && (
                           <div className="pt-2 border-t border-gray-600">
                             <div className="text-white font-medium mb-1">Finansiella effekter</div>
-                            {(() => {
-                              const data = parseFinancialDetails(effect.quantitativeDetails.financialDetails);
-                              return data ? (
+                            <div className="space-y-2">
+                              {effect.quantitativeDetails.financialDetails.measurementName && (
                                 <div>
-                                  <div className="text-gray-300">{data.description}</div>
-                                  <div className="text-white font-semibold">Värde: {formatCurrency(data.value)}</div>
+                                  <span className="text-gray-400">Vad mäts: </span>
+                                  <span className="text-white">{effect.quantitativeDetails.financialDetails.measurementName}</span>
                                 </div>
-                              ) : <div className="text-gray-400">Ingen finansiell data tillgänglig</div>;
-                            })()}
+                              )}
+                              {effect.quantitativeDetails.financialDetails.valueUnit && (
+                                <div>
+                                  <span className="text-gray-400">Enhet: </span>
+                                  <span className="text-white">{effect.quantitativeDetails.financialDetails.valueUnit}</span>
+                                </div>
+                              )}
+                              {(() => {
+                                const data = parseFinancialDetails(effect.quantitativeDetails.financialDetails);
+                                return data ? (
+                                  <div>
+                                    <div className="text-gray-300">{data.description}</div>
+                                    <div className="text-white font-semibold">Värde: {formatCurrency(data.value)}</div>
+                                  </div>
+                                ) : <div className="text-gray-400">Ingen finansiell data tillgänglig</div>;
+                              })()}
+                            </div>
                           </div>
                         )}
                         
                         {effect.quantitativeDetails.redistributionDetails && (
                           <div className="pt-2 border-t border-gray-600">
                             <div className="text-white font-medium mb-1">Omfördelningseffekter</div>
-                            {(() => {
-                              const data = parseFinancialDetails(effect.quantitativeDetails.redistributionDetails);
-                              return data ? (
+                            <div className="space-y-2">
+                              {effect.quantitativeDetails.redistributionDetails.resourceType && (
                                 <div>
-                                  <div className="text-gray-300">{data.description}</div>
-                                  <div className="text-white font-semibold">Värde: {formatCurrency(data.value)}</div>
+                                  <span className="text-gray-400">Resurstyp: </span>
+                                  <span className="text-white">{effect.quantitativeDetails.redistributionDetails.resourceType}</span>
                                 </div>
-                              ) : <div className="text-gray-400">Ingen omfördelningsdata tillgänglig</div>;
-                            })()}
+                              )}
+                              {effect.quantitativeDetails.redistributionDetails.valueUnit && (
+                                <div>
+                                  <span className="text-gray-400">Enhet: </span>
+                                  <span className="text-white">{effect.quantitativeDetails.redistributionDetails.valueUnit}</span>
+                                </div>
+                              )}
+                              {(() => {
+                                const data = parseRedistributionDetails(effect.quantitativeDetails.redistributionDetails);
+                                return data ? (
+                                  <div>
+                                    <div className="text-gray-300">{data.description}</div>
+                                    <div className="text-white font-semibold">Värde: {formatCurrency(data.value)}</div>
+                                  </div>
+                                ) : <div className="text-gray-400">Ingen omfördelningsdata tillgänglig</div>;
+                              })()}
+                            </div>
                           </div>
                         )}
                       </div>
@@ -458,37 +591,33 @@ export default function ProjectDetailPage() {
                     <div>
                       <h5 className="text-[#FECB00] font-medium mb-3">Kvalitativa effekter</h5>
                       <div className="space-y-3 text-sm">
-                        {effect.qualitativeDetails.description && (
+                        {effect.qualitativeDetails.factor && (
                           <div>
-                            <span className="text-gray-400">Beskrivning: </span>
-                            <span className="text-white">{effect.qualitativeDetails.description}</span>
+                            <span className="text-gray-400">Faktor som mäts: </span>
+                            <span className="text-white">{effect.qualitativeDetails.factor}</span>
                           </div>
                         )}
-                        {effect.qualitativeDetails.targetGroup && (
+                        {effect.qualitativeDetails.currentRating && effect.qualitativeDetails.targetRating && (
                           <div>
-                            <span className="text-gray-400">Målgrupp: </span>
-                            <span className="text-white">{effect.qualitativeDetails.targetGroup}</span>
+                            <span className="text-gray-400">Förbättring: </span>
+                            <span className="text-white">
+                              från {effect.qualitativeDetails.currentRating} till {effect.qualitativeDetails.targetRating}
+                              {(() => {
+                                const improvement = effect.qualitativeDetails.targetRating - effect.qualitativeDetails.currentRating;
+                                const improvementPercent = effect.qualitativeDetails.currentRating > 0 
+                                  ? ((improvement / effect.qualitativeDetails.currentRating) * 100).toFixed(1) 
+                                  : '0';
+                                return improvement > 0 
+                                  ? <span className="text-green-400 ml-1">(+{improvementPercent}%)</span>
+                                  : <span className="text-gray-400 ml-1">(ingen förbättring)</span>;
+                              })()}
+                            </span>
                           </div>
                         )}
-                        {effect.qualitativeDetails.expectedImpact && (
+                        {effect.qualitativeDetails.annualizationYears && (
                           <div>
-                            <span className="text-gray-400">Förväntad påverkan: </span>
-                            <span className="text-white">{effect.qualitativeDetails.expectedImpact}</span>
-                          </div>
-                        )}
-                        
-                        {effect.qualitativeDetails.monetaryEstimate && (
-                          <div className="pt-2 border-t border-gray-600">
-                            <div className="text-white font-medium mb-1">Monetär uppskattning</div>
-                            {(() => {
-                              const data = parseFinancialDetails(effect.qualitativeDetails.monetaryEstimate);
-                              return data ? (
-                                <div>
-                                  <div className="text-gray-300">{data.description}</div>
-                                  <div className="text-white font-semibold">Uppskattat värde: {formatCurrency(data.value)}</div>
-                                </div>
-                              ) : <div className="text-gray-400">Ingen monetär uppskattning tillgänglig</div>;
-                            })()}
+                            <span className="text-gray-400">Tidsperiod: </span>
+                            <span className="text-white">{effect.qualitativeDetails.annualizationYears} år</span>
                           </div>
                         )}
                       </div>
@@ -697,6 +826,735 @@ export default function ProjectDetailPage() {
     );
   };
 
+  const renderLeadershipData = (leadershipData: any) => {
+    if (!leadershipData || Object.keys(leadershipData).length === 0) {
+      return (
+        <div className="text-center py-8">
+          <div className="text-gray-400 mb-2">Ingen ledarskapsdata registrerad</div>
+          <div className="text-sm text-gray-500">Lägg till information om organisation och styrning för att visa ledarskapsinsikter</div>
+        </div>
+      );
+    }
+
+    // Calculate leadership and organizational metrics
+    const calculateLeadershipMetrics = () => {
+      let changeReadiness = 0;
+      let stakeholderEngagement = 0;
+      let strategicAlignment = 0;
+      let organizationalMaturity = 0;
+
+      // Change Readiness scoring
+      if (leadershipData.staffInvolvement === 'early') changeReadiness += 40;
+      else if (leadershipData.staffInvolvement === 'later') changeReadiness += 25;
+      else if (leadershipData.staffInvolvement === 'no') changeReadiness += 0;
+      
+      if (leadershipData.changeManagementEfforts) changeReadiness += 30;
+      if (leadershipData.organizationalChange?.length > 0) changeReadiness += 20;
+      if (leadershipData.lessonsLearned) changeReadiness += 10;
+
+      // Stakeholder Engagement scoring
+      if (leadershipData.projectOwnership === 'joint') stakeholderEngagement += 40;
+      else if (leadershipData.projectOwnership === 'operations') stakeholderEngagement += 35;
+      else if (leadershipData.projectOwnership === 'it') stakeholderEngagement += 25;
+      
+      if (leadershipData.staffInvolvement === 'early') stakeholderEngagement += 30;
+      else if (leadershipData.staffInvolvement === 'later') stakeholderEngagement += 15;
+      
+      if (leadershipData.changeManagementEfforts) stakeholderEngagement += 20;
+      if (leadershipData.organizationalChange?.includes('Nytt tvärfunktionellt samarbete')) stakeholderEngagement += 10;
+
+      // Strategic Alignment scoring  
+      if (leadershipData.sdgAlignment?.length > 0 && !leadershipData.sdgAlignment.includes('Vet ej')) strategicAlignment += 40;
+      if (leadershipData.sdgDescription) strategicAlignment += 20;
+      if (leadershipData.nextSteps) strategicAlignment += 30;
+      if (leadershipData.lessonsLearned) strategicAlignment += 10;
+
+      // Organizational Maturity scoring
+      if (leadershipData.projectOwnership) organizationalMaturity += 20;
+      if (leadershipData.organizationalChange?.length > 0 && !leadershipData.organizationalChange.includes('Inga större förändringar')) organizationalMaturity += 25;
+      if (leadershipData.changeManagementEfforts) organizationalMaturity += 25;
+      if (leadershipData.nextSteps) organizationalMaturity += 15;
+      if (leadershipData.lessonsLearned) organizationalMaturity += 15;
+
+      return {
+        changeReadiness: Math.min(100, changeReadiness),
+        stakeholderEngagement: Math.min(100, stakeholderEngagement),
+        strategicAlignment: Math.min(100, strategicAlignment),
+        organizationalMaturity: Math.min(100, organizationalMaturity)
+      };
+    };
+
+    const getOwnershipInsight = (ownership: string) => {
+      switch(ownership) {
+        case 'it': return {
+          label: 'IT-ledd implementation',
+          insight: 'Teknisk fokus med risk för begränsad användaracceptans',
+          strength: 'Teknisk expertis',
+          challenge: 'Verksamhetsförankring',
+          risk: 'Medel'
+        };
+        case 'operations': return {
+          label: 'Verksamhetsledd förändring', 
+          insight: 'Stark användarförankring men potentiella tekniska utmaningar',
+          strength: 'Användaracceptans',
+          challenge: 'Teknisk implementation',
+          risk: 'Låg'
+        };
+        case 'joint': return {
+          label: 'Gemensam styrning',
+          insight: 'Optimal balans mellan teknisk expertis och verksamhetsbehov',
+          strength: 'Helhetsperspektiv',
+          challenge: 'Koordination',
+          risk: 'Låg'
+        };
+        case 'other': return {
+          label: 'Alternativ styrning',
+          insight: 'Unik organisationsmodell som kan kräva särskild uppmärksamhet',
+          strength: 'Flexibilitet',
+          challenge: 'Tydlighet',
+          risk: 'Medel'
+        };
+        default: return {
+          label: 'Okänt ägarskap',
+          insight: 'Styrningsmodell behöver förtydligas',
+          strength: 'Okänt',
+          challenge: 'Tydlighet',
+          risk: 'Hög'
+        };
+      }
+    };
+
+    const getChangeComplexity = () => {
+      const changes = leadershipData.organizationalChange || [];
+      if (changes.includes('Inga större förändringar')) return { level: 'Minimal', color: 'text-green-400' };
+      if (changes.length >= 3) return { level: 'Hög komplexitet', color: 'text-orange-400' };
+      if (changes.length >= 2) return { level: 'Medel komplexitet', color: 'text-yellow-400' };
+      if (changes.length >= 1) return { level: 'Låg komplexitet', color: 'text-green-400' };
+      return { level: 'Okänd', color: 'text-gray-400' };
+    };
+
+         const getSDGImpact = () => {
+       const sdgCount = leadershipData.sdgAlignment?.filter((goal: string) => goal !== 'Vet ej').length || 0;
+      if (sdgCount >= 4) return { level: 'Bred påverkan', color: 'text-green-400', score: 90 };
+      if (sdgCount >= 2) return { level: 'Måttlig påverkan', color: 'text-yellow-400', score: 70 };
+      if (sdgCount >= 1) return { level: 'Begränsad påverkan', color: 'text-orange-400', score: 50 };
+      return { level: 'Ingen koppling', color: 'text-gray-400', score: 0 };
+    };
+
+    const metrics = calculateLeadershipMetrics();
+
+    return (
+      <div className="space-y-8">
+        {/* Leadership Summary Cards */}
+        <div>
+          <h3 className="text-lg font-semibold text-white mb-4">Ledarskap & Organisationsanalys</h3>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <div className="border border-gray-600 p-4 rounded-lg text-center">
+              <div className="text-2xl font-bold text-[#FECB00] mb-1">
+                {metrics.changeReadiness}%
+              </div>
+              <div className="text-gray-400 text-sm">Förändringsberedskap</div>
+              <div className="text-xs text-gray-500 mt-1">
+                {metrics.changeReadiness >= 80 ? 'Excellent' :
+                 metrics.changeReadiness >= 60 ? 'God beredskap' :
+                 metrics.changeReadiness >= 40 ? 'Grundläggande' : 'Utvecklingsområde'}
+              </div>
+            </div>
+            
+            <div className="border border-gray-600 p-4 rounded-lg text-center">
+              <div className="text-2xl font-bold text-[#FECB00] mb-1">
+                {metrics.stakeholderEngagement}%
+              </div>
+              <div className="text-gray-400 text-sm">Intressent&shy;engagemang</div>
+              <div className="text-xs text-gray-500 mt-1">
+                {metrics.stakeholderEngagement >= 80 ? 'Högt engagemang' :
+                 metrics.stakeholderEngagement >= 60 ? 'God involvering' :
+                 metrics.stakeholderEngagement >= 40 ? 'Måttlig' : 'Begränsat'}
+              </div>
+            </div>
+            
+            <div className="border border-gray-600 p-4 rounded-lg text-center">
+              <div className="text-2xl font-bold text-[#FECB00] mb-1">
+                {metrics.strategicAlignment}%
+              </div>
+              <div className="text-gray-400 text-sm">Strategisk koppling</div>
+              <div className="text-xs text-gray-500 mt-1">
+                {metrics.strategicAlignment >= 80 ? 'Stark koppling' :
+                 metrics.strategicAlignment >= 60 ? 'God koppling' :
+                 metrics.strategicAlignment >= 40 ? 'Viss koppling' : 'Svag koppling'}
+              </div>
+            </div>
+            
+            <div className="border border-gray-600 p-4 rounded-lg text-center">
+              <div className="text-2xl font-bold mb-1">
+                <span className={getSDGImpact().color}>
+                  {leadershipData.sdgAlignment?.filter((goal: string) => goal !== 'Vet ej').length || 0}
+                </span>
+              </div>
+              <div className="text-gray-400 text-sm">SDG-mål</div>
+              <div className="text-xs text-gray-500 mt-1">
+                {getSDGImpact().level}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Key Leadership Insights */}
+        <div>
+          <h3 className="text-lg font-semibold text-white mb-4">Styrningsinsikter</h3>
+          <div className="space-y-3">
+            {leadershipData.projectOwnership && (
+              <div className="border-l-4 border-gray-600 pl-4">
+                <div className="text-white font-medium">Ägarskapsanalys</div>
+                <div className="text-gray-300">
+                  <span className="font-semibold">{getOwnershipInsight(leadershipData.projectOwnership).label}</span> - {getOwnershipInsight(leadershipData.projectOwnership).insight}.
+                  Styrka: <span className="text-white">{getOwnershipInsight(leadershipData.projectOwnership).strength}</span>, 
+                  Utmaning: <span className="text-white">{getOwnershipInsight(leadershipData.projectOwnership).challenge}</span>.
+                </div>
+              </div>
+            )}
+
+            {leadershipData.organizationalChange?.length > 0 && (
+              <div className="border-l-4 border-gray-600 pl-4">
+                <div className="text-white font-medium">Förändringsanalys</div>
+                <div className="text-gray-300">
+                  Projektet medför <span className={`font-semibold ${getChangeComplexity().color}`}>{getChangeComplexity().level.toLowerCase()}</span>{' '}
+                  med <span className="text-white font-semibold">{leadershipData.organizationalChange.length}</span> identifierade förändringsområden.
+                  {leadershipData.changeManagementEfforts ? 
+                    ' Förändringsledning är aktivt adresserat.' : 
+                    ' Förändringsledning kan behöva stärkas.'}
+                </div>
+              </div>
+            )}
+
+            {leadershipData.staffInvolvement && (
+              <div className="border-l-4 border-gray-600 pl-4">
+                <div className="text-white font-medium">Medarbetarengagemangsanalys</div>
+                <div className="text-gray-300">
+                  {leadershipData.staffInvolvement === 'early' ? (
+                    <>Optimal strategi med <span className="text-green-400 font-semibold">tidig medarbetarinvolvering</span>{' '}
+                    som minskar motstånd och ökar användaracceptans.</>
+                  ) : leadershipData.staffInvolvement === 'later' ? (
+                    <>Försenad involvering kan ha <span className="text-yellow-400 font-semibold">begränsat användaracceptans</span>.{' '}
+                    Kompensatoriska åtgärder kan behövas.</>
+                  ) : (
+                    <>Begränsad medarbetarinvolvering utgör en <span className="text-red-400 font-semibold">betydande risk</span>{' '}
+                    för projektframgång och användaracceptans.</>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {leadershipData.sdgAlignment?.length > 0 && !leadershipData.sdgAlignment.includes('Vet ej') && (
+              <div className="border-l-4 border-gray-600 pl-4">
+                <div className="text-white font-medium">Hållbarhetsanalys</div>
+                <div className="text-gray-300">
+                  Projektet stödjer <span className="text-white font-semibold">{leadershipData.sdgAlignment.filter((goal: string) => goal !== 'Vet ej').length}</span> av 
+                  Agenda 2030:s mål, vilket visar på <span className={`font-semibold ${getSDGImpact().color}`}>{getSDGImpact().level.toLowerCase()}</span>{' '}
+                  på samhällsutvecklingen och strategisk medvetenhet.
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Detailed Leadership Information */}
+        <div>
+          <h3 className="text-lg font-semibold text-white mb-4">Detaljerad organisationsinformation</h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm border-collapse">
+              <thead>
+                <tr className="border-b border-gray-600">
+                  <th className="text-left py-3 text-[#FECB00] font-medium">Aspekt</th>
+                  <th className="text-left py-3 text-[#FECB00] font-medium">Status</th>
+                  <th className="text-left py-3 text-[#FECB00] font-medium">Analys</th>
+                </tr>
+              </thead>
+              <tbody>
+                {leadershipData.projectOwnership && (
+                  <tr className="border-b border-gray-700">
+                    <td className="py-3 text-white font-medium">Projektägarskap</td>
+                    <td className="py-3 text-gray-300">{getOwnershipInsight(leadershipData.projectOwnership).label}</td>
+                    <td className="py-3 text-gray-300">{getOwnershipInsight(leadershipData.projectOwnership).risk} risk</td>
+                  </tr>
+                )}
+                {leadershipData.organizationalChange?.length > 0 && (
+                  <tr className="border-b border-gray-700">
+                    <td className="py-3 text-white font-medium">Organisationsförändringar</td>
+                    <td className="py-3 text-gray-300">{leadershipData.organizationalChange.length} områden</td>
+                    <td className={`py-3 ${getChangeComplexity().color}`}>{getChangeComplexity().level}</td>
+                  </tr>
+                )}
+                {leadershipData.staffInvolvement && (
+                  <tr className="border-b border-gray-700">
+                    <td className="py-3 text-white font-medium">Medarbetarinvolvering</td>
+                    <td className="py-3 text-gray-300">
+                      {leadershipData.staffInvolvement === 'early' ? 'Från start' :
+                       leadershipData.staffInvolvement === 'later' ? 'Senare fas' : 'Ingen involvering'}
+                    </td>
+                    <td className={`py-3 ${
+                      leadershipData.staffInvolvement === 'early' ? 'text-green-400' :
+                      leadershipData.staffInvolvement === 'later' ? 'text-yellow-400' : 'text-red-400'
+                    }`}>
+                      {leadershipData.staffInvolvement === 'early' ? 'Optimal' :
+                       leadershipData.staffInvolvement === 'later' ? 'Acceptabel' : 'Riskfylld'}
+                    </td>
+                  </tr>
+                )}
+                {leadershipData.changeManagementEfforts && (
+                  <tr className="border-b border-gray-700">
+                    <td className="py-3 text-white font-medium">Förändringsledning</td>
+                    <td className="py-3 text-gray-300">Aktivt arbete</td>
+                    <td className="py-3 text-green-400">Dokumenterat</td>
+                  </tr>
+                )}
+                {leadershipData.sdgAlignment?.length > 0 && (
+                  <tr className="border-b border-gray-700">
+                    <td className="py-3 text-white font-medium">SDG-koppling</td>
+                    <td className="py-3 text-gray-300">{leadershipData.sdgAlignment.filter((goal: string) => goal !== 'Vet ej').length} mål</td>
+                    <td className={`py-3 ${getSDGImpact().color}`}>{getSDGImpact().level}</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* Strategic Direction & Sustainability */}
+        {(leadershipData.sdgAlignment?.length > 0 || leadershipData.nextSteps || leadershipData.lessonsLearned) && (
+          <div>
+            <h3 className="text-lg font-semibold text-white mb-4">Strategisk riktning & Hållbarhet</h3>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              
+              {/* SDG Goals and Description */}
+              {leadershipData.sdgAlignment?.length > 0 && !leadershipData.sdgAlignment.includes('Vet ej') && (
+                <div className="border-l-4 border-blue-500 pl-4">
+                  <h4 className="text-blue-400 font-medium mb-2">Agenda 2030-koppling</h4>
+                  <div className="text-gray-300 text-sm mb-2">
+                    {leadershipData.sdgAlignment.filter((goal: string) => goal !== 'Vet ej').join(', ')}
+                  </div>
+                  {leadershipData.sdgDescription && (
+                    <div className="text-gray-400 text-xs">{leadershipData.sdgDescription}</div>
+                  )}
+                </div>
+              )}
+
+              {/* Next Steps */}
+              {leadershipData.nextSteps && (
+                <div className="border-l-4 border-green-500 pl-4">
+                  <h4 className="text-green-400 font-medium mb-2">Nästa steg & Utveckling</h4>
+                  <div className="text-gray-300 text-sm">{leadershipData.nextSteps}</div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Change Management & Lessons */}
+        {(leadershipData.changeManagementEfforts || leadershipData.lessonsLearned) && (
+          <div>
+            <h3 className="text-lg font-semibold text-white mb-4">Förändringsledning & Lärdomar</h3>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              
+              {/* Change Management */}
+              {leadershipData.changeManagementEfforts && (
+                <div className="border-l-4 border-purple-500 pl-4">
+                  <h4 className="text-purple-400 font-medium mb-2">Förändringsledningsinsatser</h4>
+                  <div className="text-gray-300 text-sm">{leadershipData.changeManagementEfforts}</div>
+                </div>
+              )}
+
+              {/* Lessons Learned */}
+              {leadershipData.lessonsLearned && (
+                <div className="border-l-4 border-orange-500 pl-4">
+                  <h4 className="text-orange-400 font-medium mb-2">Lärdomar & Utmaningar</h4>
+                  <div className="text-gray-300 text-sm">{leadershipData.lessonsLearned}</div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Organizational Changes Detail */}
+        {leadershipData.organizationalChange?.length > 0 && !leadershipData.organizationalChange.includes('Inga större förändringar') && (
+          <div>
+            <h3 className="text-lg font-semibold text-white mb-4">Organisationsförändringar</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {leadershipData.organizationalChange.map((change: string, index: number) => (
+                <div key={index} className="border border-gray-600 p-4 rounded-lg">
+                  <div className="text-white font-medium text-sm mb-1">{change}</div>
+                  <div className="text-gray-400 text-xs">
+                    {change.includes('roller') ? 'Påverkar ansvarsfördelning' :
+                     change.includes('rutiner') ? 'Förändrar arbetssätt' :
+                     change.includes('organisation') ? 'Strukturell förändring' :
+                     change.includes('samarbete') ? 'Förbättrar koordination' :
+                     'Organisatorisk utveckling'}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderLegalData = (legalData: any) => {
+    if (!legalData || Object.keys(legalData).length === 0) {
+      return (
+        <div className="text-center py-8">
+          <div className="text-gray-400 mb-2">Ingen juridisk data registrerad</div>
+          <div className="text-sm text-gray-500">Lägg till juridisk och etisk information för att visa compliance-analys</div>
+        </div>
+      );
+    }
+
+    // Calculate legal compliance and risk metrics
+    const calculateLegalMetrics = () => {
+      let gdprCompliance = 0;
+      let aiRegulationCompliance = 0;
+      let procurementMaturity = 0;
+      let securityLevel = 0;
+
+      // GDPR Compliance scoring
+      if (legalData.processes_personal_data === 'Nej') gdprCompliance = 100;
+      else if (legalData.processes_personal_data === 'Ja') {
+        if (legalData.legal_basis) gdprCompliance += 25;
+        if (legalData.dpia_done === 'Ja') gdprCompliance += 25;
+        if (legalData.data_controller) gdprCompliance += 20;
+        if (legalData.processor_agreement === 'Ja' || legalData.processor_agreement === 'Ej relevant') gdprCompliance += 15;
+        if (legalData.data_categories?.length > 0) gdprCompliance += 15;
+      } else {
+        gdprCompliance = 30; // 'Vet ej' - needs attention
+      }
+
+      // AI Regulation Compliance scoring
+      if (legalData.high_risk_ai === 'Nej') aiRegulationCompliance = 90;
+      else if (legalData.high_risk_ai === 'Ja') {
+        if (legalData.ce_marked === 'Ja') aiRegulationCompliance += 40;
+        if (legalData.fundamental_rights_assessment === 'Ja') aiRegulationCompliance += 40;
+        if (legalData.ce_marked === 'Ej tillämpligt') aiRegulationCompliance += 20;
+      } else {
+        aiRegulationCompliance = 40; // 'Vet ej' - needs risk assessment
+      }
+
+      // Procurement Maturity scoring
+      if (legalData.procurement_type?.length > 0 && !legalData.procurement_type.includes('Ej upphandlad ännu')) {
+        procurementMaturity += 40;
+        if (legalData.supplier_contract_clauses) procurementMaturity += 30;
+        if (legalData.reusable_contract === 'Ja') procurementMaturity += 20;
+        if (legalData.procurement_type.includes('Gemensam upphandling')) procurementMaturity += 10;
+      }
+
+      // Security Level scoring
+      if (legalData.security_measures) securityLevel += 30;
+      if (legalData.data_access_rights) securityLevel += 25;
+      if (legalData.is_open_source === 'Ja') securityLevel += 10;
+      if (legalData.is_open_source === 'Nej') securityLevel += 10; // Both open/closed can be secure
+
+      return {
+        gdprCompliance: Math.min(100, gdprCompliance),
+        aiRegulationCompliance: Math.min(100, aiRegulationCompliance),
+        procurementMaturity: Math.min(100, procurementMaturity),
+        securityLevel: Math.min(100, securityLevel)
+      };
+    };
+
+    const getGDPRRiskLevel = () => {
+      if (legalData.processes_personal_data === 'Nej') return { level: 'Ingen risk', color: 'text-green-400', score: 0 };
+      if (legalData.processes_personal_data === 'Vet ej') return { level: 'Okänd risk', color: 'text-gray-400', score: 50 };
+      
+      const sensitiveData = legalData.data_categories?.some((cat: string) => 
+        ['Hälsouppgifter', 'Etnicitet eller religion', 'Personnummer'].includes(cat)
+      );
+      
+      if (sensitiveData && legalData.dpia_done !== 'Ja') return { level: 'Hög risk', color: 'text-red-400', score: 80 };
+      if (sensitiveData && legalData.dpia_done === 'Ja') return { level: 'Medel risk', color: 'text-yellow-400', score: 40 };
+      if (!sensitiveData && legalData.legal_basis) return { level: 'Låg risk', color: 'text-green-400', score: 20 };
+      
+      return { level: 'Medel risk', color: 'text-yellow-400', score: 50 };
+    };
+
+    const getAIRiskLevel = () => {
+      if (legalData.high_risk_ai === 'Nej') return { level: 'Låg AI-risk', color: 'text-green-400' };
+      if (legalData.high_risk_ai === 'Ja' && legalData.ce_marked === 'Ja') return { level: 'Kontrollerad risk', color: 'text-yellow-400' };
+      if (legalData.high_risk_ai === 'Ja' && legalData.ce_marked !== 'Ja') return { level: 'Hög AI-risk', color: 'text-red-400' };
+      return { level: 'Okänd AI-risk', color: 'text-gray-400' };
+    };
+
+    const getProcurementInsight = () => {
+      if (legalData.procurement_type?.includes('Ej upphandlad ännu')) return { status: 'Pågående', insight: 'Upphandling inte slutförd', color: 'text-yellow-400' };
+      if (legalData.procurement_type?.includes('Gemensam upphandling')) return { status: 'Optimerad', insight: 'Kostnadseffektiv gemensam lösning', color: 'text-green-400' };
+      if (legalData.procurement_type?.includes('Ramavtal')) return { status: 'Strukturerad', insight: 'Etablerad avtalsstruktur', color: 'text-blue-400' };
+      if (legalData.procurement_type?.length > 0) return { status: 'Genomförd', insight: 'Formell upphandling slutförd', color: 'text-green-400' };
+      return { status: 'Okänd', insight: 'Upphandlingsstatus behöver förtydligas', color: 'text-gray-400' };
+    };
+
+    const getOpenSourceInsight = () => {
+      if (legalData.is_open_source === 'Ja') return { benefit: 'Transparens & samarbete', risk: 'Säkerhetsansvar' };
+      if (legalData.is_open_source === 'Nej') return { benefit: 'Skyddad IP', risk: 'Leverantörsberoende' };
+      return { benefit: 'Okänd', risk: 'Okänd' };
+    };
+
+    const metrics = calculateLegalMetrics();
+
+    return (
+      <div className="space-y-8">
+        {/* Legal Compliance Cards */}
+        <div>
+          <h3 className="text-lg font-semibold text-white mb-4">Juridisk compliance & riskanalys</h3>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <div className="border border-gray-600 p-4 rounded-lg text-center">
+              <div className="text-2xl font-bold text-[#FECB00] mb-1">
+                {metrics.gdprCompliance}%
+              </div>
+              <div className="text-gray-400 text-sm">GDPR-compliance</div>
+              <div className="text-xs text-gray-500 mt-1">
+                {metrics.gdprCompliance >= 80 ? 'Hög compliance' :
+                 metrics.gdprCompliance >= 60 ? 'God compliance' :
+                 metrics.gdprCompliance >= 40 ? 'Grundläggande' : 'Behöver förbättring'}
+              </div>
+            </div>
+            
+            <div className="border border-gray-600 p-4 rounded-lg text-center">
+              <div className="text-2xl font-bold mb-1">
+                <span className={getAIRiskLevel().color}>
+                  {legalData.high_risk_ai === 'Ja' ? 'Hög' :
+                   legalData.high_risk_ai === 'Nej' ? 'Låg' : '?'}
+                </span>
+              </div>
+              <div className="text-gray-400 text-sm">AI-risknivå</div>
+              <div className="text-xs text-gray-500 mt-1">
+                {getAIRiskLevel().level}
+              </div>
+            </div>
+            
+            <div className="border border-gray-600 p-4 rounded-lg text-center">
+              <div className="text-2xl font-bold text-[#FECB00] mb-1">
+                {metrics.procurementMaturity}%
+              </div>
+              <div className="text-gray-400 text-sm">Upphandlings&shy;mognad</div>
+              <div className="text-xs text-gray-500 mt-1">
+                {metrics.procurementMaturity >= 80 ? 'Mogen process' :
+                 metrics.procurementMaturity >= 60 ? 'God struktur' :
+                 metrics.procurementMaturity >= 40 ? 'Grundläggande' : 'Utvecklingsområde'}
+              </div>
+            </div>
+            
+            <div className="border border-gray-600 p-4 rounded-lg text-center">
+              <div className="text-2xl font-bold text-[#FECB00] mb-1">
+                {metrics.securityLevel}%
+              </div>
+              <div className="text-gray-400 text-sm">Säkerhetsnivå</div>
+              <div className="text-xs text-gray-500 mt-1">
+                {metrics.securityLevel >= 80 ? 'Hög säkerhet' :
+                 metrics.securityLevel >= 60 ? 'God säkerhet' :
+                 metrics.securityLevel >= 40 ? 'Grundläggande' : 'Begränsad'}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Key Legal Insights */}
+        <div>
+          <h3 className="text-lg font-semibold text-white mb-4">Juridiska insikter</h3>
+          <div className="space-y-3">
+            {legalData.processes_personal_data && (
+              <div className="border-l-4 border-gray-600 pl-4">
+                <div className="text-white font-medium">GDPR-riskbedömning</div>
+                <div className="text-gray-300">
+                  Projektet {legalData.processes_personal_data === 'Ja' ? 'hanterar personuppgifter' : 
+                           legalData.processes_personal_data === 'Nej' ? 'hanterar inte personuppgifter' : 
+                           'har oklar personuppgiftshantering'} och bedöms ha 
+                  <span className={`font-semibold ml-1 ${getGDPRRiskLevel().color}`}>{getGDPRRiskLevel().level.toLowerCase()}</span> 
+                  för GDPR-relaterade problem.
+                  {legalData.processes_personal_data === 'Ja' && legalData.dpia_done !== 'Ja' && 
+                   getGDPRRiskLevel().score > 40 && ' Konsekvensbedömning (DPIA) rekommenderas starkt.'}
+                </div>
+              </div>
+            )}
+
+            {legalData.high_risk_ai && (
+              <div className="border-l-4 border-gray-600 pl-4">
+                <div className="text-white font-medium">AI-förordningsanalys</div>
+                <div className="text-gray-300">
+                  Lösningen klassificeras som <span className={`font-semibold ${getAIRiskLevel().color}`}>
+                  {getAIRiskLevel().level.toLowerCase()}</span> enligt AI-förordningen.
+                  {legalData.high_risk_ai === 'Ja' && legalData.ce_marked !== 'Ja' && 
+                   ' CE-märkning och konformitetsbedömning krävs för högrisk-AI.'}
+                  {legalData.high_risk_ai === 'Nej' && ' Begränsade regulatoriska krav gäller.'}
+                </div>
+              </div>
+            )}
+
+            {legalData.procurement_type?.length > 0 && (
+              <div className="border-l-4 border-gray-600 pl-4">
+                <div className="text-white font-medium">Upphandlingsanalys</div>
+                <div className="text-gray-300">
+                  <span className={`font-semibold ${getProcurementInsight().color}`}>{getProcurementInsight().status}</span> upphandling - {getProcurementInsight().insight}.
+                  {legalData.reusable_contract === 'Ja' && ' Avropsmöjlighet för andra kommuner skapar skalfördelar.'}
+                  {legalData.supplier_contract_clauses && ' Särskilda avtalsvillkor dokumenterade för AI/transparens.'}
+                </div>
+              </div>
+            )}
+
+            {legalData.is_open_source && (
+              <div className="border-l-4 border-gray-600 pl-4">
+                <div className="text-white font-medium">Öppen källkod-analys</div>
+                <div className="text-gray-300">
+                  {legalData.is_open_source === 'Ja' ? 'Öppen källkod används' : 
+                   legalData.is_open_source === 'Nej' ? 'Proprietär lösning används' : 'Oklart om öppen källkod används'}.
+                  Fördelar: <span className="text-white font-semibold">{getOpenSourceInsight().benefit}</span>, 
+                  Överväganden: <span className="text-white font-semibold">{getOpenSourceInsight().risk}</span>.
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Detailed Legal Information */}
+        <div>
+          <h3 className="text-lg font-semibold text-white mb-4">Detaljerad juridisk information</h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm border-collapse">
+              <thead>
+                <tr className="border-b border-gray-600">
+                  <th className="text-left py-3 text-[#FECB00] font-medium">Juridisk aspekt</th>
+                  <th className="text-left py-3 text-[#FECB00] font-medium">Status</th>
+                  <th className="text-left py-3 text-[#FECB00] font-medium">Compliance</th>
+                </tr>
+              </thead>
+              <tbody>
+                {legalData.processes_personal_data && (
+                  <tr className="border-b border-gray-700">
+                    <td className="py-3 text-white font-medium">Personuppgiftsbehandling</td>
+                    <td className="py-3 text-gray-300">{legalData.processes_personal_data}</td>
+                    <td className={`py-3 ${getGDPRRiskLevel().color}`}>{getGDPRRiskLevel().level}</td>
+                  </tr>
+                )}
+                {legalData.legal_basis && (
+                  <tr className="border-b border-gray-700">
+                    <td className="py-3 text-white font-medium">Rättslig grund</td>
+                    <td className="py-3 text-gray-300">{legalData.legal_basis}</td>
+                    <td className="py-3 text-green-400">Dokumenterad</td>
+                  </tr>
+                )}
+                {legalData.high_risk_ai && (
+                  <tr className="border-b border-gray-700">
+                    <td className="py-3 text-white font-medium">AI-riskklassificering</td>
+                    <td className="py-3 text-gray-300">{legalData.high_risk_ai} risk</td>
+                    <td className={`py-3 ${getAIRiskLevel().color}`}>{getAIRiskLevel().level}</td>
+                  </tr>
+                )}
+                {legalData.procurement_type?.length > 0 && (
+                  <tr className="border-b border-gray-700">
+                    <td className="py-3 text-white font-medium">Upphandlingsform</td>
+                    <td className="py-3 text-gray-300">{legalData.procurement_type.join(', ')}</td>
+                    <td className={`py-3 ${getProcurementInsight().color}`}>{getProcurementInsight().status}</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {/* GDPR Compliance Details */}
+        {legalData.processes_personal_data === 'Ja' && (
+          <div>
+            <h3 className="text-lg font-semibold text-white mb-4">GDPR-compliance detaljer</h3>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              
+              {/* Data Categories */}
+              {legalData.data_categories?.length > 0 && (
+                <div className="border-l-4 border-blue-500 pl-4">
+                  <h4 className="text-blue-400 font-medium mb-2">Personuppgiftskategorier</h4>
+                  <div className="text-gray-300 text-sm mb-2">
+                    {legalData.data_categories.filter((cat: string) => cat !== 'Vet ej').join(', ')}
+                  </div>
+                  <div className="text-gray-400 text-xs">
+                    {legalData.data_categories.some((cat: string) => 
+                      ['Hälsouppgifter', 'Etnicitet eller religion'].includes(cat)
+                    ) ? 'Innehåller känsliga personuppgifter' : 'Standard personuppgifter'}
+                  </div>
+                </div>
+              )}
+
+              {/* Legal Basis and Controller */}
+              <div className="border-l-4 border-green-500 pl-4">
+                <h4 className="text-green-400 font-medium mb-2">Behandlingsgrunder</h4>
+                <div className="space-y-1 text-sm">
+                  {legalData.legal_basis && (
+                    <div className="text-gray-300">Rättslig grund: <span className="text-white">{legalData.legal_basis}</span></div>
+                  )}
+                  {legalData.data_controller && (
+                    <div className="text-gray-300">Ansvarig: <span className="text-white">{legalData.data_controller}</span></div>
+                  )}
+                  {legalData.dpia_done && (
+                    <div className="text-gray-300">DPIA: <span className={`${legalData.dpia_done === 'Ja' ? 'text-green-400' : 'text-red-400'}`}>
+                      {legalData.dpia_done}
+                    </span></div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Security and Access */}
+        {(legalData.security_measures || legalData.data_access_rights) && (
+          <div>
+            <h3 className="text-lg font-semibold text-white mb-4">Säkerhet & åtkomst</h3>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              
+              {/* Security Measures */}
+              {legalData.security_measures && (
+                <div className="border-l-4 border-purple-500 pl-4">
+                  <h4 className="text-purple-400 font-medium mb-2">Säkerhetsåtgärder</h4>
+                  <div className="text-gray-300 text-sm">{legalData.security_measures}</div>
+                </div>
+              )}
+
+              {/* Data Access Rights */}
+              {legalData.data_access_rights && (
+                <div className="border-l-4 border-orange-500 pl-4">
+                  <h4 className="text-orange-400 font-medium mb-2">Dataägande & åtkomst</h4>
+                  <div className="text-gray-300 text-sm">{legalData.data_access_rights}</div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Procurement and Contract Details */}
+        {(legalData.supplier_contract_clauses || legalData.open_source_link) && (
+          <div>
+            <h3 className="text-lg font-semibold text-white mb-4">Avtal & leverantörsvillkor</h3>
+            <div className="space-y-4">
+              
+              {legalData.supplier_contract_clauses && (
+                <div className="border-l-4 border-gray-600 pl-4">
+                  <div className="text-white font-medium">Avtalsvillkor & klausuler</div>
+                  <div className="text-gray-300">{legalData.supplier_contract_clauses}</div>
+                </div>
+              )}
+
+              {legalData.open_source_link && (
+                <div className="border-l-4 border-gray-600 pl-4">
+                  <div className="text-white font-medium">Öppen källkod-referens</div>
+                  <div className="text-gray-300">
+                    <a href={legalData.open_source_link} target="_blank" rel="noopener noreferrer" className="text-[#FECB00] underline">
+                      {legalData.open_source_link}
+                    </a>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   const renderTechnicalData = (techData: any) => {
     if (!techData || Object.keys(techData).length === 0) {
       return (
@@ -707,243 +1565,316 @@ export default function ProjectDetailPage() {
       );
     }
 
-    // Helper function to get deployment environment insight
+    // Calculate technical metrics and insights
+    const calculateTechnicalMetrics = () => {
+      let complexity = 0;
+      let security = 0;
+      let maturity = 0;
+      let integrationScore = 0;
+
+      // Complexity scoring
+      if (techData.ai_methodology) complexity += 20;
+      if (techData.integration_capabilities?.length > 0) complexity += techData.integration_capabilities.length * 10;
+      if (techData.data_types?.length > 2) complexity += 15;
+      if (techData.technical_obstacles) complexity += 25;
+
+      // Security scoring
+      switch(techData.data_sensitivity_level) {
+        case 'Ej känslig': security = 90; break;
+        case 'Innehåller personuppgifter': security = 60; break;
+        case 'Känsliga personuppgifter': security = 30; break;
+        case 'Skyddsklassad information': security = 10; break;
+        default: security = 50;
+      }
+
+      // Maturity scoring
+      if (techData.system_name) maturity += 30;
+      if (techData.deployment_environment) maturity += 25;
+      if (techData.data_quality === 'Verifierad') maturity += 20;
+      if (techData.data_freshness) maturity += 15;
+      if (techData.technical_solutions) maturity += 10;
+
+      // Integration scoring
+      if (techData.integration_capabilities?.length > 0) {
+        integrationScore = Math.min(100, techData.integration_capabilities.length * 25);
+      }
+
+      return {
+        complexity: Math.min(100, complexity),
+        security,
+        maturity,
+        integration: integrationScore
+      };
+    };
+
     const getDeploymentInsight = (env: string) => {
       switch(env) {
-        case 'Self-hostad (on-prem)': return { icon: '', insight: 'Fullt kontroll över data och säkerhet, men kräver intern infrastruktur' };
-        case 'Molnbaserad': return { icon: '', insight: 'Skalbar och kostnadseffektiv, förlitar sig på extern leverantör' };
-        case 'Säker svensk hosting': return { icon: '', insight: 'Molnbaserad lösning med svensk jurisdiktion och dataskydd' };
-        case 'Hybridlösning': return { icon: '', insight: 'Balanserar kontroll och flexibilitet, komplex arkitektur' };
-        case 'Vet ej': return { icon: '', insight: 'Driftmiljö behöver utredas för säkerhets- och kostnadsbedömning' };
-        // Legacy compatibility
-        case 'Self-hostad': return { icon: '', insight: 'Fullt kontroll över data och säkerhet, men kräver intern infrastruktur' };
-        case 'Molnbaserad (t.ex. Azure, GCP)': return { icon: '', insight: 'Skalbar och kostnadseffektiv, förlitar sig på extern leverantör' };
-        case 'Hybrid': return { icon: '', insight: 'Balanserar kontroll och flexibilitet, komplex arkitektur' };
-        default: return { icon: '', insight: 'Okänd driftmiljö' };
+        case 'Self-hostad (on-prem)': return { 
+          insight: 'Fullt kontroll över data och säkerhet, men kräver intern infrastruktur',
+          cost: 'Hög initial kostnad', 
+          control: 'Maximal kontroll',
+          complexity: 'Hög komplexitet'
+        };
+        case 'Molnbaserad': return { 
+          insight: 'Skalbar och kostnadseffektiv, förlitar sig på extern leverantör',
+          cost: 'Låg initial kostnad',
+          control: 'Begränsad kontroll',
+          complexity: 'Låg komplexitet'
+        };
+        case 'Säker svensk hosting': return { 
+          insight: 'Molnbaserad lösning med svensk jurisdiktion och dataskydd',
+          cost: 'Medel kostnad',
+          control: 'God kontroll',
+          complexity: 'Medel komplexitet'
+        };
+        case 'Hybridlösning': return { 
+          insight: 'Balanserar kontroll och flexibilitet, komplex arkitektur',
+          cost: 'Hög kostnad',
+          control: 'Flexibel kontroll',
+          complexity: 'Mycket hög komplexitet'
+        };
+        default: return { 
+          insight: 'Driftmiljö behöver utredas för säkerhets- och kostnadsbedömning',
+          cost: 'Okänd kostnad',
+          control: 'Okänd kontroll',
+          complexity: 'Okänd komplexitet'
+        };
       }
     };
 
-    // Helper function to get data sensitivity insight
     const getSensitivityInsight = (level: string) => {
       switch(level) {
-        case 'Innehåller personuppgifter': return { color: 'text-yellow-400', risk: 'Medel', requirement: 'GDPR-compliance krävs' };
-        case 'Känsliga personuppgifter': return { color: 'text-orange-400', risk: 'Hög', requirement: 'Särskilda säkerhetsåtgärder krävs' };
-        case 'Skyddsklassad information': return { color: 'text-red-400', risk: 'Kritisk', requirement: 'Säkerhetsgodkännande krävs' };
-        case 'Ej känslig': return { color: 'text-green-400', risk: 'Låg', requirement: 'Grundläggande säkerhet' };
-        default: return { color: 'text-gray-400', risk: 'Okänd', requirement: 'Riskbedömning behövs' };
+        case 'Innehåller personuppgifter': return { color: 'text-yellow-400', risk: 'Medel', requirement: 'GDPR-compliance krävs', score: 60 };
+        case 'Känsliga personuppgifter': return { color: 'text-orange-400', risk: 'Hög', requirement: 'Särskilda säkerhetsåtgärder krävs', score: 30 };
+        case 'Skyddsklassad information': return { color: 'text-red-400', risk: 'Kritisk', requirement: 'Säkerhetsgodkännande krävs', score: 10 };
+        case 'Ej känslig': return { color: 'text-green-400', risk: 'Låg', requirement: 'Grundläggande säkerhet', score: 90 };
+        default: return { color: 'text-gray-400', risk: 'Okänd', requirement: 'Riskbedömning behövs', score: 50 };
       }
     };
+
+    const metrics = calculateTechnicalMetrics();
 
     return (
       <div className="space-y-8">
-        {/* AI Solution Overview - Most Critical Information */}
+        {/* Technical Summary Cards */}
         <div>
-          <h3 className="text-lg font-semibold text-white mb-4">AI-lösning & Implementation</h3>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            
-            {/* AI Solution Details */}
-            <div className="bg-[#1E3A4A] p-6 rounded-lg">
-              <h4 className="text-[#FECB00] font-medium mb-4">Teknisk Lösning</h4>
-              <div className="space-y-3">
-                {techData.system_name && (
-                  <div>
-                    <span className="text-gray-400 text-sm">System/Plattform:</span>
-                    <div className="text-white font-semibold text-lg">{techData.system_name}</div>
-                  </div>
-                )}
-                {techData.ai_methodology && (
-                  <div>
-                    <span className="text-gray-400 text-sm">AI-metod/Modell:</span>
-                    <div className="text-white font-semibold">{techData.ai_methodology}</div>
-                  </div>
-                )}
-                {!techData.system_name && !techData.ai_methodology && (
-                  <div className="text-gray-400 italic">Ingen AI-lösning specificerad</div>
-                )}
+          <h3 className="text-lg font-semibold text-white mb-4">Teknisk sammanfattning</h3>
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <div className="border border-gray-600 p-4 rounded-lg text-center">
+              <div className="text-2xl font-bold text-[#FECB00] mb-1">
+                {metrics.maturity}%
+              </div>
+              <div className="text-gray-400 text-sm">Teknikmognad</div>
+              <div className="text-xs text-gray-500 mt-1">
+                {metrics.maturity >= 80 ? 'Mogen lösning' : 
+                 metrics.maturity >= 60 ? 'Utvecklad lösning' :
+                 metrics.maturity >= 40 ? 'Grundläggande' : 'Tidig fas'}
               </div>
             </div>
-
-            {/* Deployment Environment */}
-            <div className="bg-[#1E3A4A] p-6 rounded-lg">
-              <h4 className="text-[#FECB00] font-medium mb-4">Driftmiljö & Infrastructure</h4>
-              {techData.deployment_environment ? (
-                <div className="space-y-3">
-                  <div>
-                    <div className="text-white font-semibold">{techData.deployment_environment}</div>
-                    <div className="text-gray-300 text-sm mt-1">
-                      {getDeploymentInsight(techData.deployment_environment).insight}
-                    </div>
-                  </div>
-                  {techData.deployment_environment_description && (
-                    <div className="border-l-4 border-gray-600 pl-3 text-gray-300 text-sm">
-                      {techData.deployment_environment_description}
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <div className="text-gray-400 italic">Driftmiljö ej specificerad</div>
-              )}
+            
+            <div className="border border-gray-600 p-4 rounded-lg text-center">
+              <div className="text-2xl font-bold mb-1">
+                <span className={
+                  metrics.security >= 80 ? 'text-green-400' :
+                  metrics.security >= 60 ? 'text-yellow-400' :
+                  metrics.security >= 40 ? 'text-orange-400' : 'text-red-400'
+                }>
+                  {getSensitivityInsight(techData.data_sensitivity_level).risk}
+                </span>
+              </div>
+              <div className="text-gray-400 text-sm">Säkerhetsrisk</div>
+              <div className="text-xs text-gray-500 mt-1">
+                {getSensitivityInsight(techData.data_sensitivity_level).requirement}
+              </div>
+            </div>
+            
+            <div className="border border-gray-600 p-4 rounded-lg text-center">
+              <div className="text-2xl font-bold text-[#FECB00] mb-1">
+                {metrics.complexity}%
+              </div>
+              <div className="text-gray-400 text-sm">Komplexitet</div>
+              <div className="text-xs text-gray-500 mt-1">
+                {metrics.complexity >= 80 ? 'Mycket komplex' :
+                 metrics.complexity >= 60 ? 'Komplex' :
+                 metrics.complexity >= 40 ? 'Medel' : 'Enkel'}
+              </div>
+            </div>
+            
+            <div className="border border-gray-600 p-4 rounded-lg text-center">
+              <div className="text-2xl font-bold text-[#FECB00] mb-1">
+                {techData.integration_capabilities?.length || 0}
+              </div>
+              <div className="text-gray-400 text-sm">Integrationer</div>
+              <div className="text-xs text-gray-500 mt-1">
+                {metrics.integration >= 75 ? 'Hög flexibilitet' :
+                 metrics.integration >= 50 ? 'God flexibilitet' :
+                 metrics.integration >= 25 ? 'Begränsad' : 'Minimal'}
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Data Characteristics - Critical for AI */}
+        {/* Key Technical Insights */}
         <div>
-          <h3 className="text-lg font-semibold text-white mb-4">Datahantering & Känslighet</h3>
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            
-            {/* Data Types & Sources */}
-            <div className="bg-[#1E3A4A] p-6 rounded-lg">
-              <h4 className="text-[#FECB00] font-medium mb-4">Data Input</h4>
-              <div className="space-y-3">
+          <h3 className="text-lg font-semibold text-white mb-4">Tekniska insikter</h3>
+          <div className="space-y-3">
+            {techData.deployment_environment && (
+              <div className="border-l-4 border-gray-600 pl-4">
+                <div className="text-white font-medium">Arkitekturanalys</div>
+                <div className="text-gray-300">
+                  <span className="font-semibold">{techData.deployment_environment}</span> ger {getDeploymentInsight(techData.deployment_environment).insight.toLowerCase()}.
+                  Kostnadsprofil: <span className="text-white">{getDeploymentInsight(techData.deployment_environment).cost}</span>, 
+                  Komplexitet: <span className="text-white">{getDeploymentInsight(techData.deployment_environment).complexity}</span>.
+                </div>
+              </div>
+            )}
+
+            {techData.ai_methodology && (
+              <div className="border-l-4 border-gray-600 pl-4">
+                <div className="text-white font-medium">AI-teknologianalys</div>
+                <div className="text-gray-300">
+                  Systemet använder <span className="text-white font-semibold">{techData.ai_methodology}</span> för sina AI-funktioner.
+                  {techData.data_types?.length > 0 && (
+                    <> Hanterar <span className="text-white font-semibold">{techData.data_types.length}</span> olika datatyper 
+                    ({techData.data_types.join(', ')}).</>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {techData.data_sensitivity_level && (
+              <div className="border-l-4 border-gray-600 pl-4">
+                <div className="text-white font-medium">Säkerhetsriskanalys</div>
+                <div className="text-gray-300">
+                  Data klassificeras som <span className={`font-semibold ${getSensitivityInsight(techData.data_sensitivity_level).color}`}>
+                  {getSensitivityInsight(techData.data_sensitivity_level).risk} risk</span>. 
+                  {getSensitivityInsight(techData.data_sensitivity_level).requirement} för att säkerställa compliance och dataskydd.
+                </div>
+              </div>
+            )}
+
+            {(techData.technical_obstacles || techData.technical_solutions) && (
+              <div className="border-l-4 border-gray-600 pl-4">
+                <div className="text-white font-medium">Implementeringsanalys</div>
+                <div className="text-gray-300">
+                  {techData.technical_obstacles && techData.technical_solutions ? (
+                    <>Identifierade tekniska utmaningar har adresserats med konkreta lösningsstrategier, 
+                    vilket tyder på en genomtänkt implementeringsplan.</>
+                  ) : techData.technical_obstacles ? (
+                    <>Tekniska utmaningar identifierade som kräver uppmärksamhet för framgångsrik implementation.</>
+                  ) : (
+                    <>Lösningsstrategier dokumenterade för att hantera potentiella tekniska utmaningar.</>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Detailed Technical Information */}
+        <div>
+          <h3 className="text-lg font-semibold text-white mb-4">Detaljerad teknisk information</h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm border-collapse">
+              <thead>
+                <tr className="border-b border-gray-600">
+                  <th className="text-left py-3 text-[#FECB00] font-medium">Kategori</th>
+                  <th className="text-left py-3 text-[#FECB00] font-medium">Specifikation</th>
+                  <th className="text-left py-3 text-[#FECB00] font-medium">Detaljer</th>
+                </tr>
+              </thead>
+              <tbody>
+                {techData.system_name && (
+                  <tr className="border-b border-gray-700">
+                    <td className="py-3 text-white font-medium">AI-System</td>
+                    <td className="py-3 text-gray-300">{techData.system_name}</td>
+                    <td className="py-3 text-gray-300">{techData.ai_methodology || '—'}</td>
+                  </tr>
+                )}
+                {techData.deployment_environment && (
+                  <tr className="border-b border-gray-700">
+                    <td className="py-3 text-white font-medium">Driftmiljö</td>
+                    <td className="py-3 text-gray-300">{techData.deployment_environment}</td>
+                    <td className="py-3 text-gray-300">{getDeploymentInsight(techData.deployment_environment).cost}</td>
+                  </tr>
+                )}
                 {techData.data_types?.length > 0 && (
-                  <div>
-                    <span className="text-gray-400 text-sm">Datatyper:</span>
-                    <div className="flex flex-wrap gap-1 mt-1">
-                      {techData.data_types.map((type: string, index: number) => (
-                        <span key={index} className="bg-gray-700 text-white px-2 py-1 rounded text-xs">
-                          {type}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
+                  <tr className="border-b border-gray-700">
+                    <td className="py-3 text-white font-medium">Datatyper</td>
+                    <td className="py-3 text-gray-300">{techData.data_types.length} typer</td>
+                    <td className="py-3 text-gray-300">{techData.data_types.join(', ')}</td>
+                  </tr>
                 )}
                 {techData.data_sources?.length > 0 && (
-                  <div>
-                    <span className="text-gray-400 text-sm">Källor:</span>
-                    <div className="flex flex-wrap gap-1 mt-1">
-                      {techData.data_sources.map((source: string, index: number) => (
-                        <span key={index} className="bg-gray-700 text-white px-2 py-1 rounded text-xs">
-                          {source}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
+                  <tr className="border-b border-gray-700">
+                    <td className="py-3 text-white font-medium">Datakällor</td>
+                    <td className="py-3 text-gray-300">{techData.data_sources.length} källor</td>
+                    <td className="py-3 text-gray-300">{techData.data_sources.join(', ')}</td>
+                  </tr>
                 )}
-                {(!techData.data_types?.length && !techData.data_sources?.length) && (
-                  <div className="text-gray-400 italic text-sm">Datakällor ej specificerade</div>
+                {techData.data_sensitivity_level && (
+                  <tr className="border-b border-gray-700">
+                    <td className="py-3 text-white font-medium">Säkerhetsnivå</td>
+                    <td className="py-3 text-gray-300">{techData.data_sensitivity_level}</td>
+                    <td className={`py-3 ${getSensitivityInsight(techData.data_sensitivity_level).color}`}>
+                      {getSensitivityInsight(techData.data_sensitivity_level).risk} risk
+                    </td>
+                  </tr>
                 )}
-              </div>
-            </div>
+                {techData.data_quality && (
+                  <tr className="border-b border-gray-700">
+                    <td className="py-3 text-white font-medium">Datakvalitet</td>
+                    <td className="py-3 text-gray-300">{techData.data_quality}</td>
+                    <td className="py-3 text-gray-300">{techData.data_freshness || 'Ej specificerad'}</td>
+                  </tr>
+                )}
+                {techData.integration_capabilities?.length > 0 && (
+                  <tr className="border-b border-gray-700">
+                    <td className="py-3 text-white font-medium">Integrationer</td>
+                    <td className="py-3 text-gray-300">{techData.integration_capabilities.length} metoder</td>
+                    <td className="py-3 text-gray-300">{techData.integration_capabilities.join(', ')}</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
 
-            {/* Data Sensitivity & Risk */}
-            <div className="bg-[#1E3A4A] p-6 rounded-lg">
-              <h4 className="text-[#FECB00] font-medium mb-4">Säkerhet & Risk</h4>
-              {techData.data_sensitivity_level ? (
-                <div className="space-y-3">
-                  <div>
-                    <span className="text-gray-400 text-sm">Känslighetsnivå:</span>
-                    <div className={`font-semibold ${getSensitivityInsight(techData.data_sensitivity_level).color}`}>
-                      {techData.data_sensitivity_level}
-                    </div>
-                  </div>
-                  <div className="border-l-4 border-gray-600 pl-3">
-                    <div className="text-gray-400 text-xs">Risknivå:</div>
-                    <div className={`font-medium ${getSensitivityInsight(techData.data_sensitivity_level).color}`}>
-                      {getSensitivityInsight(techData.data_sensitivity_level).risk}
-                    </div>
-                    <div className="text-gray-300 text-xs mt-1">
-                      {getSensitivityInsight(techData.data_sensitivity_level).requirement}
-                    </div>
-                  </div>
+        {/* Implementation Challenges & Solutions */}
+        {(techData.technical_obstacles || techData.technical_solutions) && (
+          <div>
+            <h3 className="text-lg font-semibold text-white mb-4">Implementation & Lösningar</h3>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {techData.technical_obstacles && (
+                <div className="border-l-4 border-red-500 pl-4">
+                  <h4 className="text-red-400 font-medium mb-2">Identifierade utmaningar</h4>
+                  <div className="text-gray-300 text-sm">{techData.technical_obstacles}</div>
                 </div>
-              ) : (
-                <div className="text-gray-400 italic text-sm">Känslighetsnivå ej angiven</div>
+              )}
+              {techData.technical_solutions && (
+                <div className="border-l-4 border-green-500 pl-4">
+                  <h4 className="text-green-400 font-medium mb-2">Planerade lösningar</h4>
+                  <div className="text-gray-300 text-sm">{techData.technical_solutions}</div>
+                </div>
               )}
             </div>
-
-            {/* Data Quality & Freshness */}
-            <div className="bg-[#1E3A4A] p-6 rounded-lg">
-              <h4 className="text-[#FECB00] font-medium mb-4">Kvalitet & Aktualitet</h4>
-              <div className="space-y-3">
-                {techData.data_quality && (
-                  <div>
-                    <span className="text-gray-400 text-sm">Datakvalitet:</span>
-                    <div className="text-white font-medium">{techData.data_quality}</div>
-                  </div>
-                )}
-                {techData.data_freshness && (
-                  <div>
-                    <span className="text-gray-400 text-sm">Uppdateringsfrekvens:</span>
-                    <div className="text-white font-medium">{techData.data_freshness}</div>
-                  </div>
-                )}
-                {(!techData.data_quality && !techData.data_freshness) && (
-                  <div className="text-gray-400 italic text-sm">Kvalitetsinfo ej angiven</div>
-                )}
-              </div>
-            </div>
           </div>
-        </div>
+        )}
 
-        {/* Implementation Details - Secondary Information */}
-        <div>
-          <h3 className="text-lg font-semibold text-white mb-4">Implementation & Utmaningar</h3>
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            
-            {/* Integration Capabilities */}
-            {techData.integration_capabilities?.length > 0 && (
-              <div className="bg-[#1E3A4A] p-6 rounded-lg">
-                <h4 className="text-[#FECB00] font-medium mb-4">Integrationsmöjligheter</h4>
-                <div className="space-y-2">
-                  <div className="text-gray-300 text-sm">
-                    Systemet stöder <span className="text-white font-semibold">{techData.integration_capabilities.length}</span> olika integrationsmetoder:
-                  </div>
-                  <div className="flex flex-wrap gap-1">
-                    {techData.integration_capabilities.map((capability: string, index: number) => (
-                      <span key={index} className="bg-gray-700 text-white px-2 py-1 rounded text-xs">
-                        {capability}
-                      </span>
-                    ))}
-                  </div>
-                  {techData.integration_capabilities_text && (
-                    <div className="border-l-4 border-gray-600 pl-3 text-gray-300 text-sm mt-2">
-                      {techData.integration_capabilities_text}
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
-            {/* Technical Challenges & Solutions */}
-            {(techData.technical_obstacles || techData.technical_solutions) && (
-              <div className="bg-[#1E3A4A] p-6 rounded-lg">
-                <h4 className="text-[#FECB00] font-medium mb-4">Tekniska Utmaningar</h4>
-                <div className="space-y-3">
-                  {techData.technical_obstacles && (
-                    <div>
-                      <div className="text-red-400 text-sm font-medium mb-1">🚧 Identifierade hinder:</div>
-                      <div className="text-gray-300 text-sm">{techData.technical_obstacles}</div>
-                    </div>
-                  )}
-                  {techData.technical_solutions && (
-                    <div>
-                      <div className="text-green-400 text-sm font-medium mb-1">✅ Lösningsstrategier:</div>
-                      <div className="text-gray-300 text-sm">{techData.technical_solutions}</div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Additional Details - Tertiary Information */}
+        {/* Additional Technical Details */}
         {(techData.data_description_free || techData.data_license_link || techData.data_type_other || techData.data_source_other) && (
           <div>
-            <h3 className="text-lg font-semibold text-white mb-4">📋 Övrig Information</h3>
+            <h3 className="text-lg font-semibold text-white mb-4">Övrig teknisk information</h3>
             <div className="space-y-4">
-              
               {techData.data_description_free && (
                 <div className="border-l-4 border-gray-600 pl-4">
                   <div className="text-white font-medium">Databeskrivning</div>
                   <div className="text-gray-300">{techData.data_description_free}</div>
                 </div>
               )}
-
               {techData.data_license_link && (
                 <div className="border-l-4 border-gray-600 pl-4">
-                  <div className="text-white font-medium">Licensreferens</div>
+                  <div className="text-white font-medium">Licensinformation</div>
                   <div className="text-gray-300">
                     <a href={techData.data_license_link} target="_blank" rel="noopener noreferrer" className="text-[#FECB00] underline">
                       {techData.data_license_link}
@@ -951,22 +1882,22 @@ export default function ProjectDetailPage() {
                   </div>
                 </div>
               )}
-
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                {techData.data_type_other && (
-                  <div className="border-l-4 border-gray-600 pl-4">
-                    <div className="text-white font-medium">Övriga datatyper</div>
-                    <div className="text-gray-300">{techData.data_type_other}</div>
-                  </div>
-                )}
-
-                {techData.data_source_other && (
-                  <div className="border-l-4 border-gray-600 pl-4">
-                    <div className="text-white font-medium">Övriga datakällor</div>
-                    <div className="text-gray-300">{techData.data_source_other}</div>
-                  </div>
-                )}
-              </div>
+              {(techData.data_type_other || techData.data_source_other) && (
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                  {techData.data_type_other && (
+                    <div className="border-l-4 border-gray-600 pl-4">
+                      <div className="text-white font-medium">Övriga datatyper</div>
+                      <div className="text-gray-300">{techData.data_type_other}</div>
+                    </div>
+                  )}
+                  {techData.data_source_other && (
+                    <div className="border-l-4 border-gray-600 pl-4">
+                      <div className="text-white font-medium">Övriga datakällor</div>
+                      <div className="text-gray-300">{techData.data_source_other}</div>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -1255,262 +2186,21 @@ export default function ProjectDetailPage() {
             {renderTechnicalData(project.technical_data)}
           </section>
 
-          {/* Governance Section */}
-          {(project.leadership_data && Object.keys(project.leadership_data).length > 0) || 
-           (project.legal_data && Object.keys(project.legal_data).length > 0) ? (
+          {/* Leadership Section */}
+          {project.leadership_data && Object.keys(project.leadership_data).length > 0 && (
             <section>
-              <h2 className="text-2xl font-bold text-[#FECB00] mb-6">Styrning & Juridik</h2>
-              
-              <div className="space-y-8">
-                {/* Leadership Information */}
-                {project.leadership_data && Object.keys(project.leadership_data).length > 0 && (
-                  <div>
-                    <h3 className="text-lg font-semibold text-white mb-4">Organisation & Ledarskap</h3>
-                    <div className="space-y-4">
-                      {/* Project Ownership */}
-                      {project.leadership_data.projectOwnership && (
-                        <div className="border-l-4 border-gray-600 pl-4">
-                          <div className="text-white font-medium">Projektansvar</div>
-                          <div className="text-gray-300">
-                            {project.leadership_data.projectOwnership === 'it' && 'IT-avdelning'}
-                            {project.leadership_data.projectOwnership === 'operations' && 'Verksamheten'}
-                            {project.leadership_data.projectOwnership === 'joint' && 'Gemensamt ansvar'}
-                            {project.leadership_data.projectOwnership === 'other' && 'Annat'}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Organizational Change */}
-                      {project.leadership_data.organizationalChange && Array.isArray(project.leadership_data.organizationalChange) && project.leadership_data.organizationalChange.length > 0 && (
-                        <div className="border-l-4 border-gray-600 pl-4">
-                          <div className="text-white font-medium">Organisationsförändringar</div>
-                          <div className="text-gray-300">
-                            {project.leadership_data.organizationalChange.join(', ')}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Staff Involvement */}
-                      {project.leadership_data.staffInvolvement && (
-                        <div className="border-l-4 border-gray-600 pl-4">
-                          <div className="text-white font-medium">Medarbetarinvolvering</div>
-                          <div className="text-gray-300">
-                            {project.leadership_data.staffInvolvement === 'early' && 'Ja, från start'}
-                            {project.leadership_data.staffInvolvement === 'later' && 'Ja, men först senare'}
-                            {project.leadership_data.staffInvolvement === 'no' && 'Nej'}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Change Management Efforts */}
-                      {project.leadership_data.changeManagementEfforts && (
-                        <div className="border-l-4 border-gray-600 pl-4">
-                          <div className="text-white font-medium">Förändringsledning</div>
-                          <div className="text-gray-300">{project.leadership_data.changeManagementEfforts}</div>
-                        </div>
-                      )}
-
-                      {/* SDG Alignment */}
-                      {project.leadership_data.sdgAlignment && Array.isArray(project.leadership_data.sdgAlignment) && project.leadership_data.sdgAlignment.length > 0 && (
-                        <div className="border-l-4 border-gray-600 pl-4">
-                          <div className="text-white font-medium">Agenda 2030-mål</div>
-                          <div className="text-gray-300">
-                            {project.leadership_data.sdgAlignment.join(', ')}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* SDG Description */}
-                      {project.leadership_data.sdgDescription && (
-                        <div className="border-l-4 border-gray-600 pl-4">
-                          <div className="text-white font-medium">Koppling till Agenda 2030</div>
-                          <div className="text-gray-300">{project.leadership_data.sdgDescription}</div>
-                        </div>
-                      )}
-
-                      {/* Next Steps */}
-                      {project.leadership_data.nextSteps && (
-                        <div className="border-l-4 border-gray-600 pl-4">
-                          <div className="text-white font-medium">Nästa steg</div>
-                          <div className="text-gray-300">{project.leadership_data.nextSteps}</div>
-                        </div>
-                      )}
-
-                      {/* Lessons Learned */}
-                      {project.leadership_data.lessonsLearned && (
-                        <div className="border-l-4 border-gray-600 pl-4">
-                          <div className="text-white font-medium">Lärdomar & utmaningar</div>
-                          <div className="text-gray-300">{project.leadership_data.lessonsLearned}</div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* Legal Information */}
-                {project.legal_data && Object.keys(project.legal_data).length > 0 && (
-                  <div>
-                    <h3 className="text-lg font-semibold text-white mb-4">Juridisk & Etisk analys</h3>
-                    <div className="space-y-6">
-                      
-                      {/* GDPR Section */}
-                      <div>
-                        <h4 className="text-white font-medium mb-3">Behandling av personuppgifter (GDPR)</h4>
-                        <div className="space-y-3">
-                          {project.legal_data.processes_personal_data && (
-                            <div className="border-l-4 border-gray-600 pl-4">
-                              <div className="text-white font-medium">Behandlar personuppgifter</div>
-                              <div className="text-gray-300">{project.legal_data.processes_personal_data}</div>
-                            </div>
-                          )}
-
-                          {project.legal_data.data_categories && (
-                            <div className="border-l-4 border-gray-600 pl-4">
-                              <div className="text-white font-medium">Typer av personuppgifter</div>
-                              <div className="text-gray-300">
-                                {Array.isArray(project.legal_data.data_categories) 
-                                  ? project.legal_data.data_categories.join(', ')
-                                  : String(project.legal_data.data_categories)
-                                }
-                              </div>
-                            </div>
-                          )}
-
-                          {project.legal_data.legal_basis && (
-                            <div className="border-l-4 border-gray-600 pl-4">
-                              <div className="text-white font-medium">Rättslig grund</div>
-                              <div className="text-gray-300">{project.legal_data.legal_basis}</div>
-                            </div>
-                          )}
-
-                          {project.legal_data.dpia_done && (
-                            <div className="border-l-4 border-gray-600 pl-4">
-                              <div className="text-white font-medium">Konsekvensbedömning (DPIA)</div>
-                              <div className="text-gray-300">{project.legal_data.dpia_done}</div>
-                            </div>
-                          )}
-
-                          {project.legal_data.data_controller && (
-                            <div className="border-l-4 border-gray-600 pl-4">
-                              <div className="text-white font-medium">Personuppgiftsansvarig</div>
-                              <div className="text-gray-300">{project.legal_data.data_controller}</div>
-                            </div>
-                          )}
-
-                          {project.legal_data.processor_agreement && (
-                            <div className="border-l-4 border-gray-600 pl-4">
-                              <div className="text-white font-medium">Personuppgiftsbiträdesavtal (PUB)</div>
-                              <div className="text-gray-300">{project.legal_data.processor_agreement}</div>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Procurement Section */}
-                      <div>
-                        <h4 className="text-white font-medium mb-3">Offentlig upphandling och avtal</h4>
-                        <div className="space-y-3">
-                          {project.legal_data.procurement_type && (
-                            <div className="border-l-4 border-gray-600 pl-4">
-                              <div className="text-white font-medium">Upphandlingstyp</div>
-                              <div className="text-gray-300">
-                                {Array.isArray(project.legal_data.procurement_type) 
-                                  ? project.legal_data.procurement_type.join(', ')
-                                  : String(project.legal_data.procurement_type)
-                                }
-                              </div>
-                            </div>
-                          )}
-
-                          {project.legal_data.reusable_contract && (
-                            <div className="border-l-4 border-gray-600 pl-4">
-                              <div className="text-white font-medium">Återanvändbart avtal</div>
-                              <div className="text-gray-300">{project.legal_data.reusable_contract}</div>
-                            </div>
-                          )}
-
-                          {project.legal_data.supplier_contract_clauses && (
-                            <div className="border-l-4 border-gray-600 pl-4">
-                              <div className="text-white font-medium">Särskilda avtalsklausuler</div>
-                              <div className="text-gray-300">{project.legal_data.supplier_contract_clauses}</div>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* AI Regulation Section */}
-                      <div>
-                        <h4 className="text-white font-medium mb-3">AI-förordningen och riskbedömning</h4>
-                        <div className="space-y-3">
-                          {project.legal_data.high_risk_ai && (
-                            <div className="border-l-4 border-gray-600 pl-4">
-                              <div className="text-white font-medium">Högrisk-AI enligt EU-förordning</div>
-                              <div className="text-gray-300">{project.legal_data.high_risk_ai}</div>
-                            </div>
-                          )}
-
-                          {project.legal_data.ce_marked && (
-                            <div className="border-l-4 border-gray-600 pl-4">
-                              <div className="text-white font-medium">CE-märkning</div>
-                              <div className="text-gray-300">{project.legal_data.ce_marked}</div>
-                            </div>
-                          )}
-
-                          {project.legal_data.fundamental_rights_assessment && (
-                            <div className="border-l-4 border-gray-600 pl-4">
-                              <div className="text-white font-medium">Konsekvensbedömning grundläggande rättigheter</div>
-                              <div className="text-gray-300">{project.legal_data.fundamental_rights_assessment}</div>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Access and Ownership Section */}
-                      <div>
-                        <h4 className="text-white font-medium mb-3">Åtkomst, ägande och tillgänglighet</h4>
-                        <div className="space-y-3">
-                          {project.legal_data.data_access_rights && (
-                            <div className="border-l-4 border-gray-600 pl-4">
-                              <div className="text-white font-medium">Dataägande och åtkomst</div>
-                              <div className="text-gray-300">{project.legal_data.data_access_rights}</div>
-                            </div>
-                          )}
-
-                          {project.legal_data.is_open_source && (
-                            <div className="border-l-4 border-gray-600 pl-4">
-                              <div className="text-white font-medium">Öppen källkod</div>
-                              <div className="text-gray-300">{project.legal_data.is_open_source}</div>
-                              {project.legal_data.open_source_link && (
-                                <div className="text-gray-300 mt-1">
-                                  Länk: <a href={project.legal_data.open_source_link} target="_blank" rel="noopener noreferrer" className="text-[#FECB00] underline">
-                                    {project.legal_data.open_source_link}
-                                  </a>
-                                </div>
-                              )}
-                            </div>
-                          )}
-
-                          {project.legal_data.accessibility && (
-                            <div className="border-l-4 border-gray-600 pl-4">
-                              <div className="text-white font-medium">Tillgänglighetsdirektiv (WCAG)</div>
-                              <div className="text-gray-300">{project.legal_data.accessibility}</div>
-                            </div>
-                          )}
-
-                          {project.legal_data.security_measures && (
-                            <div className="border-l-4 border-gray-600 pl-4">
-                              <div className="text-white font-medium">Säkerhetsåtgärder</div>
-                              <div className="text-gray-300">{project.legal_data.security_measures}</div>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                )}
-              </div>
+              <h2 className="text-2xl font-bold text-[#FECB00] mb-6">Organisation & Ledarskap</h2>
+              {renderLeadershipData(project.leadership_data)}
             </section>
-          ) : null}
+          )}
+
+          {/* Legal & Compliance Section */}
+          {project.legal_data && Object.keys(project.legal_data).length > 0 && (
+            <section>
+              <h2 className="text-2xl font-bold text-[#FECB00] mb-6">Juridisk & Etisk analys</h2>
+              {renderLegalData(project.legal_data)}
+            </section>
+          )}
         </div>
 
         {/* Additional Actions */}
@@ -1518,24 +2208,21 @@ export default function ProjectDetailPage() {
           <div className="flex flex-wrap gap-3">
             <button
               onClick={() => router.push('/map')}
-              className="flex items-center px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors"
+              className="px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded transition-colors"
             >
-              <span className="mr-2"></span>
               Visa på kartan
             </button>
             <button
-              onClick={() => router.push(`/projects/${project.id}/edit`)}
-              className="flex items-center px-4 py-2 bg-[#FECB00] hover:bg-[#e6b800] text-black rounded-lg transition-colors"
+              onClick={() => router.push(`/projects/new?edit=${project.id}`)}
+              className="px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded transition-colors"
             >
-              <span className="mr-2"></span>
               Redigera projekt
             </button>
             <button
               onClick={deleteProject}
               disabled={isDeleting}
-              className="flex items-center px-4 py-2 bg-red-600 hover:bg-red-700 disabled:bg-red-400 disabled:cursor-not-allowed text-white rounded-lg transition-colors"
+              className="px-4 py-2 bg-gray-600 hover:bg-gray-500 disabled:bg-gray-400 disabled:cursor-not-allowed text-white rounded transition-colors"
             >
-              <span className="mr-2"></span>
               {isDeleting ? 'Tar bort...' : 'Ta bort projekt'}
             </button>
           </div>

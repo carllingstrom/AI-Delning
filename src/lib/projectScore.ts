@@ -86,34 +86,60 @@ export function calculateProjectScore(project: any): ProjectScore {
     let qualitativePoints = 0;
     let monetaryPoints = 0;
     
+    // Count different types of complete effects
+    let completeQuantitativeEffects = 0;
+    let completeQualitativeEffects = 0;
+    let detailedMonetaryEffects = 0;
+    
     effectEntries.forEach((effect: any) => {
       let effectComplete = false;
       
-      // Check for quantitative effects with proper details
-      if (effect.hasQuantitative && effect.quantitativeDetails) {
+      // Check for quantitative effects with current schema
+      if ((effect.hasQuantitative === true || effect.hasQuantitative === 'true') && effect.quantitativeDetails) {
         const qDetails = effect.quantitativeDetails;
-        if (qDetails.expectedValue && qDetails.timeframe && qDetails.measurementMethod) {
-          quantitativePoints += 8;
-          effectComplete = true;
-          
-          // Bonus for financial or redistribution details
-          if (qDetails.financialDetails || qDetails.redistributionDetails) {
-            monetaryPoints += 4;
+        
+        // Financial effects validation
+        if (qDetails.effectType === 'financial' && qDetails.financialDetails) {
+          const fin = qDetails.financialDetails;
+          if (fin.measurementName && fin.valueUnit && fin.annualizationYears) {
+            completeQuantitativeEffects++;
+            effectComplete = true;
+            
+            // Check for detailed financial data
+            if ((fin.valueUnit === 'hours' && fin.hoursDetails?.hours && fin.hoursDetails?.hourlyRate) ||
+                (fin.valueUnit === 'currency' && fin.currencyDetails?.amount) ||
+                (fin.valueUnit === 'count' && fin.countDetails?.count && fin.countDetails?.valuePerUnit) ||
+                (fin.valueUnit === 'percentage' && fin.percentageDetails?.percentage && fin.percentageDetails?.baseValue) ||
+                (fin.valueUnit === 'other' && fin.otherDetails?.amount && fin.otherDetails?.valuePerUnit)) {
+              detailedMonetaryEffects++;
+            }
+          }
+        }
+        
+        // Redistribution effects validation
+        if (qDetails.effectType === 'redistribution' && qDetails.redistributionDetails) {
+          const redist = qDetails.redistributionDetails;
+          if (redist.resourceType && redist.valueUnit && redist.annualizationYears) {
+            completeQuantitativeEffects++;
+            effectComplete = true;
+            
+            // Check for detailed redistribution data
+            if ((redist.valueUnit === 'hours' && redist.hoursDetails?.currentHours && redist.hoursDetails?.newHours) ||
+                (redist.valueUnit === 'currency' && redist.currencyDetails?.currentAmount && redist.currencyDetails?.newAmount) ||
+                (redist.valueUnit === 'count' && redist.countDetails?.currentCount && redist.countDetails?.newCount) ||
+                (redist.valueUnit === 'other' && redist.otherDetails?.currentAmount && redist.otherDetails?.newAmount)) {
+              detailedMonetaryEffects++;
+            }
           }
         }
       }
       
-      // Check for qualitative effects with proper details  
-      if (effect.hasQualitative && effect.qualitativeDetails) {
+      // Check for qualitative effects with current schema
+      if ((effect.hasQualitative === true || effect.hasQualitative === 'true') && effect.qualitativeDetails) {
         const qualDetails = effect.qualitativeDetails;
-        if (qualDetails.description && qualDetails.targetGroup && qualDetails.expectedImpact) {
-          qualitativePoints += 6;
+        if (qualDetails.factor && qualDetails.currentRating && qualDetails.targetRating && qualDetails.annualizationYears) {
+          completeQualitativeEffects++;
           effectComplete = true;
-          
-          // Bonus for monetary estimate
-          if (qualDetails.monetaryEstimate) {
-            monetaryPoints += 4;
-          }
         }
       }
       
@@ -122,23 +148,31 @@ export function calculateProjectScore(project: any): ProjectScore {
       }
     });
     
+    // Calculate controlled point allocation
+    quantitativePoints = Math.min(12, completeQuantitativeEffects * 6); // Max 12 points
+    qualitativePoints = Math.min(8, completeQualitativeEffects * 4); // Max 8 points  
+    monetaryPoints = Math.min(5, detailedMonetaryEffects * 2); // Max 5 points
+    
     if (hasCompleteEffect) {
-      // Base points for having complete effects
+      // Base points for having effects (8 points)
       breakdown.effects.score += 8;
       
-      // Points for quantitative analysis (max 16)
-      breakdown.effects.score += Math.min(16, quantitativePoints);
+      // Points for quantitative analysis (max 12)
+      breakdown.effects.score += Math.min(12, quantitativePoints);
       
-      // Points for qualitative analysis (max 12) 
-      breakdown.effects.score += Math.min(12, qualitativePoints);
+      // Points for qualitative analysis (max 8) 
+      breakdown.effects.score += Math.min(8, qualitativePoints);
       
-      // Points for monetary estimates (max 8)
-      breakdown.effects.score += Math.min(8, monetaryPoints);
+      // Points for monetary estimates (max 5)
+      breakdown.effects.score += Math.min(5, monetaryPoints);
       
-      // Bonus for having both quantitative AND qualitative effects
+      // Bonus for having both quantitative AND qualitative effects (2 points)
       if (quantitativePoints > 0 && qualitativePoints > 0) {
-        breakdown.effects.score += 3;
+        breakdown.effects.score += 2;
       }
+      
+      // ENSURE WE NEVER EXCEED MAX (35 points total)
+      breakdown.effects.score = Math.min(35, breakdown.effects.score);
     } else {
       missingHighValue.push('Complete effect details');
     }
@@ -178,10 +212,20 @@ export function calculateProjectScore(project: any): ProjectScore {
     missingHighValue.push('Legal compliance information');
   }
 
+  // Ensure all categories are within their max limits
+  breakdown.basic.score = Math.min(breakdown.basic.max, breakdown.basic.score);
+  breakdown.financial.score = Math.min(breakdown.financial.max, breakdown.financial.score);
+  breakdown.effects.score = Math.min(breakdown.effects.max, breakdown.effects.score);
+  breakdown.technical.score = Math.min(breakdown.technical.max, breakdown.technical.score);
+  breakdown.governance.score = Math.min(breakdown.governance.max, breakdown.governance.score);
+  breakdown.bonus.score = Math.min(breakdown.bonus.max, breakdown.bonus.score);
+
   // Calculate totals
   totalScore = Object.values(breakdown).reduce((sum, category) => sum + category.score, 0);
   const maxScore = Object.values(breakdown).reduce((sum, category) => sum + category.max, 0);
-  const percentage = Math.round((totalScore / maxScore) * 100);
+  
+  // Ensure percentage never exceeds 100%
+  const percentage = Math.min(100, Math.round((totalScore / maxScore) * 100));
 
   // Determine level with much stricter thresholds
   let level: ProjectScore['level'];

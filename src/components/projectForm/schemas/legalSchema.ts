@@ -80,7 +80,7 @@ export const legalSections = [
       {
         id: 'supplier_contract_clauses',
         type: 'textarea',
-        label: 'Avtalsklausuler som rör AI/transparens/dataskydd',
+        label: 'Fritext förklaring av upphandlingsvillkor, inklusive klausuler som rör AI/transparens/dataskydd',
         placeholder: 'T.ex. krav på öppenhet, ansvar, användarrättigheter'
       }
     ]
@@ -131,15 +131,9 @@ export const legalSections = [
         condition: { id: 'is_open_source', value: 'Ja' }
       },
       {
-        id: 'accessibility',
-        type: 'radio',
-        label: 'Uppfyller lösningen tillgänglighetsdirektiv (WCAG)?',
-        options: ['Ja', 'Nej', 'Vet ej']
-      },
-      {
         id: 'security_measures',
         type: 'textarea',
-        label: 'Informationssäkerhet – vilka åtgärder finns?',
+        label: 'Informationssäkerhet: vilka åtgärder finns?',
         placeholder: 'T.ex. kryptering, rollbaserad åtkomst, loggning'
       }
     ]

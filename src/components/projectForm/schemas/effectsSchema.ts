@@ -14,7 +14,7 @@ export const createValueCreationSchema = (selectedValueDimensions: string[] = []
           type: 'select',
           label: 'Värdedimension',
           options: selectedValueDimensions.length > 0 
-            ? selectedValueDimensions 
+            ? [...selectedValueDimensions, 'Annat']
             : [
             'Tidsbesparing',
             'Kostnadsbesparing',
@@ -27,6 +27,13 @@ export const createValueCreationSchema = (selectedValueDimensions: string[] = []
             'Etik / hållbarhet / ansvarsfull AI',
             'Annat'
           ]
+        },
+        {
+          id: 'customValueDimension',
+          type: 'text',
+          label: 'Beskriv annan typ av nytta',
+          placeholder: 't.ex. "Minskad miljöpåverkan", "Förbättrad arbetsmiljö"',
+          condition: { id: 'valueDimension', value: 'Annat' }
         },
         {
           id: 'hasQualitative',
