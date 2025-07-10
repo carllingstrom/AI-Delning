@@ -80,34 +80,35 @@ export async function GET(req: NextRequest) {
 
 
     // --- National Savings Simulation ---
-    let simulatedSavings = 0;
-    let savingsPerInhabitant = 0;
-    let usedMunicipalityCount = 1;
-    let usedPopulation = 10500000;
+    // Removing this section as it causes confusing numbers like "6/3 projects"
+    // let simulatedSavings = 0;
+    // let savingsPerInhabitant = 0;
+    // let usedMunicipalityCount = 1;
+    // let usedPopulation = 10500000;
     
-    try {
-      // Calculate project savings (monetary value - actual cost)
-      const projectSavings = filteredProjects.map(project => {
-        const actualCost = calculateActualCost(project) || 0;
-        const monetaryValue = calculateProjectMonetaryValue(project) || 0;
-        return monetaryValue - actualCost;
-      });
-      const totalProjectSavings = projectSavings.reduce((sum, s) => sum + s, 0);
-      // Count unique municipalities in the dataset
-      const allMunicipalityIds = new Set();
-      filteredProjects.forEach(project => {
-        (project.project_municipalities || []).forEach((pm: any) => {
-          if (pm.municipality_id) allMunicipalityIds.add(pm.municipality_id);
-        });
-      });
-      usedMunicipalityCount = allMunicipalityIds.size || 1;
-      simulatedSavings = usedMunicipalityCount > 0
-        ? totalProjectSavings * (290 / usedMunicipalityCount)
-        : 0;
-      savingsPerInhabitant = usedPopulation > 0 ? simulatedSavings / usedPopulation : 0;
-    } catch (err) {
-      console.error('Error calculating national savings:', err);
-    }
+    // try {
+    //   // Calculate project savings (monetary value - actual cost)
+    //   const projectSavings = filteredProjects.map(project => {
+    //     const actualCost = calculateActualCost(project) || 0;
+    //     const monetaryValue = calculateProjectMonetaryValue(project) || 0;
+    //     return monetaryValue - actualCost;
+    //   });
+    //   const totalProjectSavings = projectSavings.reduce((sum, s) => sum + s, 0);
+    //   // Count unique municipalities in the dataset
+    //   const allMunicipalityIds = new Set();
+    //   filteredProjects.forEach(project => {
+    //     (project.project_municipalities || []).forEach((pm: any) => {
+    //       if (pm.municipality_id) allMunicipalityIds.add(pm.municipality_id);
+    //     });
+    //   });
+    //   usedMunicipalityCount = allMunicipalityIds.size || 1;
+    //   simulatedSavings = usedMunicipalityCount > 0
+    //     ? totalProjectSavings * (290 / usedMunicipalityCount)
+    //     : 0;
+    //   savingsPerInhabitant = usedPopulation > 0 ? simulatedSavings / usedPopulation : 0;
+    // } catch (err) {
+    //   console.error('Error calculating national savings:', err);
+    // }
 
     // --- Budgetfördelning Sankey ---
     let nodes: any[] = [];
@@ -790,6 +791,18 @@ export async function GET(req: NextRequest) {
         averageBudget: calculateAverageBudget(filteredProjects),
         totalROI: calculateTotalROI(filteredProjects),
         averageROI: calculateAverageROI(filteredProjects),
+        averageSharingScore: calculateAverageSharingScore(filteredProjects),
+        // New comprehensive metrics
+        averageActualCost: calculateAverageActualCost(filteredProjects),
+        averageBudgetUsage: calculateAverageBudgetUsage(filteredProjects),
+        averageEffectsCount: calculateAverageEffectsCount(filteredProjects),
+        averageEffectsValue: calculateAverageEffectsValue(filteredProjects),
+        averageAffectedGroups: calculateAverageAffectedGroups(filteredProjects),
+        averageTechnologies: calculateAverageTechnologies(filteredProjects),
+        projectsWithQuantifiableEffects: calculateProjectsWithQuantifiableEffects(filteredProjects),
+        projectsWithCostData: calculateProjectsWithCostData(filteredProjects),
+        projectsWithEffectData: calculateProjectsWithEffectData(filteredProjects),
+        totalMonetaryValue: calculateTotalMonetaryValue(filteredProjects),
       },
       breakdowns: {
         byPhase: groupBy(filteredProjects, 'phase'),
@@ -837,12 +850,6 @@ export async function GET(req: NextRequest) {
           effects: extractEffectsSummary(project),
         }
       })),
-      nationalSavingsSimulation: {
-        totalSimulatedSavings: Math.round(simulatedSavings),
-        savingsPerInhabitant: Math.round(savingsPerInhabitant),
-        usedPopulation,
-        usedMunicipalityCount
-      },
       budgetSankeyData: {
         nodes,
         links
@@ -952,6 +959,23 @@ function calculateROI(project: any): number | null {
     
     if (effectEntries.length === 0) return null;
     
+    // Check if project actually has measurable effects (not just said "no" to everything)
+    const hasActualEffects = effectEntries.some((effect: any) => {
+      // Check if the effect has either quantitative or qualitative data that's actually usable
+      const hasQuantitative = (effect.hasQuantitative === true || effect.hasQuantitative === 'true') && 
+                              effect.quantitativeDetails && 
+                              (effect.quantitativeDetails.financialDetails || effect.quantitativeDetails.redistributionDetails);
+      
+      const hasQualitative = (effect.hasQualitative === true || effect.hasQualitative === 'true') && 
+                             effect.qualitativeDetails && 
+                             effect.qualitativeDetails.factor;
+      
+      return hasQuantitative || hasQualitative;
+    });
+    
+    // If no actual effects, return null (project said "no" to effects)
+    if (!hasActualEffects) return null;
+    
     // Calculate total investment from cost entries
     const totalInvestment = costEntries.reduce((total: number, entry: any) => {
       if (!entry) return total;
@@ -989,7 +1013,7 @@ function calculateROI(project: any): number | null {
       totalProjectInvestment: totalInvestment 
     });
     
-    return roiMetrics.economicROI * 100; // Convert to percentage
+    return roiMetrics.economicROI; // roiCalculator already returns percentage values
   } catch (err) {
     console.error('Error calculating ROI:', err);
     return null;
@@ -1205,6 +1229,30 @@ function calculateAverageROI(projects: any[]): number {
     return rois.length > 0 ? rois.reduce((sum, roi) => sum + roi, 0) / rois.length : 0;
   } catch (err) {
     console.error('Error calculating average ROI:', err);
+    return 0;
+  }
+}
+
+function calculateAverageSharingScore(projects: any[]): number {
+  try {
+    const { calculateProjectScore } = require('@/lib/projectScore');
+    
+    // Calculate sharing scores for all projects
+    const scores = projects
+      .map(project => {
+        try {
+          const score = calculateProjectScore(project);
+          return score.percentage;
+        } catch (err) {
+          console.error('Error calculating project score for project:', project.id, err);
+          return null;
+        }
+      })
+      .filter((score): score is number => score !== null && !isNaN(score) && isFinite(score));
+    
+    return scores.length > 0 ? scores.reduce((sum, score) => sum + score, 0) / scores.length : 0;
+  } catch (err) {
+    console.error('Error calculating average sharing score:', err);
     return 0;
   }
 }
@@ -1728,43 +1776,187 @@ function getMostInnovativeProjects(projects: any[], limit: number) {
 }
 
 function analyzeROIByValueDimension(projects: any[]) {
-  try {
-    const dimensionROI: Record<string, { count: number; totalROI: number; averageROI: number }> = {};
+  const roiByDimension: Record<string, { count: number; totalROI: number; averageROI: number }> = {};
+  
+  projects.forEach(project => {
+    const roi = calculateROI(project);
+    const valueDimensions = project.project_value_dimensions || project.value_dimensions || [];
     
-    projects.forEach(project => {
-      const roi = calculateROI(project);
-      // Only include projects with valid, non-zero ROI
-      if (roi !== null && roi !== 0 && isFinite(roi)) {
-        // Use the value_dimensions array directly from the project
-        const valueDimensions = project.value_dimensions || [];
-        valueDimensions.forEach((dimensionName: string) => {
-          if (!dimensionROI[dimensionName]) {
-            dimensionROI[dimensionName] = { count: 0, totalROI: 0, averageROI: 0 };
+    if (roi && roi > 0 && Array.isArray(valueDimensions)) {
+      valueDimensions.forEach((vd: any) => {
+        const dimensionName = typeof vd === 'string' ? vd : vd.value_dimensions?.name || vd.name;
+        if (dimensionName) {
+          if (!roiByDimension[dimensionName]) {
+            roiByDimension[dimensionName] = { count: 0, totalROI: 0, averageROI: 0 };
           }
-          dimensionROI[dimensionName].count++;
-          dimensionROI[dimensionName].totalROI += roi;
-        });
-      }
+          roiByDimension[dimensionName].count++;
+          roiByDimension[dimensionName].totalROI += roi;
+        }
+      });
+    }
+  });
+  
+  // Calculate averages
+  Object.keys(roiByDimension).forEach(dimension => {
+    const data = roiByDimension[dimension];
+    data.averageROI = data.count > 0 ? data.totalROI / data.count : 0;
+  });
+  
+  return roiByDimension;
+}
+
+// New comprehensive metric functions
+function calculateAverageActualCost(projects: any[]): number {
+  const projectsWithCosts = projects.filter(p => {
+    const cost = calculateActualCost(p);
+    return cost > 0;
+  });
+  
+  if (projectsWithCosts.length === 0) return 0;
+  
+  const totalCost = projectsWithCosts.reduce((sum, project) => {
+    return sum + calculateActualCost(project);
+  }, 0);
+  
+  return totalCost / projectsWithCosts.length;
+}
+
+function calculateAverageBudgetUsage(projects: any[]): number {
+  const validProjects = projects.filter(p => {
+    const budget = extractBudgetAmount(p);
+    const actualCost = calculateActualCost(p);
+    return budget && budget > 0 && actualCost > 0;
+  });
+  
+  if (validProjects.length === 0) return 0;
+  
+  const totalUsagePercentage = validProjects.reduce((sum, project) => {
+    const budget = extractBudgetAmount(project) || 0;
+    const actualCost = calculateActualCost(project);
+    const usagePercentage = budget > 0 ? (actualCost / budget) * 100 : 0;
+    return sum + usagePercentage;
+  }, 0);
+  
+  return totalUsagePercentage / validProjects.length;
+}
+
+function calculateAverageEffectsCount(projects: any[]): number {
+  const projectsWithEffects = projects.filter(p => {
+    const effectEntries = p.effects_data?.effectDetails || [];
+    return effectEntries.length > 0;
+  });
+  
+  if (projectsWithEffects.length === 0) return 0;
+  
+  const totalEffects = projectsWithEffects.reduce((sum, project) => {
+    const effectEntries = project.effects_data?.effectDetails || [];
+    return sum + effectEntries.length;
+  }, 0);
+  
+  return totalEffects / projectsWithEffects.length;
+}
+
+function calculateAverageEffectsValue(projects: any[]): number {
+  const projectsWithMonetaryEffects = projects.filter(p => {
+    const monetaryValue = calculateProjectMonetaryValue(p);
+    return monetaryValue > 0;
+  });
+  
+  if (projectsWithMonetaryEffects.length === 0) return 0;
+  
+  const totalValue = projectsWithMonetaryEffects.reduce((sum, project) => {
+    return sum + calculateProjectMonetaryValue(project);
+  }, 0);
+  
+  return totalValue / projectsWithMonetaryEffects.length;
+}
+
+function calculateAverageAffectedGroups(projects: any[]): number {
+  const projectsWithGroups = projects.filter(p => {
+    const groups = extractAffectedGroups(p);
+    return groups.length > 0;
+  });
+  
+  if (projectsWithGroups.length === 0) return 0;
+  
+  const totalGroups = projectsWithGroups.reduce((sum, project) => {
+    const groups = extractAffectedGroups(project);
+    return sum + groups.length;
+  }, 0);
+  
+  return totalGroups / projectsWithGroups.length;
+}
+
+function calculateAverageTechnologies(projects: any[]): number {
+  const projectsWithTech = projects.filter(p => {
+    const tech = extractTechnologies(p);
+    return tech.length > 0;
+  });
+  
+  if (projectsWithTech.length === 0) return 0;
+  
+  const totalTech = projectsWithTech.reduce((sum, project) => {
+    const tech = extractTechnologies(project);
+    return sum + tech.length;
+  }, 0);
+  
+  return totalTech / projectsWithTech.length;
+}
+
+function calculateProjectsWithQuantifiableEffects(projects: any[]): { count: number; percentage: number } {
+  const projectsWithQuantifiable = projects.filter(project => {
+    const effectEntries = project.effects_data?.effectDetails || [];
+    return effectEntries.some((effect: any) => {
+      const hasQuantitative = (effect.hasQuantitative === true || effect.hasQuantitative === 'true') && 
+                              effect.quantitativeDetails && 
+                              (effect.quantitativeDetails.financialDetails || effect.quantitativeDetails.redistributionDetails);
+      return hasQuantitative;
     });
-    
-    // Calculate averages and sort by average ROI
-    Object.keys(dimensionROI).forEach(dimension => {
-      const data = dimensionROI[dimension];
-      data.averageROI = data.count > 0 ? data.totalROI / data.count : 0;
+  });
+  
+  const count = projectsWithQuantifiable.length;
+  const percentage = projects.length > 0 ? (count / projects.length) * 100 : 0;
+  
+  return { count, percentage };
+}
+
+function calculateProjectsWithCostData(projects: any[]): { count: number; percentage: number } {
+  const projectsWithCosts = projects.filter(project => {
+    const costEntries = project.cost_data?.actualCostDetails?.costEntries || [];
+    return costEntries.length > 0 && costEntries.some((entry: any) => {
+      return entry && (
+        (entry.costUnit === 'hours' && entry.hoursDetails?.hours > 0) ||
+        (entry.costUnit === 'fixed' && entry.fixedDetails?.fixedAmount > 0) ||
+        (entry.costUnit === 'monthly' && entry.monthlyDetails?.monthlyAmount > 0) ||
+        (entry.costUnit === 'yearly' && entry.yearlyDetails?.yearlyAmount > 0) ||
+        // Legacy support
+        (entry.costHours > 0 || entry.costFixed > 0)
+      );
     });
-    
-    // Return only top 5 dimensions by average ROI
-    const sortedDimensions = Object.entries(dimensionROI)
-      .sort(([,a], [,b]) => b.averageROI - a.averageROI)
-      .slice(0, 5)
-      .reduce((acc, [key, value]) => {
-        acc[key] = value;
-        return acc;
-      }, {} as Record<string, { count: number; totalROI: number; averageROI: number }>);
-    
-    return sortedDimensions;
-  } catch (err) {
-    console.error('Error analyzing ROI by value dimension:', err);
-    return {};
-  }
+  });
+  
+  const count = projectsWithCosts.length;
+  const percentage = projects.length > 0 ? (count / projects.length) * 100 : 0;
+  
+  return { count, percentage };
+}
+
+function calculateProjectsWithEffectData(projects: any[]): { count: number; percentage: number } {
+  const projectsWithEffects = projects.filter(project => {
+    const effectEntries = project.effects_data?.effectDetails || [];
+    return effectEntries.length > 0 && effectEntries.some((effect: any) => {
+      const hasQuantitative = (effect.hasQuantitative === true || effect.hasQuantitative === 'true') && 
+                              effect.quantitativeDetails && 
+                              (effect.quantitativeDetails.financialDetails || effect.quantitativeDetails.redistributionDetails);
+      const hasQualitative = (effect.hasQualitative === true || effect.hasQualitative === 'true') && 
+                             effect.qualitativeDetails && 
+                             effect.qualitativeDetails.factor;
+      return hasQuantitative || hasQualitative;
+    });
+  });
+  
+  const count = projectsWithEffects.length;
+  const percentage = projects.length > 0 ? (count / projects.length) * 100 : 0;
+  
+  return { count, percentage };
 }

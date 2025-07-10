@@ -33,6 +33,7 @@ const BASE_DEFAULTS = {
   opportunity: '',
   responsible: '',
   municipality_ids: [''],
+  county_codes: [''],
   areas: [],
   valueDimensions: [],
   phase: 'idea',
@@ -133,6 +134,10 @@ function ProjectWizardContent() {
             : [];
           setValue('municipality_ids', municipalityIds.length > 0 ? municipalityIds : ['']);
           
+          // Set county codes from overview_details if present
+          const countyCodes = project.overview_details?.county_codes || [];
+          setValue('county_codes', countyCodes.length > 0 ? countyCodes : ['']);
+          
           // Load cost data
           if (project.cost_data) {
             setValue('hasDedicatedBudget', project.cost_data.hasDedicatedBudget);
@@ -189,9 +194,13 @@ function ProjectWizardContent() {
     if (stepIdx === 0) {
       let hasErrors = false;
 
-      // Check municipality selection
-      if (!data.municipality_ids || data.municipality_ids.length === 0 || data.municipality_ids[0] === '') {
-        setError('municipality_ids', { message: 'Minst en kommun måste väljas' });
+      // Check location selection (either municipality or county)
+      const hasMunicipalities = data.municipality_ids && data.municipality_ids.length > 0 && data.municipality_ids[0] !== '';
+      const hasCounties = data.county_codes && data.county_codes.length > 0 && data.county_codes[0] !== '';
+      
+      if (!hasMunicipalities && !hasCounties) {
+        setError('municipality_ids', { message: 'Antingen kommuner eller län måste väljas' });
+        setError('county_codes', { message: 'Antingen kommuner eller län måste väljas' });
         hasErrors = true;
       }
 
@@ -226,6 +235,7 @@ function ProjectWizardContent() {
           opportunity: formData.opportunity,
           responsible: formData.responsible,
           municipality_ids: formData.municipality_ids?.filter((id: string) => id && id !== '') || [],
+          county_codes: formData.county_codes?.filter((code: string) => code && code !== '') || [],
           areas: formData.areas || [],
           value_dimensions: formData.valueDimensions || [], // Note: API expects value_dimensions
           phase: formData.phase || 'idea',

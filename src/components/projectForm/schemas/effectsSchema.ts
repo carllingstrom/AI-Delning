@@ -128,32 +128,37 @@ export const createValueCreationSchema = (selectedValueDimensions: string[] = []
                 {
                   id: 'hoursDetails',
                   type: 'group',
-                  label: 'Timmar-baserat värde',
+                  label: 'Timbaserat värde',
                   condition: { id: 'valueUnit', value: 'hours' },
                   questions: [
                     {
-                      id: 'hours',
+                      id: 'affectedPeople',
                       type: 'number',
-                      label: 'Antal timmar',
-                      placeholder: 't.ex. 40'
+                      label: 'Antal personer som påverkas',
+                      placeholder: 't.ex. 5 anställda'
+                    },
+                    {
+                      id: 'timePerPerson',
+                      type: 'number',
+                      label: 'Tid sparad per person',
+                      placeholder: 't.ex. 2 timmar'
                     },
                     {
                       id: 'timescale',
                       type: 'select',
-                      label: 'Tidsperiod',
+                      label: 'Tidsperiod för besparing',
                       options: [
-                        { value: 'per_hour', label: 'Per timme' },
-                        { value: 'per_day', label: 'Per dag' },
-                        { value: 'per_week', label: 'Per vecka' },
+                        { value: 'per_day', label: 'Per arbetsdag' },
+                        { value: 'per_week', label: 'Per arbetsvecka' },
                         { value: 'per_month', label: 'Per månad' },
-                        { value: 'per_year', label: 'Per år' }
+                        { value: 'per_year', label: 'Per år (totalt)' }
                       ]
                     },
                     {
                       id: 'hourlyRate',
                       type: 'number',
-                      label: 'Värde per timme (SEK)',
-                      placeholder: 't.ex. 800'
+                      label: 'Kostnad per arbetstimme (SEK)',
+                      placeholder: 't.ex. 800 (inkl. sociala avgifter)'
                     }
                   ]
                 },
@@ -317,38 +322,43 @@ export const createValueCreationSchema = (selectedValueDimensions: string[] = []
                 {
                   id: 'hoursDetails',
                   type: 'group',
-                  label: 'Timmar-baserad resurs',
+                  label: 'Personresurs-baserad omdistribuering',
                   condition: { id: 'valueUnit', value: 'hours' },
                   questions: [
                     {
-                      id: 'currentHours',
+                      id: 'affectedPeople',
                       type: 'number',
-                      label: 'Nuvarande användning (timmar)',
-                      placeholder: 't.ex. 100'
+                      label: 'Antal personer som påverkas',
+                      placeholder: 't.ex. 3 anställda'
                     },
                     {
-                      id: 'newHours',
+                      id: 'currentTimePerPerson',
                       type: 'number',
-                      label: 'Ny användning (timmar)',
-                      placeholder: 't.ex. 60'
+                      label: 'Nuvarande tid per person',
+                      placeholder: 't.ex. 8 timmar'
+                    },
+                    {
+                      id: 'newTimePerPerson',
+                      type: 'number',
+                      label: 'Ny tid per person',
+                      placeholder: 't.ex. 5 timmar'
                     },
                     {
                       id: 'timescale',
                       type: 'select',
                       label: 'Tidsperiod',
                       options: [
-                        { value: 'per_hour', label: 'Per timme' },
-                        { value: 'per_day', label: 'Per dag' },
-                        { value: 'per_week', label: 'Per vecka' },
+                        { value: 'per_day', label: 'Per arbetsdag' },
+                        { value: 'per_week', label: 'Per arbetsvecka' },
                         { value: 'per_month', label: 'Per månad' },
-                        { value: 'per_year', label: 'Per år' }
+                        { value: 'per_year', label: 'Per år (totalt)' }
                       ]
                     },
                     {
                       id: 'hourlyRate',
                       type: 'number',
-                      label: 'Värde per timme (SEK)',
-                      placeholder: 't.ex. 800',
+                      label: 'Kostnad per arbetstimme (SEK)',
+                      placeholder: 't.ex. 800 (inkl. sociala avgifter)',
                       optional: true
                     }
                   ]

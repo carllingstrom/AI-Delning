@@ -13,6 +13,18 @@ interface AnalyticsData {
     averageBudget: number;
     totalROI: number;
     averageROI: number;
+    averageSharingScore: number;
+    // New comprehensive metrics
+    averageActualCost: number;
+    averageBudgetUsage: number;
+    averageEffectsCount: number;
+    averageEffectsValue: number;
+    averageAffectedGroups: number;
+    averageTechnologies: number;
+    projectsWithQuantifiableEffects: { count: number; percentage: number };
+    projectsWithCostData: { count: number; percentage: number };
+    projectsWithEffectData: { count: number; percentage: number };
+    totalMonetaryValue: number;
   };
   breakdowns: {
     byPhase: Record<string, number>;
@@ -576,37 +588,40 @@ export default function ProjectsPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#0D1B2A] text-white">
+      <div className="min-h-screen bg-[#121F2B] text-white">
         <Header />
-        <div className="max-w-7xl mx-auto p-8">
-          <div className="animate-pulse">Laddar projektportalen...</div>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="text-center">
+            <div className="text-xl mb-4 text-[#FFD600]">Laddar projektportalen...</div>
+            <div className="w-8 h-8 border-2 border-[#FFD600] border-t-transparent rounded-full animate-spin mx-auto"></div>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#0D1B2A] text-white">
+    <div className="bg-[#121F2B] min-h-screen text-white">
       <Header />
       
-      <div className="max-w-7xl mx-auto p-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header Section */}
         <div className="mb-8">
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between">
             <div>
-              <h1 className="text-4xl font-extrabold text-[#FECB00] mb-2">Projektportal</h1>
-              <p className="text-gray-300">Hantera, analysera och jämför AI-projekt från svenska kommuner</p>
+              <h1 className="text-3xl font-bold text-[#FFD600] mb-2">Kommunkartan</h1>
+              <p className="text-gray-300">Översikt och analys av kommunala AI-projekt</p>
             </div>
             <Link 
               href="/projects/new" 
-              className="mt-4 md:mt-0 px-6 py-3 rounded-lg bg-[#FECB00] text-[#0D1B2A] font-semibold hover:bg-[#e0b400] transition-colors"
+              className="mt-4 md:mt-0 px-6 py-3 rounded-lg bg-[#FFD600] text-[#121F2B] font-semibold hover:bg-[#ffe066] transition-colors"
             >
               + Lägg till projekt
             </Link>
           </div>
 
           {/* Tab Navigation */}
-          <div className="flex space-x-1 bg-[#1E3A4A] rounded-lg p-1">
+          <div className="flex space-x-1 bg-[#23272A] rounded-lg p-1 mt-6">
             {[
               { key: 'overview', label: 'Översikt', icon: 'chart' },
               { key: 'projects', label: 'Projekt', icon: 'folder' },
@@ -617,8 +632,8 @@ export default function ProjectsPage() {
                 onClick={() => setActiveTab(tab.key as any)}
                 className={`flex items-center space-x-2 px-4 py-2 rounded-md font-medium transition-colors ${
                   activeTab === tab.key
-                    ? 'bg-[#FECB00] text-[#0D1B2A]'
-                    : 'text-gray-300 hover:text-white hover:bg-[#2A4A5A]'
+                    ? 'bg-[#FFD600] text-[#121F2B]'
+                    : 'text-gray-300 hover:text-white hover:bg-[#2A2E31]'
                 }`}
               >
                 {tab.icon === 'chart' && (
@@ -648,32 +663,166 @@ export default function ProjectsPage() {
             {analytics ? (
               <>
                 {/* Key Metrics Section */}
-                <div className="bg-[#1E3A4A] p-8 rounded-lg">
-                  <h2 className="text-2xl font-bold text-[#FECB00] mb-6">Nyckeltal</h2>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    <div className="text-center">
-                      <h3 className="text-lg font-semibold text-[#FECB00] mb-2">Totalt antal projekt</h3>
-                      <p className="text-4xl font-bold text-white">{Number(analytics?.summary?.totalProjects) || 0}</p>
+                <div className="bg-[#121F2B] p-8 rounded-lg shadow">
+                  <h2 className="text-2xl font-bold text-[#FFD600] mb-6">Översikt</h2>
+                  
+                  {/* Primary metrics */}
+                  <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+                    <div className="border border-gray-600 p-4 rounded-lg text-center bg-[#23272A]">
+                      <div className="text-2xl font-bold text-[#FFD600] mb-1">
+                        {Number(analytics?.summary?.totalProjects) || 0}
+                      </div>
+                      <div className="text-gray-400 text-sm">Totalt projekt</div>
                     </div>
                     
-                    <div className="text-center">
-                      <h3 className="text-lg font-semibold text-[#FECB00] mb-2">Genomsnittlig budget</h3>
-                      <p className="text-3xl font-bold text-white">{formatCurrency(Number(analytics?.summary?.averageBudget) || 0)}</p>
+                    <div className="border border-gray-600 p-4 rounded-lg text-center bg-[#23272A]">
+                      <div className="text-2xl font-bold mb-1" style={{
+                        color: (() => {
+                          const score = Number(analytics?.summary?.averageSharingScore) || 0;
+                          if (score >= 80) return '#10B981'; // green-500
+                          if (score >= 60) return '#F59E0B'; // amber-500  
+                          if (score >= 40) return '#EF4444'; // red-500
+                          return '#6B7280'; // gray-500
+                        })()
+                      }}>
+                        {Number(analytics?.summary?.averageSharingScore) || 0}%
+                      </div>
+                      <div className="text-gray-400 text-sm">Ø Delningspoäng</div>
                     </div>
                     
-                    <div className="text-center">
-                      <h3 className="text-lg font-semibold text-[#FECB00] mb-2">Genomsnittlig ROI</h3>
-                      <p className="text-3xl font-bold text-white">{formatPercent(Number(analytics?.summary?.averageROI) || 0)}</p>
+                    <div className="border border-gray-600 p-4 rounded-lg text-center bg-[#23272A]">
+                      <div className="text-2xl font-bold text-[#FFD600] mb-1">
+                        {formatPercent(Number(analytics?.summary?.averageROI) || 0)}
+                      </div>
+                      <div className="text-gray-400 text-sm">Ø ROI</div>
+                    </div>
+
+                    <div className="border border-gray-600 p-4 rounded-lg text-center bg-[#23272A]">
+                      <div className="text-2xl font-bold text-[#FFD600] mb-1">
+                        {formatCurrency(Number(analytics?.summary?.totalMonetaryValue) || 0)}
+                      </div>
+                      <div className="text-gray-400 text-sm">Total nytta</div>
+                    </div>
+                  </div>
+
+                  {/* Budget & Cost metrics */}
+                  <div className="mb-8">
+                    <h3 className="text-xl font-bold text-[#FFD600] mb-4">Budget & Kostnader</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                      <div className="border border-gray-600 p-4 rounded-lg text-center bg-[#23272A]">
+                        <div className="text-xl font-bold text-[#FFD600] mb-1">
+                          {formatCurrency(Number(analytics?.summary?.averageBudget) || 0)}
+                        </div>
+                        <div className="text-gray-400 text-sm">Ø Budget/projekt</div>
+                      </div>
+
+                      <div className="border border-gray-600 p-4 rounded-lg text-center bg-[#23272A]">
+                        <div className="text-xl font-bold text-[#FFD600] mb-1">
+                          {formatCurrency(Number(analytics?.summary?.averageActualCost) || 0)}
+                        </div>
+                        <div className="text-gray-400 text-sm">Ø Faktisk kostnad</div>
+                      </div>
+
+                      <div className="border border-gray-600 p-4 rounded-lg text-center bg-[#23272A]">
+                        <div className="text-xl font-bold mb-1" style={{
+                          color: (() => {
+                            const usage = Number(analytics?.summary?.averageBudgetUsage) || 0;
+                            if (usage <= 100) return '#10B981'; // green-500 - inom budget
+                            if (usage <= 120) return '#F59E0B'; // amber-500 - lätt överskriden
+                            return '#EF4444'; // red-500 - kraftigt överskriden
+                          })()
+                        }}>
+                          {Number(analytics?.summary?.averageBudgetUsage).toFixed(1) || 0}%
+                        </div>
+                        <div className="text-gray-400 text-sm">Ø Budgetanvändning</div>
+                      </div>
+
+                      <div className="border border-gray-600 p-4 rounded-lg text-center bg-[#23272A]">
+                        <div className="text-xl font-bold text-[#FFD600] mb-1">
+                          {analytics?.summary?.projectsWithCostData?.count || 0} / {analytics?.summary?.totalProjects || 0}
+                        </div>
+                        <div className="text-gray-400 text-sm">Projekt med kostnadsdata</div>
+                        <div className="text-xs text-gray-500 mt-1">
+                          ({Number(analytics?.summary?.projectsWithCostData?.percentage).toFixed(1) || 0}%)
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Effects & Value metrics */}
+                  <div className="mb-8">
+                    <h3 className="text-xl font-bold text-[#FFD600] mb-4">Effekter & Värde</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                      <div className="border border-gray-600 p-4 rounded-lg text-center bg-[#23272A]">
+                        <div className="text-xl font-bold text-[#FFD600] mb-1">
+                          {Number(analytics?.summary?.averageEffectsCount).toFixed(1) || 0}
+                        </div>
+                        <div className="text-gray-400 text-sm">Ø Effekter/projekt</div>
+                      </div>
+
+                      <div className="border border-gray-600 p-4 rounded-lg text-center bg-[#23272A]">
+                        <div className="text-xl font-bold text-[#FFD600] mb-1">
+                          {formatCurrency(Number(analytics?.summary?.averageEffectsValue) || 0)}
+                        </div>
+                        <div className="text-gray-400 text-sm">Ø Effektvärde/projekt</div>
+                      </div>
+
+                      <div className="border border-gray-600 p-4 rounded-lg text-center bg-[#23272A]">
+                        <div className="text-xl font-bold text-[#FFD600] mb-1">
+                          {analytics?.summary?.projectsWithQuantifiableEffects?.count || 0} / {analytics?.summary?.totalProjects || 0}
+                        </div>
+                        <div className="text-gray-400 text-sm">Kvantifierbara effekter</div>
+                        <div className="text-xs text-gray-500 mt-1">
+                          ({Number(analytics?.summary?.projectsWithQuantifiableEffects?.percentage).toFixed(1) || 0}%)
+                        </div>
+                      </div>
+
+                      <div className="border border-gray-600 p-4 rounded-lg text-center bg-[#23272A]">
+                        <div className="text-xl font-bold text-[#FFD600] mb-1">
+                          {analytics?.summary?.projectsWithEffectData?.count || 0} / {analytics?.summary?.totalProjects || 0}
+                        </div>
+                        <div className="text-gray-400 text-sm">Projekt med effektdata</div>
+                        <div className="text-xs text-gray-500 mt-1">
+                          ({Number(analytics?.summary?.projectsWithEffectData?.percentage).toFixed(1) || 0}%)
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Technology & Impact metrics */}
+                  <div>
+                    <h3 className="text-xl font-bold text-[#FFD600] mb-4">Teknologi & Påverkan</h3>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                      <div className="border border-gray-600 p-4 rounded-lg text-center bg-[#23272A]">
+                        <div className="text-xl font-bold text-[#FFD600] mb-1">
+                          {Number(analytics?.summary?.averageTechnologies).toFixed(1) || 0}
+                        </div>
+                        <div className="text-gray-400 text-sm">Ø Tekniker/projekt</div>
+                      </div>
+
+                      <div className="border border-gray-600 p-4 rounded-lg text-center bg-[#23272A]">
+                        <div className="text-xl font-bold text-[#FFD600] mb-1">
+                          {Number(analytics?.summary?.averageAffectedGroups).toFixed(1) || 0}
+                        </div>
+                        <div className="text-gray-400 text-sm">Ø Målgrupper/projekt</div>
+                      </div>
+
+                      <div className="border border-gray-600 p-4 rounded-lg text-center bg-[#23272A]">
+                        <div className="text-xl font-bold text-[#FFD600] mb-1">
+                          {formatCurrency(Number(analytics?.summary?.totalBudget) || 0)}
+                        </div>
+                        <div className="text-gray-400 text-sm">Total projektbudget</div>
+                      </div>
                     </div>
                   </div>
                 </div>
 
                 {/* Cost Analysis Section */}
-                <div className="bg-[#1E3A4A] p-8 rounded-lg">
-                  <h2 className="text-2xl font-bold text-[#FECB00] mb-6">Kostnadsanalys</h2>
+                <div className="bg-[#121F2B] p-8 rounded-lg shadow">
+                  <h2 className="text-2xl font-bold text-[#FFD600] mb-6">Kostnadsanalys</h2>
                   <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                     <div>
-                      <h3 className="text-xl font-bold text-[#FECB00] mb-4">Kostnadstyper (genomsnitt/projekt)</h3>
+                      <h3 className="text-xl font-bold text-[#FFD600] mb-4">Kostnadstyper (genomsnitt/projekt)</h3>
                       <div className="space-y-3">
                         {analytics?.costAnalysis?.byCostType && Object.entries(analytics.costAnalysis.byCostType).map(([type, data]) => {
                           const avgCostPerProject = data.count > 0 ? data.totalCost / data.count : 0;
@@ -681,7 +830,7 @@ export default function ProjectsPage() {
                             <div key={type}>
                               <div className="flex justify-between items-center">
                                 <span className="text-sm truncate mr-2">{type}</span>
-                                <span className="text-[#FECB00] font-semibold">{formatCurrency(avgCostPerProject)}</span>
+                                <span className="text-[#FFD600] font-semibold">{formatCurrency(avgCostPerProject)}</span>
                               </div>
                               <div className="text-xs text-gray-400">
                                 {Number(data.count)} projekt • {formatCurrency(Number(data.totalCost))} totalt
@@ -695,19 +844,19 @@ export default function ProjectsPage() {
                     </div>
 
                     <div>
-                      <h3 className="text-xl font-bold text-[#FECB00] mb-4">Kostnad per timme</h3>
+                      <h3 className="text-xl font-bold text-[#FFD600] mb-4">Kostnad per timme</h3>
                       <div className="space-y-3">
                         {analytics?.costAnalysis?.costPerHour ? (
                           <>
                             <div className="flex justify-between">
                               <span>Genomsnitt:</span>
-                              <span className="text-[#FECB00] font-semibold">
+                              <span className="text-[#FFD600] font-semibold">
                                 {formatCurrency(Number(analytics.costAnalysis.costPerHour.average) || 0)}
                               </span>
                             </div>
                             <div className="flex justify-between">
                               <span>Median:</span>
-                              <span className="text-[#FECB00] font-semibold">
+                              <span className="text-[#FFD600] font-semibold">
                                 {formatCurrency(Number(analytics.costAnalysis.costPerHour.median) || 0)}
                               </span>
                             </div>
@@ -731,17 +880,17 @@ export default function ProjectsPage() {
                     </div>
 
                     <div>
-                      <h3 className="text-xl font-bold text-[#FECB00] mb-4">Kostnadstakeaways</h3>
+                      <h3 className="text-xl font-bold text-[#FFD600] mb-4">Kostnadstakeaways</h3>
                       <div className="space-y-3">
                         <div className="flex justify-between">
                           <span>Total budget:</span>
-                          <span className="text-[#FECB00] font-semibold">
+                          <span className="text-[#FFD600] font-semibold">
                             {formatCurrency(Number(analytics?.summary?.totalBudget) || 0)}
                           </span>
                         </div>
                         <div className="flex justify-between">
                           <span>Genomsnittlig projektkostnad:</span>
-                          <span className="text-[#FECB00] font-semibold">
+                          <span className="text-[#FFD600] font-semibold">
                             {analytics?.costAnalysis?.byCostType ? 
                               formatCurrency(
                                 Object.values(analytics.costAnalysis.byCostType).reduce((sum, data) => sum + data.totalCost, 0) / 
@@ -753,7 +902,7 @@ export default function ProjectsPage() {
                         </div>
                         <div className="flex justify-between">
                           <span>Projekt med kostnadsdata:</span>
-                          <span className="text-[#FECB00] font-semibold">
+                          <span className="text-[#FFD600] font-semibold">
                             {analytics?.costAnalysis?.byCostType ? 
                               Object.values(analytics.costAnalysis.byCostType).reduce((sum, data) => sum + data.count, 0) : 
                               0
@@ -766,15 +915,15 @@ export default function ProjectsPage() {
                 </div>
 
                 {/* Effects Analysis Section */}
-                <div className="bg-[#1E3A4A] p-8 rounded-lg">
-                  <h2 className="text-2xl font-bold text-[#FECB00] mb-6">Effektanalys</h2>
+                <div className="bg-[#121F2B] p-8 rounded-lg shadow">
+                  <h2 className="text-2xl font-bold text-[#FFD600] mb-6">Effektanalys</h2>
                   <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
                     <div>
-                      <h3 className="text-xl font-bold text-[#FECB00] mb-4">Kvalitativa effekter</h3>
+                      <h3 className="text-xl font-bold text-[#FFD600] mb-4">Kvalitativa effekter</h3>
                       <div className="space-y-3">
                         <div className="flex justify-between">
                           <span>Med kvantifierbara mått:</span>
-                          <span className="text-[#FECB00] font-semibold">
+                          <span className="text-[#FFD600] font-semibold">
                             {Number(analytics?.effectsAnalysis?.quantifiableEffects?.withQuantifiable) || 0}
                           </span>
                         </div>
@@ -786,7 +935,7 @@ export default function ProjectsPage() {
                         </div>
                         <div className="flex justify-between">
                           <span>Kvantifieringsgrad:</span>
-                          <span className="text-[#FECB00] font-semibold">
+                          <span className="text-[#FFD600] font-semibold">
                             {formatPercent(Number(analytics?.effectsAnalysis?.quantifiableEffects?.percentage) || 0)}
                           </span>
                         </div>
@@ -794,37 +943,37 @@ export default function ProjectsPage() {
                     </div>
 
                     <div>
-                      <h3 className="text-xl font-bold text-[#FECB00] mb-4">Effektstatistik</h3>
+                      <h3 className="text-xl font-bold text-[#FFD600] mb-4">Effektstatistik</h3>
                       <div className="space-y-3">
                         <div className="flex justify-between">
                           <span>Projekt med uppmätta effekter:</span>
-                          <span className="text-[#FECB00] font-semibold">
+                          <span className="text-[#FFD600] font-semibold">
                             {Number(analytics?.effectsAnalysis?.quantifiableEffects?.withQuantifiable) || 0} / {analytics?.summary?.totalProjects || 0}
                           </span>
                         </div>
                         <div className="flex justify-between">
                           <span>Total monetär effekt:</span>
-                          <span className="text-[#FECB00] font-semibold">
+                          <span className="text-[#FFD600] font-semibold">
                             {formatCurrency(Number(analytics?.effectsAnalysis?.monetaryValue) || 0)}
                           </span>
                         </div>
                         <div className="flex justify-between">
                           <span>Genomsnittlig ROI:</span>
-                          <span className="text-[#FECB00] font-semibold">
+                          <span className="text-[#FFD600] font-semibold">
                             {formatPercent(Number(analytics?.summary?.averageROI) || 0)}
                           </span>
                         </div>
                       </div>
                     </div>
 
-                    <div className="bg-[#1E3A4A] p-6 rounded-lg">
-                      <h3 className="text-xl font-bold text-[#FECB00] mb-4">Effekt/värdedimension</h3>
+                    <div className="bg-[#121F2B] p-6 rounded-lg border border-gray-600">
+                      <h3 className="text-xl font-bold text-[#FFD600] mb-4">Effekt/värdedimension</h3>
                       <div className="space-y-3">
                         {analytics?.effectsAnalysis?.roiByValueDimension && Object.entries(analytics.effectsAnalysis.roiByValueDimension).slice(0, 5).map(([dimension, data]) => (
                           <div key={dimension} className="flex justify-between items-center">
                             <span className="text-white text-sm">{dimension}</span>
                             <div className="text-right">
-                              <div className="text-[#FECB00] font-semibold">{formatPercent(data.averageROI)}</div>
+                              <div className="text-[#FFD600] font-semibold">{formatPercent(data.averageROI)}</div>
                               <div className="text-xs text-gray-400">{data.count} projekt</div>
                             </div>
                           </div>
@@ -834,14 +983,14 @@ export default function ProjectsPage() {
                       </div>
                     </div>
 
-                    <div className="bg-[#1E3A4A] p-6 rounded-lg">
-                      <h3 className="text-xl font-bold text-[#FECB00] mb-4">Top 5 effekt-projekt</h3>
+                    <div className="bg-[#121F2B] p-6 rounded-lg border border-gray-600">
+                      <h3 className="text-xl font-bold text-[#FFD600] mb-4">Top 5 effekt-projekt</h3>
                       <div className="space-y-3">
                         {analytics?.topPerformers?.highestROI?.slice(0, 5).map((project: any, index: number) => (
                           <div key={project.id} className="flex justify-between items-center">
                             <span className="text-white text-sm">{index + 1}. {project.title}</span>
                             <div className="text-right">
-                              <div className="text-[#FECB00] font-semibold">{formatPercent(project.roi)}</div>
+                              <div className="text-[#FFD600] font-semibold">{formatPercent(project.roi)}</div>
                               <div className="text-xs text-gray-400">{formatCurrency(project.budget)} kostnad</div>
                             </div>
                           </div>
@@ -854,8 +1003,8 @@ export default function ProjectsPage() {
                 </div>
 
                 {/* Technology Insights Section */}
-                <div className="bg-[#1E3A4A] p-8 rounded-lg">
-                  <h2 className="text-2xl font-bold text-[#FECB00] mb-6">Teknologi-insikter</h2>
+                <div className="bg-[#121F2B] p-8 rounded-lg shadow">
+                  <h2 className="text-2xl font-bold text-[#FFD600] mb-6">Teknologi-insikter</h2>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     <div>
                       <h3 className="text-lg font-semibold text-white mb-3">Mest använda teknologier</h3>
@@ -863,7 +1012,7 @@ export default function ProjectsPage() {
                         {analytics?.technologyInsights?.mostUsedTechnologies?.slice(0, 5).map(([tech, count]) => (
                           <div key={tech} className="flex justify-between items-center">
                             <span className="text-white text-sm">{tech}</span>
-                            <span className="text-[#FECB00] font-semibold">{Number(count)}</span>
+                            <span className="text-[#FFD600] font-semibold">{Number(count)}</span>
                           </div>
                         )) || (
                           <div className="text-gray-400 text-sm">Ingen teknologidata tillgänglig</div>
@@ -877,7 +1026,7 @@ export default function ProjectsPage() {
                         {analytics?.technologyInsights?.deploymentEnvironments && Object.entries(analytics.technologyInsights.deploymentEnvironments).map(([env, count]) => (
                           <div key={env} className="flex justify-between items-center">
                             <span className="text-white text-sm">{env}</span>
-                            <span className="text-[#FECB00] font-semibold">{Number(count)}</span>
+                            <span className="text-[#FFD600] font-semibold">{Number(count)}</span>
                           </div>
                         )) || (
                           <div className="text-gray-400 text-sm">Ingen deployment-data tillgänglig</div>
@@ -891,7 +1040,7 @@ export default function ProjectsPage() {
                         {analytics?.technologyInsights?.dataTypes && Object.entries(analytics.technologyInsights.dataTypes).map(([type, count]) => (
                           <div key={type} className="flex justify-between items-center">
                             <span className="text-white text-sm">{type}</span>
-                            <span className="text-[#FECB00] font-semibold">{Number(count)}</span>
+                            <span className="text-[#FFD600] font-semibold">{Number(count)}</span>
                           </div>
                         )) || (
                           <div className="text-gray-400 text-sm">Ingen datatypdata tillgänglig</div>
@@ -903,13 +1052,13 @@ export default function ProjectsPage() {
 
                 {/* Project Distribution Overview */}
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                  <div className="bg-[#1E3A4A] p-6 rounded-lg">
-                    <h3 className="text-xl font-bold text-[#FECB00] mb-4">Projekt per fas</h3>
+                  <div className="bg-[#121F2B] p-6 rounded-lg border border-gray-600">
+                    <h3 className="text-xl font-bold text-[#FFD600] mb-4">Projekt per fas</h3>
                     <div className="space-y-3">
                       {analytics?.breakdowns?.byPhase && Object.entries(analytics.breakdowns.byPhase).map(([phase, count]) => (
                         <div key={phase} className="flex justify-between items-center">
                           <span className="capitalize text-white">{getPhaseLabel(phase)}</span>
-                          <span className="text-[#FECB00] font-semibold">{Number(count)}</span>
+                          <span className="text-[#FFD600] font-semibold">{Number(count)}</span>
                         </div>
                       )) || (
                         <div className="text-gray-400 text-sm">Ingen fasdata tillgänglig</div>
@@ -917,13 +1066,13 @@ export default function ProjectsPage() {
                     </div>
                   </div>
 
-                  <div className="bg-[#1E3A4A] p-6 rounded-lg">
-                    <h3 className="text-xl font-bold text-[#FECB00] mb-4">Projekt per område</h3>
+                  <div className="bg-[#121F2B] p-6 rounded-lg border border-gray-600">
+                    <h3 className="text-xl font-bold text-[#FFD600] mb-4">Projekt per område</h3>
                     <div className="space-y-3">
                       {analytics?.breakdowns?.byArea && Object.entries(analytics.breakdowns.byArea).map(([area, count]) => (
                         <div key={area} className="flex justify-between items-center">
                           <span className="text-white text-sm">{area}</span>
-                          <span className="text-[#FECB00] font-semibold">{Number(count)}</span>
+                          <span className="text-[#FFD600] font-semibold">{Number(count)}</span>
                         </div>
                       )) || (
                         <div className="text-gray-400 text-sm">Ingen områdesdata tillgänglig</div>
@@ -931,13 +1080,13 @@ export default function ProjectsPage() {
                     </div>
                   </div>
 
-                  <div className="bg-[#1E3A4A] p-6 rounded-lg">
-                    <h3 className="text-xl font-bold text-[#FECB00] mb-4">Projekt per värdedimension</h3>
+                  <div className="bg-[#121F2B] p-6 rounded-lg border border-gray-600">
+                    <h3 className="text-xl font-bold text-[#FFD600] mb-4">Projekt per värdedimension</h3>
                     <div className="space-y-3">
                       {analytics?.breakdowns?.byValueDimension && Object.entries(analytics.breakdowns.byValueDimension).map(([dimension, count]) => (
                         <div key={dimension} className="flex justify-between items-center">
                           <span className="text-white text-sm">{dimension}</span>
-                          <span className="text-[#FECB00] font-semibold">{Number(count)}</span>
+                          <span className="text-[#FFD600] font-semibold">{Number(count)}</span>
                         </div>
                       )) || (
                         <div className="text-gray-400 text-sm">Ingen värdedimensionsdata tillgänglig</div>
@@ -947,13 +1096,13 @@ export default function ProjectsPage() {
                 </div>
               </>
             ) : (
-              <div className="bg-[#1E3A4A] p-8 rounded-lg text-center">
-                <h3 className="text-xl font-bold text-[#FECB00] mb-4">Laddar översiktsdata...</h3>
+              <div className="bg-[#121F2B] p-8 rounded-lg border border-gray-600 text-center">
+                <h3 className="text-xl font-bold text-[#FFD600] mb-4">Laddar översiktsdata...</h3>
                 <p className="text-gray-300 mb-6">Samlar projektstatistik och analysdata</p>
                 <div className="animate-pulse">
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     {[...Array(3)].map((_, i) => (
-                      <div key={i} className="bg-[#2A4A5A] h-24 rounded"></div>
+                      <div key={i} className="bg-[#23272A] h-24 rounded"></div>
                     ))}
                   </div>
                 </div>
@@ -965,8 +1114,8 @@ export default function ProjectsPage() {
         {activeTab === 'projects' && (
           <div className="space-y-6">
             {/* Filters Section - Only show in projects tab */}
-            <div className="bg-[#1E3A4A] p-6 rounded-lg">
-              <h2 className="text-xl font-bold text-[#FECB00] mb-4">Filter & Sök</h2>
+            <div className="bg-[#121F2B] p-6 rounded-lg shadow">
+              <h2 className="text-xl font-bold text-[#FFD600] mb-4">Filter & Sök</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
                 <div>
                   <label className="block text-sm font-medium mb-2">Sök projekt</label>
@@ -974,7 +1123,7 @@ export default function ProjectsPage() {
                     type="text"
                     value={filters.search}
                     onChange={(e) => setFilters({...filters, search: e.target.value})}
-                    className="w-full p-2 bg-[#0D1B2A] border border-gray-600 rounded text-white"
+                    className="w-full p-2 bg-[#23272A] border border-gray-600 rounded text-white"
                     placeholder="Sök på titel, beskrivning..."
                     onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
                   />
@@ -985,7 +1134,7 @@ export default function ProjectsPage() {
                   <select
                     value={filters.phase}
                     onChange={(e) => setFilters({...filters, phase: e.target.value})}
-                    className="w-full p-2 bg-[#0D1B2A] border border-gray-600 rounded text-white"
+                    className="w-full p-2 bg-[#23272A] border border-gray-600 rounded text-white"
                   >
                     <option value="">Alla faser</option>
                     <option value="idea">Idé</option>
@@ -999,7 +1148,7 @@ export default function ProjectsPage() {
                   <select
                     value={filters.area}
                     onChange={(e) => setFilters({...filters, area: e.target.value})}
-                    className="w-full p-2 bg-[#0D1B2A] border border-gray-600 rounded text-white"
+                    className="w-full p-2 bg-[#23272A] border border-gray-600 rounded text-white"
                   >
                     <option value="">Alla områden</option>
                     <option value="Utbildning och skola">Utbildning och skola</option>
@@ -1022,7 +1171,7 @@ export default function ProjectsPage() {
                   <select
                     value={filters.valueDimension}
                     onChange={(e) => setFilters({...filters, valueDimension: e.target.value})}
-                    className="w-full p-2 bg-[#0D1B2A] border border-gray-600 rounded text-white"
+                    className="w-full p-2 bg-[#23272A] border border-gray-600 rounded text-white"
                   >
                     <option value="">Alla värdedimensioner</option>
                     <option value="Innovation (nya tjänster)">Innovation (nya tjänster)</option>
@@ -1042,7 +1191,7 @@ export default function ProjectsPage() {
                   <select
                     value={filters.scoreLevel}
                     onChange={(e) => setFilters({...filters, scoreLevel: e.target.value})}
-                    className="w-full p-2 bg-[#0D1B2A] border border-gray-600 rounded text-white"
+                    className="w-full p-2 bg-[#23272A] border border-gray-600 rounded text-white"
                   >
                     <option value="">Alla nivåer</option>
                     <option value="Exemplarisk">95%+ (Exemplarisk)</option>
@@ -1071,7 +1220,7 @@ export default function ProjectsPage() {
                 <button
                   onClick={handleSearch}
                   disabled={searching}
-                  className="px-6 py-2 bg-[#FECB00] text-[#0D1B2A] font-bold rounded hover:bg-[#e0b400] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                  className="px-6 py-2 bg-[#FFD600] text-[#121F2B] font-bold rounded hover:bg-[#ffe066] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
                 >
                   {searching ? 'Söker...' : (
                     <>
@@ -1085,7 +1234,7 @@ export default function ProjectsPage() {
                 
                 <button
                   onClick={handleClearFilters}
-                  className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700 transition-colors"
+                  className="px-4 py-2 bg-[#23272A] text-white rounded hover:bg-[#2A2E31] transition-colors"
                 >
                   Rensa filter
                 </button>
@@ -1093,7 +1242,7 @@ export default function ProjectsPage() {
             </div>
 
             <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold text-[#FECB00]">
+              <h2 className="text-2xl font-bold text-[#FFD600]">
                 Projekt ({projects.length})
                 {searching && <span className="text-sm font-normal text-gray-400 ml-2">Söker...</span>}
               </h2>
@@ -1102,13 +1251,13 @@ export default function ProjectsPage() {
             {searching ? (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {[...Array(6)].map((_, i) => (
-                  <div key={i} className="bg-[#1E3A4A] p-6 rounded-lg animate-pulse">
-                    <div className="h-6 bg-[#2A4A5A] rounded mb-3"></div>
-                    <div className="h-4 bg-[#2A4A5A] rounded mb-2"></div>
-                    <div className="h-4 bg-[#2A4A5A] rounded mb-4 w-3/4"></div>
+                  <div key={i} className="bg-[#121F2B] border border-gray-600 p-6 rounded-lg animate-pulse shadow">
+                    <div className="h-6 bg-[#23272A] rounded mb-3"></div>
+                    <div className="h-4 bg-[#23272A] rounded mb-2"></div>
+                    <div className="h-4 bg-[#23272A] rounded mb-4 w-3/4"></div>
                     <div className="space-y-2">
-                      <div className="h-3 bg-[#2A4A5A] rounded w-1/2"></div>
-                      <div className="h-3 bg-[#2A4A5A] rounded w-2/3"></div>
+                      <div className="h-3 bg-[#23272A] rounded w-1/2"></div>
+                      <div className="h-3 bg-[#23272A] rounded w-2/3"></div>
                     </div>
                   </div>
                 ))}
@@ -1117,10 +1266,10 @@ export default function ProjectsPage() {
               <>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {projects.map((project) => (
-                    <div key={project.id} className="bg-[#1E3A4A] p-6 rounded-lg hover:bg-[#2A4A5A] transition-colors cursor-pointer group"
+                    <div key={project.id} className="bg-[#121F2B] border border-gray-600 p-6 rounded-lg hover:bg-[#23272A] transition-colors cursor-pointer group shadow"
                          onClick={() => window.location.href = `/projects/${project.id}`}>
                       <div className="flex justify-between items-start mb-3">
-                        <h3 className="text-lg font-semibold text-white truncate pr-4 group-hover:text-[#FECB00] transition-colors">{project.title}</h3>
+                        <h3 className="text-lg font-semibold text-white truncate pr-4 group-hover:text-[#FFD600] transition-colors">{project.title}</h3>
                         <span className={`px-2 py-1 rounded text-xs font-medium text-white ${getPhaseColor(project.phase)}`}>
                           {getPhaseLabel(project.phase)}
                         </span>
@@ -1131,7 +1280,7 @@ export default function ProjectsPage() {
                       <div className="space-y-2 text-sm">
                         {project.project_municipalities?.length > 0 && (
                           <div>
-                            <span className="text-[#FECB00] font-medium">Kommun: </span>
+                            <span className="text-[#FFD600] font-medium">Kommun: </span>
                             <span className="text-gray-300">
                               {project.project_municipalities.map(pm => pm.municipalities.name).join(', ')}
                             </span>
@@ -1140,7 +1289,7 @@ export default function ProjectsPage() {
                         
                         {project.areas?.length > 0 && (
                           <div>
-                            <span className="text-[#FECB00] font-medium">Områden: </span>
+                            <span className="text-[#FFD600] font-medium">Områden: </span>
                             <span className="text-gray-300">{project.areas.slice(0, 2).join(', ')}</span>
                             {project.areas.length > 2 && <span className="text-gray-400"> +{project.areas.length - 2}</span>}
                           </div>
@@ -1148,14 +1297,14 @@ export default function ProjectsPage() {
                         
                         {project.calculatedMetrics?.budget && (
                           <div>
-                            <span className="text-[#FECB00] font-medium">Budget: </span>
+                            <span className="text-[#FFD600] font-medium">Budget: </span>
                             <span className="text-gray-300">{formatCurrency(Number(project.calculatedMetrics.budget))}</span>
                           </div>
                         )}
                         
                         {project.calculatedMetrics?.roi && (
                           <div>
-                            <span className="text-[#FECB00] font-medium">ROI: </span>
+                            <span className="text-[#FFD600] font-medium">ROI: </span>
                             <span className={`font-semibold ${project.calculatedMetrics.roi > 0 ? 'text-green-400' : 'text-red-400'}`}>
                               {formatPercent(project.calculatedMetrics.roi)}
                             </span>
@@ -1166,7 +1315,7 @@ export default function ProjectsPage() {
                       <ProjectScoreBar project={project} />
                       
                       <div className="flex items-center justify-between mt-4">
-                        <span className="text-[#FECB00] hover:text-[#e0b400] font-medium text-sm group-hover:text-[#e0b400] transition-colors">
+                        <span className="text-[#FFD600] hover:text-[#ffe066] font-medium text-sm group-hover:text-[#ffe066] transition-colors">
                           Se detaljer →
                         </span>
                         <button 
@@ -1174,7 +1323,7 @@ export default function ProjectsPage() {
                             e.stopPropagation();
                             window.location.href = `/map?project=${project.id}`;
                           }}
-                          className="text-gray-400 hover:text-[#FECB00] text-sm transition-colors"
+                          className="text-gray-400 hover:text-[#FFD600] text-sm transition-colors"
                         >
                           Visa på karta
                         </button>
@@ -1188,7 +1337,7 @@ export default function ProjectsPage() {
                     <p className="text-gray-400 text-lg">Inga projekt matchar dina filter</p>
                     <button
                       onClick={handleClearFilters}
-                      className="mt-4 text-[#FECB00] hover:text-[#e0b400] font-medium"
+                      className="mt-4 text-[#FFD600] hover:text-[#ffe066] font-medium"
                     >
                       Rensa alla filter
                     </button>
@@ -1205,28 +1354,28 @@ export default function ProjectsPage() {
               <>
                 {/* Top Performers */}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                  <div className="bg-[#1E3A4A] p-6 rounded-lg">
-                    <h3 className="text-xl font-bold text-[#FECB00] mb-4">Högsta ROI</h3>
+                  <div className="bg-[#121F2B] p-6 rounded-lg shadow">
+                    <h3 className="text-xl font-bold text-[#FFD600] mb-4">Högsta ROI</h3>
                     <div className="space-y-3">
                       {(analytics?.topPerformers?.highestROI || []).map((project) => (
                         <div key={project.id} className="border-b border-gray-600 pb-2">
                           <div className="font-semibold truncate">{project.title}</div>
                           <div className="text-sm text-gray-400">
-                            ROI: <span className="text-[#FECB00]">{formatPercent(Number(project.roi))}</span>
+                            ROI: <span className="text-[#FFD600]">{formatPercent(Number(project.roi))}</span>
                           </div>
                         </div>
                       ))}
                     </div>
                   </div>
 
-                  <div className="bg-[#1E3A4A] p-6 rounded-lg">
-                    <h3 className="text-xl font-bold text-[#FECB00] mb-4">Största Budget</h3>
+                  <div className="bg-[#121F2B] p-6 rounded-lg shadow">
+                    <h3 className="text-xl font-bold text-[#FFD600] mb-4">Största Budget</h3>
                     <div className="space-y-3">
                       {(analytics?.topPerformers?.largestBudget || []).map((project) => (
                         <div key={project.id} className="border-b border-gray-600 pb-2">
                           <div className="font-semibold truncate">{project.title}</div>
                           <div className="text-sm text-gray-400">
-                            Budget: <span className="text-[#FECB00]">{formatCurrency(Number(project.budget))}</span>
+                            Budget: <span className="text-[#FFD600]">{formatCurrency(Number(project.budget))}</span>
                           </div>
                         </div>
                       ))}
@@ -1235,15 +1384,15 @@ export default function ProjectsPage() {
                 </div>
 
                 {/* Technical Insights */}
-                <div className="bg-[#1E3A4A] p-6 rounded-lg">
-                  <h3 className="text-xl font-bold text-[#FECB00] mb-4">Tekniska Utmaningar & Lösningar</h3>
+                <div className="bg-[#121F2B] p-6 rounded-lg shadow">
+                  <h3 className="text-xl font-bold text-[#FFD600] mb-4">Tekniska Utmaningar & Lösningar</h3>
                   <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                     <div>
                       <h4 className="font-semibold mb-2">Statistik</h4>
                       <div className="space-y-2 text-sm">
-                        <div>Totalt utmaningar: <span className="text-[#FECB00]">{Number(analytics?.technologyInsights?.technicalChallenges?.totalChallenges) || 0}</span></div>
-                        <div>Totalt lösningar: <span className="text-[#FECB00]">{Number(analytics?.technologyInsights?.technicalChallenges?.totalSolutions) || 0}</span></div>
-                        <div>Lösningsgrad: <span className="text-[#FECB00]">{formatPercent(Number(analytics?.technologyInsights?.technicalChallenges?.resolutionRate) || 0)}</span></div>
+                        <div>Totalt utmaningar: <span className="text-[#FFD600]">{Number(analytics?.technologyInsights?.technicalChallenges?.totalChallenges) || 0}</span></div>
+                        <div>Totalt lösningar: <span className="text-[#FFD600]">{Number(analytics?.technologyInsights?.technicalChallenges?.totalSolutions) || 0}</span></div>
+                        <div>Lösningsgrad: <span className="text-[#FFD600]">{formatPercent(Number(analytics?.technologyInsights?.technicalChallenges?.resolutionRate) || 0)}</span></div>
                       </div>
                     </div>
                     
@@ -1268,18 +1417,18 @@ export default function ProjectsPage() {
                 </div>
               </>
             ) : (
-              <div className="bg-[#1E3A4A] p-8 rounded-lg text-center">
-                <h3 className="text-xl font-bold text-[#FECB00] mb-4">Laddar analysdata...</h3>
+              <div className="bg-[#121F2B] p-8 rounded-lg text-center shadow">
+                <h3 className="text-xl font-bold text-[#FFD600] mb-4">Laddar analysdata...</h3>
                 <p className="text-gray-300 mb-6">Bearbetar kostnadsanalys, ROI-data och tekniska insikter</p>
                 <div className="animate-pulse">
                   <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
                     {[...Array(3)].map((_, i) => (
-                      <div key={i} className="bg-[#2A4A5A] h-48 rounded"></div>
+                      <div key={i} className="bg-[#23272A] h-48 rounded"></div>
                     ))}
                   </div>
                   <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                     {[...Array(2)].map((_, i) => (
-                      <div key={i} className="bg-[#2A4A5A] h-32 rounded"></div>
+                      <div key={i} className="bg-[#23272A] h-32 rounded"></div>
                     ))}
                   </div>
                 </div>

@@ -12,6 +12,7 @@ export async function POST(req: NextRequest) {
   
   const { 
     municipality_ids, 
+    county_codes,
     title, 
     intro,
     problem,
@@ -31,8 +32,12 @@ export async function POST(req: NextRequest) {
     ...rest 
   } = payload;
 
-  if (!municipality_ids?.length || !title) {
-    return NextResponse.json({ error: 'municipality_ids & title är obligatoriska' }, { status: 400 });
+  // Check that either municipality_ids or county_codes is provided
+  const hasMunicipalities = municipality_ids?.length > 0 && municipality_ids[0] !== '';
+  const hasCounties = county_codes?.length > 0 && county_codes[0] !== '';
+  
+  if ((!hasMunicipalities && !hasCounties) || !title) {
+    return NextResponse.json({ error: 'title och antingen municipality_ids eller county_codes är obligatoriska' }, { status: 400 });
   }
 
   try {
@@ -48,7 +53,11 @@ export async function POST(req: NextRequest) {
         phase: phase || 'idea',
         areas: areas || [],
         value_dimensions: (value_dimensions || valueDimensions || []),
-        overview_details: overview_details || {},
+        overview_details: {
+          ...overview_details || {},
+          county_codes: hasCounties ? county_codes.filter((code: string) => code && code !== '') : [],
+          location_type: hasCounties ? 'county' : 'municipality'
+        },
         cost_data: cost_data || {},
         effects_data: effects_data || {},
         technical_data: technical_data || {},
@@ -63,22 +72,24 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: projectError.message }, { status: 500 });
     }
 
-    // 2. Insert municipality relationships
-    const municipalityRows = municipality_ids
-      .filter((id: any) => id && id !== '') // Filter out empty values
-      .map((id: any) => ({
-        project_id: project.id,
-        municipality_id: parseInt(id),
-      }));
+    // 2. Insert municipality relationships (only if using municipalities)
+    if (hasMunicipalities) {
+      const municipalityRows = municipality_ids
+        .filter((id: any) => id && id !== '') // Filter out empty values
+        .map((id: any) => ({
+          project_id: project.id,
+          municipality_id: parseInt(id),
+        }));
 
-    if (municipalityRows.length > 0) {
-      const { error: municipalityError } = await sb
-        .from('project_municipalities')
-        .insert(municipalityRows);
+      if (municipalityRows.length > 0) {
+        const { error: municipalityError } = await sb
+          .from('project_municipalities')
+          .insert(municipalityRows);
 
-      if (municipalityError) {
-        console.error('Municipality relationship error:', municipalityError);
-        // Don't fail the whole request, but log the error
+        if (municipalityError) {
+          console.error('Municipality relationship error:', municipalityError);
+          // Don't fail the whole request, but log the error
+        }
       }
     }
 

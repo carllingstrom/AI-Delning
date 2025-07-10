@@ -19,9 +19,12 @@ export interface EffectEntry {
       valueUnit: 'hours' | 'currency' | 'percentage' | 'count' | 'other';
       // Hours-based
       hoursDetails?: {
-        hours?: number;
+        affectedPeople?: number;
+        timePerPerson?: number;
         timescale?: string;
         hourlyRate?: number;
+        // Legacy fields for backward compatibility
+        hours?: number;
       };
       // Currency-based
       currencyDetails?: {
@@ -54,10 +57,14 @@ export interface EffectEntry {
       valueUnit: 'hours' | 'currency' | 'percentage' | 'count' | 'other';
       // Hours-based
       hoursDetails?: {
-        currentHours?: number;
-        newHours?: number;
+        affectedPeople?: number;
+        currentTimePerPerson?: number;
+        newTimePerPerson?: number;
         timescale?: string;
         hourlyRate?: number;
+        // Legacy fields for backward compatibility
+        currentHours?: number;
+        newHours?: number;
       };
       // Currency-based
       currencyDetails?: {
@@ -172,18 +179,52 @@ function calculateAnnualValue(details: any, unitType: string): number {
 
   switch (unitType) {
     case 'hours':
-      const hours = Number(details.hoursDetails?.hours) || 0;
+      // New person-based calculation
+      const affectedPeople = Number(details.hoursDetails?.affectedPeople) || 0;
+      const timePerPerson = Number(details.hoursDetails?.timePerPerson) || 0;
       const hourlyRate = Number(details.hoursDetails?.hourlyRate) || 0;
-      baseValue = hours * hourlyRate;
       
-      // Convert to annual based on timescale
+      // Realistic working time constants
+      const WORK_DAYS_PER_YEAR = 235; // ~47 weeks * 5 days (accounting for vacation, holidays, sick leave)
+      const WORK_WEEKS_PER_YEAR = 47; // 52 weeks minus ~5 weeks vacation/holidays
+      const WORK_MONTHS_PER_YEAR = 12; // Full year
+      
+      let totalTimePerYear = 0;
+      
+      // Convert to annual based on realistic working patterns
       switch (details.hoursDetails?.timescale) {
-        case 'per_hour': multiplier = 8760; break; // 24 * 365
-        case 'per_day': multiplier = 365; break;
-        case 'per_week': multiplier = 52; break;
-        case 'per_month': multiplier = 12; break;
-        case 'per_year': multiplier = 1; break;
-        default: multiplier = 1;
+        case 'per_day': 
+          totalTimePerYear = timePerPerson * WORK_DAYS_PER_YEAR; 
+          break;
+        case 'per_week': 
+          totalTimePerYear = timePerPerson * WORK_WEEKS_PER_YEAR; 
+          break;
+        case 'per_month': 
+          totalTimePerYear = timePerPerson * WORK_MONTHS_PER_YEAR; 
+          break;
+        case 'per_year': 
+          totalTimePerYear = timePerPerson; 
+          break;
+        default: 
+          totalTimePerYear = timePerPerson;
+      }
+      
+      baseValue = affectedPeople * totalTimePerYear * hourlyRate;
+      multiplier = 1; // Already calculated as annual
+      
+      // Fallback to legacy calculation if new fields not available
+      if (!affectedPeople && !timePerPerson) {
+        const legacyHours = Number(details.hoursDetails?.hours) || 0;
+        baseValue = legacyHours * hourlyRate;
+        
+        // Legacy timescale conversion (but with realistic multipliers)
+        switch (details.hoursDetails?.timescale) {
+          case 'per_day': multiplier = WORK_DAYS_PER_YEAR; break;
+          case 'per_week': multiplier = WORK_WEEKS_PER_YEAR; break;
+          case 'per_month': multiplier = 12; break;
+          case 'per_year': multiplier = 1; break;
+          default: multiplier = 1;
+        }
       }
       break;
 
@@ -246,6 +287,41 @@ function calculateAnnualValue(details: any, unitType: string): number {
 function calculateSavedAmount(details: any, unitType: string): number {
   switch (unitType) {
     case 'hours':
+      // New person-based calculation
+      const affectedPeople = Number(details.hoursDetails?.affectedPeople) || 0;
+      const currentTimePerPerson = Number(details.hoursDetails?.currentTimePerPerson) || 0;
+      const newTimePerPerson = Number(details.hoursDetails?.newTimePerPerson) || 0;
+      const timeSavedPerPerson = currentTimePerPerson - newTimePerPerson;
+      
+      if (affectedPeople && timeSavedPerPerson) {
+        // Realistic working time constants
+        const WORK_DAYS_PER_YEAR = 235; // ~47 weeks * 5 days
+        const WORK_WEEKS_PER_YEAR = 47; // 52 weeks minus ~5 weeks vacation/holidays
+        const WORK_MONTHS_PER_YEAR = 12;
+        
+        let totalSavedTimePerYear = 0;
+        
+        switch (details.hoursDetails?.timescale) {
+          case 'per_day': 
+            totalSavedTimePerYear = timeSavedPerPerson * WORK_DAYS_PER_YEAR; 
+            break;
+          case 'per_week': 
+            totalSavedTimePerYear = timeSavedPerPerson * WORK_WEEKS_PER_YEAR; 
+            break;
+          case 'per_month': 
+            totalSavedTimePerYear = timeSavedPerPerson * WORK_MONTHS_PER_YEAR; 
+            break;
+          case 'per_year': 
+            totalSavedTimePerYear = timeSavedPerPerson; 
+            break;
+          default: 
+            totalSavedTimePerYear = timeSavedPerPerson;
+        }
+        
+        return affectedPeople * totalSavedTimePerYear;
+      }
+      
+      // Fallback to legacy calculation
       const currentHours = Number(details.hoursDetails?.currentHours) || 0;
       const newHours = Number(details.hoursDetails?.newHours) || 0;
       return currentHours - newHours;
@@ -300,13 +376,30 @@ export function calculateROI(input: ROIInput): ROIMetrics {
   const dimensionBreakdown: Record<string, { totalValue: number; totalInvestment: number; economicROI: number; qualitativeROI: number; effectCount: number }> = {};
   const dimensionsCovered = new Set<string>();
 
+  // Count only entries that actually have effects
+  let actualEffectsCount = 0;
+
   // Process each effect entry
   effectEntries.forEach(entry => {
     console.log('Processing effect entry:', entry);
     console.log('Entry keys:', Object.keys(entry));
     console.log('Qualitative details:', entry.qualitativeDetails);
     console.log('Quantitative details:', entry.quantitativeDetails);
+    
     const dimension = entry.valueDimension;
+    
+    // Check if this entry actually has any effects reported
+    const hasQualitative = (entry.hasQualitative === true || entry.hasQualitative === 'true') && entry.qualitativeDetails;
+    const hasQuantitative = (entry.hasQuantitative === true || entry.hasQuantitative === 'true') && entry.quantitativeDetails;
+    
+    // Skip this entry if it has no effects
+    if (!hasQualitative && !hasQuantitative) {
+      console.log('Skipping entry - no actual effects reported');
+      return;
+    }
+    
+    // This entry has actual effects, count it
+    actualEffectsCount++;
     dimensionsCovered.add(dimension);
     
     // Initialize dimension breakdown if not exists
@@ -316,8 +409,8 @@ export function calculateROI(input: ROIInput): ROIMetrics {
     dimensionBreakdown[dimension].effectCount++;
 
     // Process qualitative effects (handle both boolean and string values)
-    if ((entry.hasQualitative === true || entry.hasQualitative === 'true') && entry.qualitativeDetails) {
-      const qual = entry.qualitativeDetails;
+    if (hasQualitative) {
+      const qual = entry.qualitativeDetails!;
       const improvement = qual.targetRating - qual.currentRating;
       const improvementPercentage = qual.currentRating > 0 ? (improvement / qual.currentRating) * 100 : 0;
       
@@ -348,8 +441,8 @@ export function calculateROI(input: ROIInput): ROIMetrics {
     }
 
     // Process quantitative effects (handle both boolean and string values)
-    if ((entry.hasQuantitative === true || entry.hasQuantitative === 'true') && entry.quantitativeDetails) {
-      const quant = entry.quantitativeDetails;
+    if (hasQuantitative) {
+      const quant = entry.quantitativeDetails!;
       
       // Process financial effects
       if (quant.effectType === 'financial' && quant.financialDetails) {
@@ -383,15 +476,9 @@ export function calculateROI(input: ROIInput): ROIMetrics {
         // Calculate annual value based on unit type
         let annualValue = 0;
         if (redist.valueUnit === 'hours' && redist.hoursDetails?.hourlyRate) {
+          // calculateSavedAmount now returns annual saved hours already
           annualValue = savedAmount * Number(redist.hoursDetails.hourlyRate);
-          // Apply timescale multiplier
-          switch (redist.hoursDetails.timescale) {
-            case 'per_hour': annualValue *= 8760; break;
-            case 'per_day': annualValue *= 365; break;
-            case 'per_week': annualValue *= 52; break;
-            case 'per_month': annualValue *= 12; break;
-            case 'per_year': break; // Already annual
-          }
+          // No additional timescale multiplier needed - calculateSavedAmount handles this
         } else if (redist.valueUnit === 'currency') {
           annualValue = savedAmount;
           switch (redist.currencyDetails?.timescale) {
@@ -440,6 +527,12 @@ export function calculateROI(input: ROIInput): ROIMetrics {
     }
   });
 
+  // If no actual effects were found, return empty metrics
+  if (actualEffectsCount === 0) {
+    console.log('No actual effects found, returning empty metrics');
+    return createEmptyROIMetrics();
+  }
+
   // Calculate overall ROI metrics
   const economicROI = totalInvestment > 0 ? ((totalMonetaryValue - totalInvestment) / totalInvestment) * 100 : 0;
   
@@ -487,7 +580,7 @@ export function calculateROI(input: ROIInput): ROIMetrics {
     qualitativeEffects,
     dimensionBreakdown,
     summary: {
-      totalEffects: effectEntries.length,
+      totalEffects: actualEffectsCount, // Now only counts entries with actual effects
       financialCount: financialEffects.length,
       redistributionCount: redistributionEffects.length,
       qualitativeCount: qualitativeEffects.length,
@@ -547,9 +640,9 @@ export function formatROIMetrics(metrics: ROIMetrics) {
   return {
     totalInvestment: formatCurrency(metrics.totalInvestment),
     totalMonetaryValue: formatCurrency(metrics.totalMonetaryValue),
-    economicROI: `${(metrics.economicROI * 100).toFixed(1)}%`,
+    economicROI: `${metrics.economicROI.toFixed(1)}%`, // Remove double conversion - already percentage
     qualitativeROI: `${metrics.qualitativeROI.toFixed(1)}%`,
-    combinedROI: `${(metrics.combinedROI * 100).toFixed(1)}%`,
+    combinedROI: `${metrics.combinedROI.toFixed(1)}%`, // Remove double conversion - already percentage
     paybackPeriod: metrics.paybackPeriod === Infinity ? 'N/A' : `${metrics.paybackPeriod.toFixed(1)} år`,
     totalEffects: metrics.summary.totalEffects,
     financialCount: metrics.summary.financialCount,
@@ -640,4 +733,57 @@ export function getROIInsights(metrics: ROIMetrics): {
   }
 
   return { insights, recommendations, riskLevel };
+} 
+
+/**
+ * Utility functions for consistent ROI handling across the application
+ */
+
+/**
+ * Convert ROI percentage to ratio (22% -> 0.22)
+ */
+export function percentageToRatio(percentage: number): number {
+  return percentage / 100;
+}
+
+/**
+ * Convert ratio to ROI percentage (0.22 -> 22%)
+ */
+export function ratioToPercentage(ratio: number): number {
+  return ratio * 100;
+}
+
+/**
+ * Format percentage for display with consistent decimals
+ */
+export function formatPercentage(value: number, decimals: number = 1): string {
+  return `${value.toFixed(decimals)}%`;
+}
+
+/**
+ * Format ratio for display with consistent decimals
+ */
+export function formatRatio(value: number, decimals: number = 3): string {
+  return (value / 100).toFixed(decimals);
+}
+
+/**
+ * Get ROI color based on value for consistent UI theming
+ */
+export function getROIColor(roi: number): string {
+  if (roi > 100) return 'text-green-400';
+  if (roi > 50) return 'text-green-300';
+  if (roi > 0) return 'text-yellow-400';
+  return 'text-red-400';
+}
+
+/**
+ * Get ROI status text for user-friendly display
+ */
+export function getROIStatus(roi: number): string {
+  if (roi > 100) return 'Utmärkt';
+  if (roi > 50) return 'Mycket bra';
+  if (roi > 20) return 'Bra';
+  if (roi > 0) return 'Positiv';
+  return 'Negativ';
 } 

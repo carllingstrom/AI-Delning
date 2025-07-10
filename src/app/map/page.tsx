@@ -445,10 +445,26 @@ export default function MapPage() {
                 </span>
               </div>
 
-              {/* Grundinfo */}
-              {selectedProject.municipality_info && selectedProject.municipality_info.length > 0 && (
-                <p><span className="font-semibold text-[#004D66]">Kommuner:</span> {selectedProject.municipality_info.map((m:any)=>m.name).join(', ')}</p>
-              )}
+                              {/* Grundinfo */}
+                {(selectedProject as any).overview_details?.location_type === 'county' ? (
+                  (selectedProject as any).overview_details?.county_codes?.length > 0 && (
+                    <p><span className="font-semibold text-[#004D66]">Län:</span> {(() => {
+                      const countyCodes = (selectedProject as any).overview_details?.county_codes || [];
+                      const counties: Record<string, string> = {
+                        '01': 'Stockholm', '03': 'Uppsala', '04': 'Södermanland', '05': 'Östergötland',
+                        '06': 'Jönköping', '07': 'Kronoberg', '08': 'Kalmar', '09': 'Gotland',
+                        '10': 'Blekinge', '12': 'Skåne', '13': 'Halland', '14': 'Västra Götaland',
+                        '17': 'Värmland', '18': 'Örebro', '19': 'Västmanland', '20': 'Dalarna',
+                        '21': 'Gävleborg', '22': 'Västernorrland', '23': 'Jämtland', '24': 'Västerbotten', '25': 'Norrbotten'
+                      };
+                      return countyCodes.map((code: string) => counties[code] || code).join(', ');
+                    })()}</p>
+                  )
+                ) : (
+                  selectedProject.municipality_info && selectedProject.municipality_info.length > 0 && (
+                    <p><span className="font-semibold text-[#004D66]">Kommuner:</span> {selectedProject.municipality_info.map((m:any)=>m.name).join(', ')}</p>
+                  )
+                )}
               {selectedProject.areas && selectedProject.areas.length > 0 && (
                 <p><span className="font-semibold text-[#004D66]">Områden:</span> {selectedProject.areas.join(', ')}</p>
               )}

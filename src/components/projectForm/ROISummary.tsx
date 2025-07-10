@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { calculateROI, formatROIMetrics } from '@/lib/roiCalculator';
+import { calculateROI, formatROIMetrics, formatRatio, getROIColor, getROIStatus } from '@/lib/roiCalculator';
 import type { EffectEntry } from '@/lib/roiCalculator';
 import ROIInfoModal from './ROIInfoModal';
 
@@ -107,19 +107,24 @@ export default function ROISummary({ effectEntries, costEntries }: ROISummaryPro
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="bg-[#2a3a4a] p-3 rounded">
               <div className="font-semibold text-sm text-gray-300">Finansiell ROI</div>
-              <div className="text-xl font-bold text-green-400">{formatted.economicROI}</div>
-              <div className="text-xs text-gray-400">Ratio: {roi.economicROI.toFixed(3)}</div>
+              <div className={`text-xl font-bold ${getROIColor(roi.economicROI)}`}>{formatted.economicROI}</div>
+              <div className="text-xs text-gray-400">
+                Ratio: {formatRatio(roi.economicROI)} | Status: {getROIStatus(roi.economicROI)}
+              </div>
             </div>
             
             <div className="bg-[#2a3a4a] p-3 rounded">
               <div className="font-semibold text-sm text-gray-300">Kvalitativ effekt</div>
-              <div className="text-xl font-bold text-blue-400">{formatted.qualitativeROI}</div>
-              <div className="text-xs text-gray-400">Ratio: {(roi.qualitativeROI / 100).toFixed(3)}</div>
+              <div className={`text-xl font-bold ${getROIColor(roi.qualitativeROI)}`}>{formatted.qualitativeROI}</div>
+              <div className="text-xs text-gray-400">
+                Ratio: {formatRatio(roi.qualitativeROI)} | Status: {getROIStatus(roi.qualitativeROI)}
+              </div>
             </div>
             
             <div className="bg-[#2a3a4a] p-3 rounded">
               <div className="font-semibold text-sm text-gray-300">Kombinerad effekt</div>
-              <div className="text-xl font-bold text-[#FFD600]">{formatted.combinedROI}</div>
+              <div className={`text-xl font-bold ${getROIColor(roi.combinedROI)}`}>{formatted.combinedROI}</div>
+              <div className="text-xs text-gray-400">Status: {getROIStatus(roi.combinedROI)}</div>
             </div>
             
             <div className="bg-[#2a3a4a] p-3 rounded">

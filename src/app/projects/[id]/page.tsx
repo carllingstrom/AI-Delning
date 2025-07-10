@@ -202,11 +202,50 @@ export default function ProjectDetailPage() {
         description += ` under ${annualizationYears} år`;
       }
     } else if (valueUnit === 'hours' && hoursDetails) {
-      value = (hoursDetails.hours || 0) * (hoursDetails.hourlyRate || 0);
-      const timescale = hoursDetails.timescale === 'per_month' ? '/månad' : hoursDetails.timescale === 'per_year' ? '/år' : '';
-      description = `${hoursDetails.hours} timmar ${timescale} × ${formatCurrency(hoursDetails.hourlyRate || 0)}/timme`;
-      if (annualizationYears) {
-        value *= (annualizationYears * (hoursDetails.timescale === 'per_month' ? 12 : 1));
+      // New format: affectedPeople × timePerPerson
+      const affectedPeople = hoursDetails.affectedPeople || 0;
+      const timePerPerson = hoursDetails.timePerPerson || 0;
+      const hourlyRate = hoursDetails.hourlyRate || 0;
+      
+      // Calculate total hours using new person-based approach
+      let totalHours = 0;
+      let peopleDescription = '';
+      
+      if (affectedPeople > 0 && timePerPerson > 0) {
+        // New format - realistic calculation using work constants
+        const WORK_DAYS_PER_YEAR = 235;
+        const WORK_HOURS_PER_DAY = 8;
+        
+        const timescale = hoursDetails.timescale;
+        if (timescale === 'per_day') {
+          totalHours = affectedPeople * timePerPerson * WORK_DAYS_PER_YEAR;
+          peopleDescription = `${affectedPeople} personer × ${timePerPerson} timmar/dag`;
+        } else if (timescale === 'per_week') {
+          totalHours = affectedPeople * timePerPerson * 47; // 47 work weeks per year
+          peopleDescription = `${affectedPeople} personer × ${timePerPerson} timmar/vecka`;
+        } else if (timescale === 'per_month') {
+          totalHours = affectedPeople * timePerPerson * 12;
+          peopleDescription = `${affectedPeople} personer × ${timePerPerson} timmar/månad`;
+        } else if (timescale === 'per_year') {
+          totalHours = affectedPeople * timePerPerson;
+          peopleDescription = `${affectedPeople} personer × ${timePerPerson} timmar/år`;
+        } else {
+          // One-time calculation
+          totalHours = affectedPeople * timePerPerson;
+          peopleDescription = `${affectedPeople} personer × ${timePerPerson} timmar (engångsbesparing)`;
+        }
+      } else {
+        // Fallback to legacy format for backward compatibility
+        totalHours = hoursDetails.hours || 0;
+        const timescale = hoursDetails.timescale === 'per_month' ? '/månad' : hoursDetails.timescale === 'per_year' ? '/år' : '';
+        peopleDescription = `${totalHours} timmar ${timescale}`;
+      }
+      
+      value = totalHours * hourlyRate;
+      description = `${peopleDescription} × ${formatCurrency(hourlyRate)}/timme = ${totalHours.toFixed(0)} timmar totalt`;
+      
+      if (annualizationYears && annualizationYears > 1) {
+        value *= annualizationYears;
         description += ` under ${annualizationYears} år`;
       }
     } else if (valueUnit === 'currency' && details.currencyDetails) {
@@ -251,20 +290,61 @@ export default function ProjectDetailPage() {
     let savedAmount = 0;
     
     if (valueUnit === 'hours' && hoursDetails) {
-      const currentHours = hoursDetails.currentHours || 0;
-      const newHours = hoursDetails.newHours || 0;
-      savedAmount = currentHours - newHours;
+      const affectedPeople = hoursDetails.affectedPeople || 0;
+      const currentTimePerPerson = hoursDetails.currentTimePerPerson || 0;
+      const newTimePerPerson = hoursDetails.newTimePerPerson || 0;
       const hourlyRate = hoursDetails.hourlyRate || 0;
+      
+      let currentTotalHours = 0;
+      let newTotalHours = 0;
+      let peopleDescription = '';
+      
+      if (affectedPeople > 0 && (currentTimePerPerson > 0 || newTimePerPerson > 0)) {
+        // New format - realistic calculation using work constants
+        const WORK_DAYS_PER_YEAR = 235;
+        const WORK_HOURS_PER_DAY = 8;
+        
+        const timescale = hoursDetails.timescale;
+        if (timescale === 'per_day') {
+          currentTotalHours = affectedPeople * currentTimePerPerson * WORK_DAYS_PER_YEAR;
+          newTotalHours = affectedPeople * newTimePerPerson * WORK_DAYS_PER_YEAR;
+          peopleDescription = `${affectedPeople} personer: ${currentTimePerPerson} → ${newTimePerPerson} timmar/dag`;
+        } else if (timescale === 'per_week') {
+          currentTotalHours = affectedPeople * currentTimePerPerson * 47; // 47 work weeks per year
+          newTotalHours = affectedPeople * newTimePerPerson * 47;
+          peopleDescription = `${affectedPeople} personer: ${currentTimePerPerson} → ${newTimePerPerson} timmar/vecka`;
+        } else if (timescale === 'per_month') {
+          currentTotalHours = affectedPeople * currentTimePerPerson * 12;
+          newTotalHours = affectedPeople * newTimePerPerson * 12;
+          peopleDescription = `${affectedPeople} personer: ${currentTimePerPerson} → ${newTimePerPerson} timmar/månad`;
+        } else if (timescale === 'per_year') {
+          currentTotalHours = affectedPeople * currentTimePerPerson;
+          newTotalHours = affectedPeople * newTimePerPerson;
+          peopleDescription = `${affectedPeople} personer: ${currentTimePerPerson} → ${newTimePerPerson} timmar/år`;
+        } else {
+          // One-time calculation
+          currentTotalHours = affectedPeople * currentTimePerPerson;
+          newTotalHours = affectedPeople * newTimePerPerson;
+          peopleDescription = `${affectedPeople} personer: ${currentTimePerPerson} → ${newTimePerPerson} timmar (engångsförändring)`;
+        }
+      } else {
+        // Fallback to legacy format for backward compatibility
+        currentTotalHours = hoursDetails.currentHours || 0;
+        newTotalHours = hoursDetails.newHours || 0;
+        const timescale = hoursDetails.timescale === 'per_month' ? '/månad' : hoursDetails.timescale === 'per_year' ? '/år' : '';
+        peopleDescription = `${currentTotalHours} → ${newTotalHours} timmar ${timescale}`;
+      }
+      
+      savedAmount = currentTotalHours - newTotalHours;
       value = Math.abs(savedAmount) * hourlyRate;
       
-      const timescale = hoursDetails.timescale === 'per_month' ? '/månad' : hoursDetails.timescale === 'per_year' ? '/år' : '';
-      description = `${Math.abs(savedAmount)} ${savedAmount > 0 ? 'besparade' : 'extra'} timmar ${timescale}`;
+      description = `${peopleDescription} = ${Math.abs(savedAmount).toFixed(0)} ${savedAmount > 0 ? 'besparade' : 'extra'} timmar`;
       if (hourlyRate > 0) {
         description += ` × ${formatCurrency(hourlyRate)}/timme`;
       }
       
-      if (annualizationYears) {
-        value *= (annualizationYears * (hoursDetails.timescale === 'per_month' ? 12 : 1));
+      if (annualizationYears && annualizationYears > 1) {
+        value *= annualizationYears;
         description += ` under ${annualizationYears} år`;
       }
     } else if (valueUnit === 'currency' && currencyDetails) {
@@ -479,7 +559,20 @@ export default function ProjectDetailPage() {
                     }
                   });
 
-                  if (totalCost > 0 && effectEntries.length > 0) {
+                  // Check if project actually has measurable effects
+                  const hasActualEffects = effectEntries.some((effect: any) => {
+                    const hasQuantitative = (effect.hasQuantitative === true || effect.hasQuantitative === 'true') && 
+                                            effect.quantitativeDetails && 
+                                            (effect.quantitativeDetails.financialDetails || effect.quantitativeDetails.redistributionDetails);
+                    
+                    const hasQualitative = (effect.hasQualitative === true || effect.hasQualitative === 'true') && 
+                                           effect.qualitativeDetails && 
+                                           effect.qualitativeDetails.factor;
+                    
+                    return hasQuantitative || hasQualitative;
+                  });
+
+                  if (totalCost > 0 && effectEntries.length > 0 && hasActualEffects) {
                     const roiMetrics = calculateROI({ effectEntries, totalProjectInvestment: totalCost });
                     
                     return (
@@ -729,6 +822,50 @@ export default function ProjectDetailPage() {
                     ) : (
                       <>Projektet överskrider budget med <span className="text-white font-semibold">{formatCurrency(totalActualCost - budgetAmount)}</span> ({(budgetUsagePercent - 100).toFixed(1)}% över).</>
                     )}
+                    {costEntries.length > 0 && (() => {
+                      // Check if there are any "annat" entries with custom descriptions
+                      const annatEntries = costEntries.filter((entry: any) => 
+                        entry?.costType === 'Annat' || entry?.costType === 'annat'
+                      );
+                      
+                      if (annatEntries.length > 0) {
+                        // Try costComment first, then costLabel for custom description
+                        const customDescription = annatEntries[0]?.costComment || annatEntries[0]?.costLabel;
+                        if (customDescription && customDescription.trim() !== '') {
+                          return (
+                            <span> Budgeten täcker kostnader för {customDescription.toLowerCase()}.</span>
+                          );
+                        }
+                      }
+
+                      // Extract cost categories and types
+                      const costCategories = costEntries
+                        .map((entry: any) => {
+                          if (entry?.costType) return entry.costType;
+                          if (entry?.costLabel) return entry.costLabel;
+                          switch (entry?.costUnit) {
+                            case 'hours': return 'Personalkostnader';
+                            case 'fixed': return 'Fasta kostnader';
+                            case 'monthly': return 'Månadsavgifter';
+                            case 'yearly': return 'Årliga avgifter';
+                            default: return 'Övriga kostnader';
+                          }
+                        })
+                        .filter((category: string, index: number, array: string[]) => array.indexOf(category) === index) // Remove duplicates
+                        .slice(0, 4); // Limit to 4 categories for readability
+
+                      if (costCategories.length === 0) return null;
+
+                      const categoryText = costCategories.length === 1 
+                        ? costCategories[0].toLowerCase()
+                        : costCategories.length === 2
+                          ? `${costCategories.slice(0, -1).join(', ').toLowerCase()} och ${costCategories.slice(-1)[0].toLowerCase()}`
+                          : `${costCategories.slice(0, -1).join(', ').toLowerCase()} och ${costCategories.slice(-1)[0].toLowerCase()}`;
+
+                      return (
+                        <span> Budgeten täcker kostnader för {categoryText}{costEntries.length > 4 && ` med ${costEntries.length - 4} ytterligare poster`}.</span>
+                      );
+                    })()}
                   </div>
                 </div>
               )}
@@ -843,13 +980,27 @@ export default function ProjectDetailPage() {
       let strategicAlignment = 0;
       let organizationalMaturity = 0;
 
+      // Ensure organizationalChange is always an array
+      const organizationalChangeArray = Array.isArray(leadershipData.organizationalChange) 
+        ? leadershipData.organizationalChange 
+        : leadershipData.organizationalChange 
+          ? [leadershipData.organizationalChange] 
+          : [];
+
+      // Ensure sdgAlignment is always an array
+      const sdgAlignmentArray = Array.isArray(leadershipData.sdgAlignment) 
+        ? leadershipData.sdgAlignment 
+        : leadershipData.sdgAlignment 
+          ? [leadershipData.sdgAlignment] 
+          : [];
+
       // Change Readiness scoring
       if (leadershipData.staffInvolvement === 'early') changeReadiness += 40;
       else if (leadershipData.staffInvolvement === 'later') changeReadiness += 25;
       else if (leadershipData.staffInvolvement === 'no') changeReadiness += 0;
       
       if (leadershipData.changeManagementEfforts) changeReadiness += 30;
-      if (leadershipData.organizationalChange?.length > 0) changeReadiness += 20;
+      if (organizationalChangeArray.length > 0) changeReadiness += 20;
       if (leadershipData.lessonsLearned) changeReadiness += 10;
 
       // Stakeholder Engagement scoring
@@ -861,17 +1012,17 @@ export default function ProjectDetailPage() {
       else if (leadershipData.staffInvolvement === 'later') stakeholderEngagement += 15;
       
       if (leadershipData.changeManagementEfforts) stakeholderEngagement += 20;
-      if (leadershipData.organizationalChange?.includes('Nytt tvärfunktionellt samarbete')) stakeholderEngagement += 10;
+      if (organizationalChangeArray.includes('Nytt tvärfunktionellt samarbete')) stakeholderEngagement += 10;
 
       // Strategic Alignment scoring  
-      if (leadershipData.sdgAlignment?.length > 0 && !leadershipData.sdgAlignment.includes('Vet ej')) strategicAlignment += 40;
+      if (sdgAlignmentArray.length > 0 && !sdgAlignmentArray.includes('Vet ej')) strategicAlignment += 40;
       if (leadershipData.sdgDescription) strategicAlignment += 20;
       if (leadershipData.nextSteps) strategicAlignment += 30;
       if (leadershipData.lessonsLearned) strategicAlignment += 10;
 
       // Organizational Maturity scoring
       if (leadershipData.projectOwnership) organizationalMaturity += 20;
-      if (leadershipData.organizationalChange?.length > 0 && !leadershipData.organizationalChange.includes('Inga större förändringar')) organizationalMaturity += 25;
+      if (organizationalChangeArray.length > 0 && !organizationalChangeArray.includes('Inga större förändringar')) organizationalMaturity += 25;
       if (leadershipData.changeManagementEfforts) organizationalMaturity += 25;
       if (leadershipData.nextSteps) organizationalMaturity += 15;
       if (leadershipData.lessonsLearned) organizationalMaturity += 15;
@@ -925,7 +1076,11 @@ export default function ProjectDetailPage() {
     };
 
     const getChangeComplexity = () => {
-      const changes = leadershipData.organizationalChange || [];
+      const changes = Array.isArray(leadershipData.organizationalChange) 
+        ? leadershipData.organizationalChange 
+        : leadershipData.organizationalChange 
+          ? [leadershipData.organizationalChange] 
+          : [];
       if (changes.includes('Inga större förändringar')) return { level: 'Minimal', color: 'text-green-400' };
       if (changes.length >= 3) return { level: 'Hög komplexitet', color: 'text-orange-400' };
       if (changes.length >= 2) return { level: 'Medel komplexitet', color: 'text-yellow-400' };
@@ -934,7 +1089,12 @@ export default function ProjectDetailPage() {
     };
 
          const getSDGImpact = () => {
-       const sdgCount = leadershipData.sdgAlignment?.filter((goal: string) => goal !== 'Vet ej').length || 0;
+       const sdgAlignment = Array.isArray(leadershipData.sdgAlignment) 
+         ? leadershipData.sdgAlignment 
+         : leadershipData.sdgAlignment 
+           ? [leadershipData.sdgAlignment] 
+           : [];
+       const sdgCount = sdgAlignment.filter((goal: string) => goal !== 'Vet ej').length || 0;
       if (sdgCount >= 4) return { level: 'Bred påverkan', color: 'text-green-400', score: 90 };
       if (sdgCount >= 2) return { level: 'Måttlig påverkan', color: 'text-yellow-400', score: 70 };
       if (sdgCount >= 1) return { level: 'Begränsad påverkan', color: 'text-orange-400', score: 50 };
@@ -988,7 +1148,14 @@ export default function ProjectDetailPage() {
             <div className="border border-gray-600 p-4 rounded-lg text-center">
               <div className="text-2xl font-bold mb-1">
                 <span className={getSDGImpact().color}>
-                  {leadershipData.sdgAlignment?.filter((goal: string) => goal !== 'Vet ej').length || 0}
+                  {(() => {
+                    const sdgAlignment = Array.isArray(leadershipData.sdgAlignment) 
+                      ? leadershipData.sdgAlignment 
+                      : leadershipData.sdgAlignment 
+                        ? [leadershipData.sdgAlignment] 
+                        : [];
+                    return sdgAlignment.filter((goal: string) => goal !== 'Vet ej').length || 0;
+                  })()}
                 </span>
               </div>
               <div className="text-gray-400 text-sm">SDG-mål</div>
@@ -1014,18 +1181,25 @@ export default function ProjectDetailPage() {
               </div>
             )}
 
-            {leadershipData.organizationalChange?.length > 0 && (
-              <div className="border-l-4 border-gray-600 pl-4">
-                <div className="text-white font-medium">Förändringsanalys</div>
-                <div className="text-gray-300">
-                  Projektet medför <span className={`font-semibold ${getChangeComplexity().color}`}>{getChangeComplexity().level.toLowerCase()}</span>{' '}
-                  med <span className="text-white font-semibold">{leadershipData.organizationalChange.length}</span> identifierade förändringsområden.
-                  {leadershipData.changeManagementEfforts ? 
-                    ' Förändringsledning är aktivt adresserat.' : 
-                    ' Förändringsledning kan behöva stärkas.'}
+            {(() => {
+              const organizationalChangeArray = Array.isArray(leadershipData.organizationalChange) 
+                ? leadershipData.organizationalChange 
+                : leadershipData.organizationalChange 
+                  ? [leadershipData.organizationalChange] 
+                  : [];
+              return organizationalChangeArray.length > 0 && (
+                <div className="border-l-4 border-gray-600 pl-4">
+                  <div className="text-white font-medium">Förändringsanalys</div>
+                  <div className="text-gray-300">
+                    Projektet medför <span className={`font-semibold ${getChangeComplexity().color}`}>{getChangeComplexity().level.toLowerCase()}</span>{' '}
+                    med <span className="text-white font-semibold">{organizationalChangeArray.length}</span> identifierade förändringsområden.
+                    {leadershipData.changeManagementEfforts ? 
+                      ' Förändringsledning är aktivt adresserat.' : 
+                      ' Förändringsledning kan behöva stärkas.'}
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
             {leadershipData.staffInvolvement && (
               <div className="border-l-4 border-gray-600 pl-4">
@@ -2031,7 +2205,20 @@ export default function ProjectDetailPage() {
                       const costEntries = project.cost_data?.actualCostDetails?.costEntries || [];
                       const effectEntries = project.effects_data?.effectDetails || [];
                       
-                      if (costEntries.length > 0 && effectEntries.length > 0) {
+                      // Check if project actually has measurable effects
+                      const hasActualEffects = effectEntries.some((effect: any) => {
+                        const hasQuantitative = (effect.hasQuantitative === true || effect.hasQuantitative === 'true') && 
+                                                effect.quantitativeDetails && 
+                                                (effect.quantitativeDetails.financialDetails || effect.quantitativeDetails.redistributionDetails);
+                        
+                        const hasQualitative = (effect.hasQualitative === true || effect.hasQualitative === 'true') && 
+                                               effect.qualitativeDetails && 
+                                               effect.qualitativeDetails.factor;
+                        
+                        return hasQuantitative || hasQualitative;
+                      });
+                      
+                      if (costEntries.length > 0 && effectEntries.length > 0 && hasActualEffects) {
                         const totalInvestment = costEntries.reduce((total: number, entry: any) => {
                           let entryTotal = 0;
                           switch (entry?.costUnit) {
@@ -2088,9 +2275,17 @@ export default function ProjectDetailPage() {
 
               <div>
                 <div className="text-2xl font-bold text-[#FECB00] mb-1">
-                  {(project.project_municipalities?.length || 0)}
+                  {(() => {
+                    const isCountyProject = project.overview_details?.location_type === 'county';
+                    const countyCodes = project.overview_details?.county_codes || [];
+                    const municipalityCount = project.project_municipalities?.length || 0;
+                    
+                    return isCountyProject ? countyCodes.length : municipalityCount;
+                  })()}
                 </div>
-                <div className="text-gray-400 text-sm">Kommuner</div>
+                <div className="text-gray-400 text-sm">
+                  {project.overview_details?.location_type === 'county' ? 'Län' : 'Kommuner'}
+                </div>
               </div>
             </div>
           </div>
@@ -2117,19 +2312,50 @@ export default function ProjectDetailPage() {
 
           {/* Tags Section */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 pb-8 border-b border-gray-600">
-            {(project.project_municipalities?.length || 0) > 0 && (
-              <div>
-                <h4 className="font-semibold text-[#FECB00] mb-3">Kommuner ({project.project_municipalities?.length})</h4>
-                <div className="space-y-2">
-                  {project.project_municipalities?.map((pm, index) => (
-                    <div key={index} className="text-white">
-                      <span className="font-medium">{pm.municipalities.name}</span>
-                      <span className="text-gray-400 ml-2 text-sm">({pm.municipalities.county})</span>
-                    </div>
-                  ))}
+            {(() => {
+              const isCountyProject = project.overview_details?.location_type === 'county';
+              const countyCodes = project.overview_details?.county_codes || [];
+              const hasLocation = isCountyProject ? countyCodes.length > 0 : (project.project_municipalities?.length || 0) > 0;
+              
+              // County lookup function
+              const getCountyName = (code: string) => {
+                const counties: Record<string, string> = {
+                  '01': 'Stockholm', '03': 'Uppsala', '04': 'Södermanland', '05': 'Östergötland',
+                  '06': 'Jönköping', '07': 'Kronoberg', '08': 'Kalmar', '09': 'Gotland',
+                  '10': 'Blekinge', '12': 'Skåne', '13': 'Halland', '14': 'Västra Götaland',
+                  '17': 'Värmland', '18': 'Örebro', '19': 'Västmanland', '20': 'Dalarna',
+                  '21': 'Gävleborg', '22': 'Västernorrland', '23': 'Jämtland', '24': 'Västerbotten', '25': 'Norrbotten'
+                };
+                return counties[code] || code;
+              };
+              
+              return hasLocation && (
+                <div>
+                  <h4 className="font-semibold text-[#FECB00] mb-3">
+                    {isCountyProject 
+                      ? `Län (${countyCodes.length})`
+                      : `Kommuner (${project.project_municipalities?.length})`
+                    }
+                  </h4>
+                  <div className="space-y-2">
+                    {isCountyProject 
+                      ? countyCodes.map((code: string, index: number) => (
+                          <div key={index} className="text-white">
+                            <span className="font-medium">{getCountyName(code)}</span>
+                            <span className="text-gray-400 ml-2 text-sm">({code})</span>
+                          </div>
+                        ))
+                      : project.project_municipalities?.map((pm, index) => (
+                          <div key={index} className="text-white">
+                            <span className="font-medium">{pm.municipalities.name}</span>
+                            <span className="text-gray-400 ml-2 text-sm">({pm.municipalities.county})</span>
+                          </div>
+                        ))
+                    }
+                  </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
             {((project.project_areas?.length || 0) > 0 || (project.areas?.length || 0) > 0) && (
               <div>

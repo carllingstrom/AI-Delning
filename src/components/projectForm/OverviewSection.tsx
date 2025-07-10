@@ -17,23 +17,98 @@ export default function OverviewSection({ register, watch, setValue, setError, c
   const selectedAreas = watch('areas') || [];
   const selectedValues = watch('valueDimensions') || [];
   const [municipalityIds, setMunicipalityIds] = useState<string[]>(watch('municipality_ids') || ['']);
+  
+  // New state for region/county selection
+  const [locationMode, setLocationMode] = useState<'municipality' | 'county'>('municipality');
+  const [countyCodes, setCountyCodes] = useState<string[]>(watch('county_codes') || ['']);
+  const [counties, setCounties] = useState<{ code: string; name: string }[]>([]);
+
+  // Load counties when component mounts
+  useEffect(() => {
+    fetch('/api/counties')
+      .then(async r => {
+        if (!r.ok) {
+          const text = await r.text();
+          console.error(`Counties API error (${r.status}):`, text);
+          throw new Error(`Counties API failed: ${r.status} - ${text}`);
+        }
+        return r.json();
+      })
+      .then(data => {
+        if (Array.isArray(data)) {
+          setCounties(data);
+        } else {
+          console.error('Counties API returned non-array data:', data);
+          setCounties([]);
+        }
+      })
+      .catch(error => {
+        console.error('Error loading counties:', error);
+        setCounties([]);
+      });
+  }, []);
 
   // Add/remove municipality logic
   const addMunicipality = () => setMunicipalityIds([...municipalityIds, '']);
   const removeMunicipality = (idx: number) => setMunicipalityIds(municipalityIds.filter((_, i) => i !== idx));
   const setMunicipality = (idx: number, value: string) => setMunicipalityIds(municipalityIds.map((id, i) => (i === idx ? value : id)));
 
-  // Sync with react-hook-form
+  // Add/remove county logic
+  const addCounty = () => setCountyCodes([...countyCodes, '']);
+  const removeCounty = (idx: number) => setCountyCodes(countyCodes.filter((_, i) => i !== idx));
+  const setCounty = (idx: number, value: string) => setCountyCodes(countyCodes.map((code, i) => (i === idx ? value : code)));
+
+  // Handle location mode toggle
+  const handleLocationModeChange = (mode: 'municipality' | 'county') => {
+    setLocationMode(mode);
+    if (mode === 'municipality') {
+      // Clear county data and ensure municipality has at least one entry
+      setCountyCodes(['']);
+      setValue('county_codes', ['']);
+      if (municipalityIds.length === 0 || municipalityIds[0] === '') {
+        setMunicipalityIds(['']);
+      }
+    } else {
+      // Clear municipality data and ensure county has at least one entry
+      setMunicipalityIds(['']);
+      setValue('municipality_ids', ['']);
+      if (countyCodes.length === 0 || countyCodes[0] === '') {
+        setCountyCodes(['']);
+      }
+    }
+  };
+
+  // Sync municipality data with react-hook-form
   useEffect(() => {
-    setValue('municipality_ids', municipalityIds);
+    setValue('municipality_ids', locationMode === 'municipality' ? municipalityIds : ['']);
     
     // Validate municipality selection
-    if (municipalityIds.length === 0 || municipalityIds[0] === '') {
-      setError?.('municipality_ids', { message: 'Minst en kommun måste väljas' });
+    if (locationMode === 'municipality') {
+      if (municipalityIds.length === 0 || municipalityIds[0] === '') {
+        setError?.('municipality_ids', { message: 'Minst en kommun måste väljas' });
+      } else {
+        clearErrors?.('municipality_ids');
+      }
     } else {
       clearErrors?.('municipality_ids');
     }
-  }, [municipalityIds, setValue, setError, clearErrors]);
+  }, [municipalityIds, locationMode, setValue, setError, clearErrors]);
+
+  // Sync county data with react-hook-form
+  useEffect(() => {
+    setValue('county_codes', locationMode === 'county' ? countyCodes : ['']);
+    
+    // Validate county selection
+    if (locationMode === 'county') {
+      if (countyCodes.length === 0 || countyCodes[0] === '') {
+        setError?.('county_codes', { message: 'Minst ett län måste väljas' });
+      } else {
+        clearErrors?.('county_codes');
+      }
+    } else {
+      clearErrors?.('county_codes');
+    }
+  }, [countyCodes, locationMode, setValue, setError, clearErrors]);
 
   // Validate areas selection
   useEffect(() => {
@@ -111,42 +186,116 @@ export default function OverviewSection({ register, watch, setValue, setError, c
           {errors?.responsible && <p className="text-red-400 text-sm mt-1">{String(errors.responsible.message || 'Detta fält är obligatoriskt')}</p>}
         </div>
       </div>
-      {/* Kommun(er) */}
+      
+      {/* Location Selection (Municipality or County) */}
       <div className="bg-[#121F2B] rounded-lg p-6 space-y-4 shadow">
         <label className="block font-bold text-white">
-          Kommun(er) <span className="text-red-400">*</span>
+          Geografisk omfattning <span className="text-red-400">*</span>
         </label>
-        {municipalityIds.map((id, idx) => (
-          <div key={idx} className="flex items-center gap-2 mb-2">
-            <select
-              className="flex-1 p-3 rounded border border-gray-600 bg-[#121F2B]"
-              value={id}
-              onChange={(e) => setMunicipality(idx, e.target.value)}
-              required={idx === 0} // Make first municipality required
-            >
-              <option value="">Välj kommun</option>
-              {Array.isArray(municipalities) ? municipalities
-                .filter((m) => !municipalityIds.includes(m.id.toString()) || m.id.toString() === id)
-                .map((m) => (
-                  <option key={m.id} value={m.id.toString()}>
-                    {m.name}
-                  </option>
-                )) : (
-                  <option value="">Laddar kommuner...</option>
+        
+        {/* Toggle between Municipality and County */}
+        <div className="flex gap-2 mb-4">
+          <button
+            type="button"
+            className={`px-4 py-2 rounded text-sm font-medium transition-colors ${
+              locationMode === 'municipality' 
+                ? 'bg-[#FFD600] text-[#121F2B]' 
+                : 'bg-gray-600 text-white hover:bg-gray-500'
+            }`}
+            onClick={() => handleLocationModeChange('municipality')}
+          >
+            Kommun(er)
+          </button>
+          <button
+            type="button"
+            className={`px-4 py-2 rounded text-sm font-medium transition-colors ${
+              locationMode === 'county' 
+                ? 'bg-[#FFD600] text-[#121F2B]' 
+                : 'bg-gray-600 text-white hover:bg-gray-500'
+            }`}
+            onClick={() => handleLocationModeChange('county')}
+          >
+            Län
+          </button>
+        </div>
+
+        {/* Municipality Selection */}
+        {locationMode === 'municipality' && (
+          <div>
+            <label className="block text-white text-sm mb-2">
+              Välj en eller flera kommuner
+            </label>
+            {municipalityIds.map((id, idx) => (
+              <div key={idx} className="flex items-center gap-2 mb-2">
+                <select
+                  className="flex-1 p-3 rounded border border-gray-600 bg-[#121F2B]"
+                  value={id}
+                  onChange={(e) => setMunicipality(idx, e.target.value)}
+                  required={idx === 0}
+                >
+                  <option value="">Välj kommun</option>
+                  {Array.isArray(municipalities) ? municipalities
+                    .filter((m) => !municipalityIds.includes(m.id.toString()) || m.id.toString() === id)
+                    .map((m) => (
+                      <option key={m.id} value={m.id.toString()}>
+                        {m.name}
+                      </option>
+                    )) : (
+                      <option value="">Laddar kommuner...</option>
+                    )}
+                </select>
+                {municipalityIds.length > 1 && (
+                  <button type="button" onClick={() => removeMunicipality(idx)} className="w-6 h-6 flex items-center justify-center text-white hover:text-gray-300 transition-colors">
+                    ×
+                  </button>
                 )}
-            </select>
-            {municipalityIds.length > 1 && (
-              <button type="button" onClick={() => removeMunicipality(idx)} className="w-6 h-6 flex items-center justify-center text-white hover:text-gray-300 transition-colors">
-                ×
-              </button>
-            )}
+              </div>
+            ))}
+            <button type="button" onClick={addMunicipality} className="px-3 py-1 bg-[#FFD600] text-[#121F2B] rounded mb-2">
+              + Lägg till kommun
+            </button>
+            {errors?.municipality_ids && <p className="text-red-400 text-sm mt-1">{String(errors.municipality_ids.message || 'Minst en kommun måste väljas')}</p>}
           </div>
-        ))}
-        <button type="button" onClick={addMunicipality} className="px-3 py-1 bg-[#FFD600] text-[#121F2B] rounded mb-2">
-          + Lägg till kommun
-        </button>
-        {errors?.municipality_ids && <p className="text-red-400 text-sm mt-1">{String(errors.municipality_ids.message || 'Minst en kommun måste väljas')}</p>}
+        )}
+
+        {/* County Selection */}
+        {locationMode === 'county' && (
+          <div>
+            <label className="block text-white text-sm mb-2">
+              Välj ett eller flera län
+            </label>
+            {countyCodes.map((code, idx) => (
+              <div key={idx} className="flex items-center gap-2 mb-2">
+                <select
+                  className="flex-1 p-3 rounded border border-gray-600 bg-[#121F2B]"
+                  value={code}
+                  onChange={(e) => setCounty(idx, e.target.value)}
+                  required={idx === 0}
+                >
+                  <option value="">Välj län</option>
+                  {counties
+                    .filter((c) => !countyCodes.includes(c.code) || c.code === code)
+                    .map((c) => (
+                      <option key={c.code} value={c.code}>
+                        {c.name}
+                      </option>
+                    ))}
+                </select>
+                {countyCodes.length > 1 && (
+                  <button type="button" onClick={() => removeCounty(idx)} className="w-6 h-6 flex items-center justify-center text-white hover:text-gray-300 transition-colors">
+                    ×
+                  </button>
+                )}
+              </div>
+            ))}
+            <button type="button" onClick={addCounty} className="px-3 py-1 bg-[#FFD600] text-[#121F2B] rounded mb-2">
+              + Lägg till län
+            </button>
+            {errors?.county_codes && <p className="text-red-400 text-sm mt-1">{String(errors.county_codes.message || 'Minst ett län måste väljas')}</p>}
+          </div>
+        )}
       </div>
+
       {/* Område */}
       <div className="bg-[#121F2B] rounded-lg p-6 space-y-4 shadow">
         <label className="block font-bold text-white">
