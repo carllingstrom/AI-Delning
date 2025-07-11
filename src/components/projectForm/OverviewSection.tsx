@@ -48,6 +48,18 @@ export default function OverviewSection({ register, watch, setValue, setError, c
       });
   }, []);
 
+  // Set location mode based on existing data when editing
+  useEffect(() => {
+    const currentCountyCodes = watch('county_codes') || [];
+    const currentMunicipalityIds = watch('municipality_ids') || [];
+    
+    // If we have county codes and no municipality IDs, switch to county mode
+    if (currentCountyCodes.length > 0 && currentCountyCodes[0] !== '' && 
+        (currentMunicipalityIds.length === 0 || currentMunicipalityIds[0] === '')) {
+      setLocationMode('county');
+    }
+  }, [watch]);
+
   // Add/remove municipality logic
   const addMunicipality = () => setMunicipalityIds([...municipalityIds, '']);
   const removeMunicipality = (idx: number) => setMunicipalityIds(municipalityIds.filter((_, i) => i !== idx));
@@ -81,6 +93,7 @@ export default function OverviewSection({ register, watch, setValue, setError, c
   // Sync municipality data with react-hook-form
   useEffect(() => {
     setValue('municipality_ids', locationMode === 'municipality' ? municipalityIds : ['']);
+    setValue('location_type', locationMode); // Save location_type for detail page
     
     // Validate municipality selection
     if (locationMode === 'municipality') {
@@ -97,6 +110,7 @@ export default function OverviewSection({ register, watch, setValue, setError, c
   // Sync county data with react-hook-form
   useEffect(() => {
     setValue('county_codes', locationMode === 'county' ? countyCodes : ['']);
+    setValue('location_type', locationMode); // Save location_type for detail page
     
     // Validate county selection
     if (locationMode === 'county') {

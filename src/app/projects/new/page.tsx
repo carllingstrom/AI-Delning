@@ -311,6 +311,8 @@ function ProjectWizardContent() {
           },
           overview_details: {
             valueDimensionOther: formData.valueDimensionOther,
+            location_type: formData.location_type,
+            county_codes: formData.county_codes,
           }
         };
 

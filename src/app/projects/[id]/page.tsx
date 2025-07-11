@@ -581,8 +581,8 @@ export default function ProjectDetailPage() {
                         <div className="text-gray-300">
                           Investeringen på <span className="text-white font-semibold">{formatCurrency(totalCost)}</span> förväntas 
                           betala tillbaka sig på <span className="text-white font-semibold">{roiMetrics.paybackPeriod.toFixed(1)} år</span> med 
-                          en total ROI på <span className={`font-semibold ${roiMetrics.economicROI > 0 ? 'text-green-400' : 'text-red-400'}`}>
-                            {roiMetrics.economicROI.toFixed(1)}%
+                          en total ROI på <span className={`font-semibold ${roiMetrics.combinedROI > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                            {roiMetrics.combinedROI.toFixed(1)}%
                           </span>.
                         </div>
                       </div>
@@ -2240,7 +2240,7 @@ export default function ProjectDetailPage() {
                         
                         if (totalInvestment > 0) {
                           const roiMetrics = calculateROI({ effectEntries, totalProjectInvestment: totalInvestment });
-                          return `${roiMetrics.economicROI.toFixed(1)}%`;
+                          return `${roiMetrics.combinedROI.toFixed(1)}%`;
                         }
                       }
                       return '—';
@@ -2249,7 +2249,7 @@ export default function ProjectDetailPage() {
                     }
                   })()}
                 </div>
-                <div className="text-gray-400 text-sm">Monetär ROI</div>
+                <div className="text-gray-400 text-sm">Total ROI</div>
               </div>
 
               <div>
@@ -2261,7 +2261,7 @@ export default function ProjectDetailPage() {
                     effectEntries.forEach((effect: any) => {
                       if (effect.hasQuantitative && effect.quantitativeDetails) {
                         const financialData = parseFinancialDetails(effect.quantitativeDetails.financialDetails);
-                        const redistributionData = parseFinancialDetails(effect.quantitativeDetails.redistributionDetails);
+                        const redistributionData = parseRedistributionDetails(effect.quantitativeDetails.redistributionDetails);
                         if (financialData) totalQuantitativeValue += financialData.value;
                         if (redistributionData) totalQuantitativeValue += redistributionData.value;
                       }

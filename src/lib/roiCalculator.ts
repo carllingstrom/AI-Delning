@@ -448,7 +448,31 @@ export function calculateROI(input: ROIInput): ROIMetrics {
       if (quant.effectType === 'financial' && quant.financialDetails) {
         const fin = quant.financialDetails;
         const annualValue = calculateAnnualValue(fin, fin.valueUnit);
-        const totalValue = annualValue * fin.annualizationYears;
+        
+        // For one_time effects, total value should be the original amount, not annualValue * years
+        let totalValue: number;
+        if (fin.valueUnit === 'currency' && fin.currencyDetails?.timescale === 'one_time') {
+          // For one-time currency effects, use the original amount as total value
+          totalValue = Number(fin.currencyDetails.amount) || 0;
+        } else if (fin.valueUnit === 'percentage' && fin.percentageDetails?.timescale === 'one_time') {
+          // For one-time percentage effects, calculate the total value from percentage
+          const percentage = Number(fin.percentageDetails.percentage) || 0;
+          const baseValue = Number(fin.percentageDetails.baseValue) || 0;
+          totalValue = (percentage / 100) * baseValue;
+        } else if (fin.valueUnit === 'count' && fin.countDetails?.timescale === 'one_time') {
+          // For one-time count effects, use count * valuePerUnit
+          const count = Number(fin.countDetails.count) || 0;
+          const valuePerUnit = Number(fin.countDetails.valuePerUnit) || 0;
+          totalValue = count * valuePerUnit;
+        } else if (fin.valueUnit === 'other' && fin.otherDetails?.timescale === 'one_time') {
+          // For one-time other effects, use amount * valuePerUnit
+          const amount = Number(fin.otherDetails.amount) || 0;
+          const valuePerUnit = Number(fin.otherDetails.valuePerUnit) || 0;
+          totalValue = amount * valuePerUnit;
+        } else {
+          // For recurring effects, calculate normally
+          totalValue = annualValue * fin.annualizationYears;
+        }
         
         totalMonetaryValue += totalValue;
         totalFinancialEffects += totalValue;
@@ -475,36 +499,60 @@ export function calculateROI(input: ROIInput): ROIMetrics {
         
         // Calculate annual value based on unit type
         let annualValue = 0;
+        let totalValue = 0;
+        
         if (redist.valueUnit === 'hours' && redist.hoursDetails?.hourlyRate) {
           // calculateSavedAmount now returns annual saved hours already
           annualValue = savedAmount * Number(redist.hoursDetails.hourlyRate);
           // No additional timescale multiplier needed - calculateSavedAmount handles this
+          totalValue = annualValue * redist.annualizationYears;
         } else if (redist.valueUnit === 'currency') {
-          annualValue = savedAmount;
-          switch (redist.currencyDetails?.timescale) {
-            case 'one_time': annualValue = 0; break;
-            case 'per_month': annualValue *= 12; break;
-            case 'per_year': break; // Already annual
+          // For currency redistribution effects
+          if (redist.currencyDetails?.timescale === 'one_time') {
+            // For one-time effects, total value is the saved amount itself
+            annualValue = 0;
+            totalValue = savedAmount;
+          } else {
+            annualValue = savedAmount;
+            switch (redist.currencyDetails?.timescale) {
+              case 'per_month': annualValue *= 12; break;
+              case 'per_year': break; // Already annual
+            }
+            totalValue = annualValue * redist.annualizationYears;
           }
         } else if (redist.valueUnit === 'count' && redist.countDetails?.valuePerUnit) {
-          annualValue = savedAmount * Number(redist.countDetails.valuePerUnit);
-          switch (redist.countDetails.timescale) {
-            case 'one_time': annualValue = 0; break;
-            case 'per_month': annualValue *= 12; break;
-            case 'per_year': break; // Already annual
+          const valuePerUnit = Number(redist.countDetails.valuePerUnit);
+          if (redist.countDetails.timescale === 'one_time') {
+            // For one-time effects, total value is savedAmount * valuePerUnit
+            annualValue = 0;
+            totalValue = savedAmount * valuePerUnit;
+          } else {
+            annualValue = savedAmount * valuePerUnit;
+            switch (redist.countDetails.timescale) {
+              case 'per_month': annualValue *= 12; break;
+              case 'per_year': break; // Already annual
+            }
+            totalValue = annualValue * redist.annualizationYears;
           }
         } else if (redist.valueUnit === 'other' && redist.otherDetails?.valuePerUnit) {
-          annualValue = savedAmount * Number(redist.otherDetails.valuePerUnit);
-          switch (redist.otherDetails.timescale) {
-            case 'one_time': annualValue = 0; break;
-            case 'per_month': annualValue *= 12; break;
-            case 'per_year': break; // Already annual
+          const valuePerUnit = Number(redist.otherDetails.valuePerUnit);
+          if (redist.otherDetails.timescale === 'one_time') {
+            // For one-time effects, total value is savedAmount * valuePerUnit
+            annualValue = 0;
+            totalValue = savedAmount * valuePerUnit;
+          } else {
+            annualValue = savedAmount * valuePerUnit;
+            switch (redist.otherDetails.timescale) {
+              case 'per_month': annualValue *= 12; break;
+              case 'per_year': break; // Already annual
+            }
+            totalValue = annualValue * redist.annualizationYears;
           }
+        } else {
+          totalValue = annualValue * redist.annualizationYears;
         }
         
-        const totalValue = annualValue * redist.annualizationYears;
-        
-        if (annualValue > 0) {
+        if (totalValue > 0) {
           totalMonetaryValue += totalValue;
           totalRedistributionEffects += totalValue;
         }
