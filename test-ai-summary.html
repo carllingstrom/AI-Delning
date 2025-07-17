@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test AI Summary</title>
+</head>
+<body>
+    <h1>Test AI Summary Generation</h1>
+    <button onclick="testAI()">Test AI Summary</button>
+    <div id="result"></div>
+
+    <script>
+        async function testAI() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = 'Testing...';
+            
+            try {
+                const response = await fetch('/api/test-ai-summary', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        intro: 'Projektet syftar till att skapa värde genom innovation',
+                        problem: 'Dålig funktionalitet',
+                        opportunity: 'Förbättra'
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    resultDiv.innerHTML = `
+                        <h3>Success!</h3>
+                        <p><strong>Summary:</strong> ${data.summary}</p>
+                        <p><strong>Word count:</strong> ${data.wordCount}</p>
+                        <p><strong>Character count:</strong> ${data.charCount}</p>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `
+                        <h3>Error!</h3>
+                        <p><strong>Error:</strong> ${data.error}</p>
+                    `;
+                }
+            } catch (error) {
+                resultDiv.innerHTML = `
+                    <h3>Network Error!</h3>
+                    <p><strong>Error:</strong> ${error.message}</p>
+                `;
+            }
+        }
+    </script>
+</body>
+</html> 

@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Header from '@/components/Header';
 import ProjectScoreBar from '@/components/ProjectScoreBar';
 import { calculateProjectScore } from '@/lib/projectScore';
+import AIOnePagerPDF from '@/components/AIOnePagerPDF';
 
 interface Project {
   id: string;
@@ -52,12 +53,31 @@ export default function ProjectDetailPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showExportMenu, setShowExportMenu] = useState(false);
+  const exportMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (params.id) {
       fetchProject(params.id as string);
     }
   }, [params.id]);
+
+  // Close export menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(event.target as Node)) {
+        setShowExportMenu(false);
+      }
+    };
+
+    if (showExportMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showExportMenu]);
 
   const fetchProject = async (id: string) => {
     try {
@@ -106,6 +126,413 @@ export default function ProjectDetailPage() {
       month: 'long',
       day: 'numeric'
     });
+  };
+
+  const exportToMyAI = () => {
+    if (!project) return;
+    
+    // Generate the myAI compatible format
+    const exportData = {
+      beskrivning: generateBeskrivning(),
+      mal: generateMal(),
+      losning: generateLosning(),  
+      resultat: generateResultat()
+    };
+    
+    // Create and open PDF-ready HTML in new window
+    openPrintWindow(exportData);
+  };
+
+
+
+  const openPrintWindow = (data: any) => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+    
+    const content = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Projekt: ${project?.title || 'Untitled'}</title>
+        <meta charset="utf-8">
+        <style>
+          @page {
+            margin: 2cm;
+            size: A4;
+          }
+          
+          body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: none;
+            margin: 0;
+            padding: 0;
+          }
+          
+          .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 2px solid #FFD600;
+          }
+          
+          .title {
+            font-size: 24px;
+            font-weight: bold;
+            color: #1a1a1a;
+            margin: 0 0 10px 0;
+          }
+          
+          .subtitle {
+            font-size: 14px;
+            color: #666;
+            margin: 0;
+          }
+          
+          .section {
+            margin-bottom: 30px;
+            page-break-inside: avoid;
+          }
+          
+          .section-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #FFD600;
+            background: #1a1a1a;
+            padding: 8px 16px;
+            margin: 0 0 15px 0;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+          }
+          
+          .section-content {
+            padding: 0 16px;
+            white-space: pre-line;
+          }
+          
+          .footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #ddd;
+            font-size: 12px;
+            color: #666;
+            text-align: center;
+          }
+          
+          @media print {
+            body { 
+              -webkit-print-color-adjust: exact;
+              print-color-adjust: exact;
+            }
+            
+            .section {
+              page-break-inside: avoid;
+            }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <h1 class="title">${project?.title || 'Untitled'}</h1>
+          <p class="subtitle">Exporterat från Kommunkartan för användning på myAI<br>
+          ${new Date().toLocaleDateString('sv-SE')}</p>
+        </div>
+        
+        <div class="section">
+          <h2 class="section-title">Beskrivning</h2>
+          <div class="section-content">${data.beskrivning}</div>
+        </div>
+        
+        <div class="section">
+          <h2 class="section-title">Mål</h2>
+          <div class="section-content">${data.mal}</div>
+        </div>
+        
+        <div class="section">
+          <h2 class="section-title">Lösning</h2>
+          <div class="section-content">${data.losning}</div>
+        </div>
+        
+        <div class="section">
+          <h2 class="section-title">Resultat</h2>
+          <div class="section-content">${data.resultat}</div>
+        </div>
+        
+        <div class="footer">
+          Ansvarig: ${project?.responsible || 'Ej specificerad'} • 
+          Fas: ${getPhaseLabel(project?.phase || 'idea')} • 
+          Exporterat: ${new Date().toLocaleString('sv-SE')}
+        </div>
+        
+        <script>
+          window.onload = function() {
+            window.print();
+          }
+        </script>
+      </body>
+      </html>
+    `;
+    
+    printWindow.document.write(content);
+    printWindow.document.close();
+  };
+
+  const generateBeskrivning = () => {
+    if (!project) return '';
+    
+    const parts = [];
+    
+    if (project.intro) {
+      parts.push(project.intro);
+    }
+    
+    if (project.problem) {
+      parts.push(`Problem: ${project.problem}`);
+    }
+    
+    if (project.opportunity) {
+      parts.push(`Möjlighet: ${project.opportunity}`);
+    }
+    
+    // Add context about location and areas
+    const isCountyProject = project.overview_details?.location_type === 'county';
+    const locations = isCountyProject 
+      ? (project.overview_details?.county_codes || []).map((code: string) => {
+          const counties: Record<string, string> = {
+            '01': 'Stockholm', '03': 'Uppsala', '04': 'Södermanland', '05': 'Östergötland',
+            '06': 'Jönköping', '07': 'Kronoberg', '08': 'Kalmar', '09': 'Gotland',
+            '10': 'Blekinge', '12': 'Skåne', '13': 'Halland', '14': 'Västra Götaland',
+            '17': 'Värmland', '18': 'Örebro', '19': 'Västmanland', '20': 'Dalarna',
+            '21': 'Gävleborg', '22': 'Västernorrland', '23': 'Jämtland', '24': 'Västerbotten', '25': 'Norrbotten'
+          };
+          return counties[code] || code;
+        })
+      : (project.project_municipalities || []).map((pm: any) => pm.municipalities.name);
+    
+    if (locations.length > 0) {
+      parts.push(`Geografisk omfattning: ${locations.join(', ')}`);
+    }
+    
+    const areas = (project.project_areas || project.areas || [])
+      .map((area: any) => area.areas?.name || area)
+      .filter(Boolean);
+    
+    if (areas.length > 0) {
+      parts.push(`Verksamhetsområden: ${areas.join(', ')}`);
+    }
+    
+    return parts.join('\n\n');
+  };
+
+  const generateMal = () => {
+    if (!project) return '';
+    
+    const parts = [];
+    
+    // Extract goals from effects data
+    const effectEntries = project.effects_data?.effectDetails || [];
+    const goals: string[] = [];
+    
+    effectEntries.forEach((effect: any, index: number) => {
+      if (effect.hasQuantitative && effect.quantitativeDetails) {
+        const fin = effect.quantitativeDetails.financialDetails;
+        const redist = effect.quantitativeDetails.redistributionDetails;
+        
+        if (fin?.measurementName) {
+          goals.push(`Uppnå ${fin.measurementName.toLowerCase()}`);
+        }
+        if (redist?.resourceType) {
+          goals.push(`Förbättra ${redist.resourceType.toLowerCase()}`);
+        }
+      }
+      
+      if (effect.hasQualitative && effect.qualitativeDetails?.factor) {
+        const improvement = effect.qualitativeDetails.targetRating - effect.qualitativeDetails.currentRating;
+        if (improvement > 0) {
+          goals.push(`Förbättra ${effect.qualitativeDetails.factor.toLowerCase()}`);
+        }
+      }
+    });
+    
+    if (goals.length > 0) {
+      parts.push(`Projektmål:\n${goals.map(g => `• ${g}`).join('\n')}`);
+    }
+    
+    // Add value dimensions as strategic goals
+    const valueDimensions = (project.project_value_dimensions || project.value_dimensions || [])
+      .map((vd: any) => vd.value_dimensions?.name || vd)
+      .filter(Boolean);
+    
+    if (valueDimensions.length > 0) {
+      parts.push(`Värdeskapande dimensioner:\n${valueDimensions.map((vd: string) => `• ${vd}`).join('\n')}`);
+    }
+    
+    return parts.join('\n\n') || 'Projektmål kommer att definieras baserat på identifierade behov och möjligheter.';
+  };
+
+  const generateLosning = () => {
+    if (!project) return '';
+    
+    const parts = [];
+    
+    // Extract technical solution info
+    const techData = project.technical_data || {};
+    
+    if (techData.system_name) {
+      parts.push(`System: ${techData.system_name}`);
+    }
+    
+    if (techData.ai_methodology && techData.ai_methodology.length > 0) {
+      parts.push(`AI-metoder: ${techData.ai_methodology.join(', ')}`);
+    }
+    
+    if (techData.data_types && techData.data_types.length > 0) {
+      parts.push(`Datatyper: ${techData.data_types.join(', ')}`);
+    }
+    
+    if (techData.deployment_environment) {
+      parts.push(`Miljö: ${techData.deployment_environment}`);
+    }
+    
+    if (techData.technical_solutions) {
+      parts.push(`Tekniska lösningar: ${techData.technical_solutions}`);
+    }
+    
+    // Add leadership/organizational solution
+    const leadershipData = project.leadership_data || {};
+    if (leadershipData.projectOwnership) {
+      parts.push(`Projektägarskap: ${leadershipData.projectOwnership}`);
+    }
+    
+    if (leadershipData.organizationalChange) {
+      parts.push(`Organisatorisk förändring: ${leadershipData.organizationalChange}`);
+    }
+    
+    return parts.join('\n\n') || 'Teknisk lösning och implementationsmetod kommer att utvecklas baserat på projektets specifika krav.';
+  };
+
+  const generateResultat = () => {
+    if (!project) return '';
+    
+    const parts = [];
+    
+    // Calculate and present quantitative results
+    const effectEntries = project.effects_data?.effectDetails || [];
+    let totalQuantitativeValue = 0;
+    const quantitativeResults: string[] = [];
+    
+    effectEntries.forEach((effect: any) => {
+      if (effect.hasQuantitative && effect.quantitativeDetails) {
+        const financialData = parseFinancialDetails(effect.quantitativeDetails.financialDetails);
+        const redistributionData = parseRedistributionDetails(effect.quantitativeDetails.redistributionDetails);
+        
+        if (financialData) {
+          totalQuantitativeValue += financialData.value;
+          quantitativeResults.push(`• ${financialData.description}: ${formatCurrency(financialData.value)}`);
+        }
+        if (redistributionData) {
+          totalQuantitativeValue += redistributionData.value;
+          quantitativeResults.push(`• ${redistributionData.description}: ${formatCurrency(redistributionData.value)}`);
+        }
+      }
+    });
+    
+    if (totalQuantitativeValue > 0) {
+      parts.push(`Förväntade kvantifierbara resultat:\n${quantitativeResults.join('\n')}\n\nTotal monetär nytta: ${formatCurrency(totalQuantitativeValue)}`);
+    }
+    
+    // Add qualitative results
+    const qualitativeResults = effectEntries
+      .filter((effect: any) => effect.hasQualitative && effect.qualitativeDetails?.factor)
+      .map((effect: any) => {
+        const qual = effect.qualitativeDetails;
+        const improvement = qual.targetRating - qual.currentRating;
+        const improvementPercent = qual.currentRating > 0 ? ((improvement / qual.currentRating) * 100).toFixed(1) : '0';
+        return `• ${qual.factor}: ${improvementPercent}% förbättring över ${qual.annualizationYears} år`;
+      });
+    
+    if (qualitativeResults.length > 0) {
+      parts.push(`Förväntade kvalitativa resultat:\n${qualitativeResults.join('\n')}`);
+    }
+    
+    // Add ROI information
+    try {
+      const { calculateROI } = require('@/lib/roiCalculator');
+      const costEntries = project.cost_data?.actualCostDetails?.costEntries || [];
+      let totalCost = 0;
+      
+      costEntries.forEach((entry: any) => {
+        switch (entry?.costUnit) {
+          case 'hours':
+            totalCost += (Number(entry.hoursDetails?.hours) || 0) * (Number(entry.hoursDetails?.hourlyRate) || 0);
+            break;
+          case 'fixed':
+            totalCost += Number(entry.fixedDetails?.fixedAmount) || 0;
+            break;
+          case 'monthly':
+            totalCost += (Number(entry.monthlyDetails?.monthlyAmount) || 0) * (Number(entry.monthlyDetails?.monthlyDuration) || 1);
+            break;
+          case 'yearly':
+            totalCost += (Number(entry.yearlyDetails?.yearlyAmount) || 0) * (Number(entry.yearlyDetails?.yearlyDuration) || 1);
+            break;
+        }
+      });
+      
+      if (totalCost > 0 && effectEntries.length > 0) {
+        const roiMetrics = calculateROI({ effectEntries, totalProjectInvestment: totalCost });
+        parts.push(`Ekonomisk analys:\n• Total investering: ${formatCurrency(totalCost)}\n• Förväntad ROI: ${roiMetrics.combinedROI.toFixed(1)}%\n• Återbetalningstid: ${roiMetrics.paybackPeriod.toFixed(1)} år`);
+      }
+    } catch (error) {
+      // Handle ROI calculation error silently
+    }
+    
+    return parts.join('\n\n') || 'Projektresultat kommer att mätas och utvärderas enligt uppsatta mål och nyckeltal.';
+  };
+
+  const formatForMyAI = (data: any) => {
+    return `
+PROJEKT: ${project?.title || 'Untitled'}
+Exporterat från Kommunkartan för användning på my.ai.se
+Datum: ${new Date().toLocaleDateString('sv-SE')}
+
+═════════════════════════════════════════════════════════════════
+
+BESKRIVNING
+${data.beskrivning}
+
+═════════════════════════════════════════════════════════════════
+
+MÅL
+${data.mal}
+
+═════════════════════════════════════════════════════════════════
+
+LÖSNING
+${data.losning}
+
+═════════════════════════════════════════════════════════════════
+
+RESULTAT
+${data.resultat}
+
+═════════════════════════════════════════════════════════════════
+
+Ansvarig: ${project?.responsible || 'Ej specificerad'}
+Fas: ${getPhaseLabel(project?.phase || 'idea')}
+Exporterat: ${new Date().toLocaleString('sv-SE')}
+    `.trim();
+  };
+
+  const downloadAsText = (content: string, filename: string) => {
+    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(link.href);
   };
 
   const getPhaseLabel = (phase: string) => {
@@ -2126,6 +2553,8 @@ export default function ProjectDetailPage() {
       <Header />
       
       <div className="max-w-7xl mx-auto p-8">
+
+
         {/* Header Section */}
         <div className="mb-8">
           <div className="flex items-center gap-4 mb-4">
@@ -2140,12 +2569,85 @@ export default function ProjectDetailPage() {
             </button>
           </div>
 
-          <div className="flex items-center gap-4 mb-4">
-            <h1 className="text-4xl font-extrabold text-[#FECB00]">{project.title}</h1>
-            <span className={`px-3 py-1 rounded-full text-sm font-medium text-white ${getPhaseColor(project.phase)}`}>
-              {getPhaseLabel(project.phase)}
-            </span>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-4">
+              <h1 className="text-4xl font-extrabold text-[#FECB00]">{project.title}</h1>
+              <span className={`px-3 py-1 rounded-full text-sm font-medium text-white ${getPhaseColor(project.phase)}`}>
+                {getPhaseLabel(project.phase)}
+              </span>
+            </div>
+            
+            <div className="relative" ref={exportMenuRef}>
+              <button
+                onClick={() => setShowExportMenu(!showExportMenu)}
+                className="flex items-center gap-2 px-3 py-2 text-gray-400 hover:text-white border border-gray-600 hover:border-gray-400 rounded-lg text-sm transition-colors"
+                title="Exportera projekt"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                Exportera
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+              
+              {showExportMenu && (
+                <div className="absolute right-0 mt-2 w-72 bg-[#1a2332] border border-gray-600 rounded-lg shadow-lg z-50">
+                  <div className="p-2">
+                    <div className="text-xs text-gray-400 mb-3 px-2">Välj exportformat</div>
+                    
+                    <button
+                      onClick={() => {
+                        exportToMyAI();
+                        setShowExportMenu(false);
+                      }}
+                      className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-[#2a3441] rounded-md transition-colors flex items-center gap-3"
+                    >
+                      <div className="w-8 h-8 bg-[#FECB00] rounded-lg flex items-center justify-center text-[#0D1B2A] text-xs font-bold">
+                        AI
+                      </div>
+                      <div>
+                        <div className="font-medium">myAI Export</div>
+                        <div className="text-xs text-gray-500">Enkel PDF-utskrift för myAI</div>
+                      </div>
+                    </button>
+                    
+                    <AIOnePagerPDF project={project}>
+                      {({ loading, generatePDF }) => (
+                        <button
+                          onClick={() => {
+                            generatePDF();
+                            setShowExportMenu(false);
+                          }}
+                          disabled={loading}
+                          className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-[#2a3441] rounded-md transition-colors flex items-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white text-xs font-bold">
+                            {loading ? (
+                              <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                              </svg>
+                            ) : (
+                              'PDF'
+                            )}
+                          </div>
+                          <div>
+                            <div className="font-medium">AI-PDF OnePager</div>
+                            <div className="text-xs text-gray-500">AI-genererad professionell PDF</div>
+                          </div>
+                        </button>
+                      )}
+                    </AIOnePagerPDF>
+                    
+
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
+
           {project.intro && (
             <p className="text-xl text-gray-300 mb-6">{project.intro}</p>
           )}
@@ -2444,6 +2946,9 @@ export default function ProjectDetailPage() {
             >
               Redigera projekt
             </button>
+            
+
+            
             <button
               onClick={deleteProject}
               disabled={isDeleting}

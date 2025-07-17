@@ -1,14 +1,26 @@
-import { NextRequest, NextResponse } from 'next/server'
-import { createServerSupabaseClient } from '@/lib/supabaseServer'
+import { NextRequest, NextResponse } from 'next/server';
+import { createServerSupabaseClient } from '@/lib/supabaseServer';
 
-const sb = () => createServerSupabaseClient()
+function serverSupabase() {
+  return createServerSupabaseClient();
+}
 
+// GET /api/projects/[id] - Get single project
 export async function GET(
-  request: NextRequest,
-  { params }: { params: { id: string } }
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
 ) {
+  const { id: projectId } = await params;
+
+  if (!projectId) {
+    return NextResponse.json({ error: 'Project ID is required' }, { status: 400 });
+  }
+
   try {
-    const { data, error } = await sb()
+    const sb = serverSupabase();
+    
+    // Fetch project with all related data
+    const { data: project, error } = await sb
       .from('projects')
       .select(`
         *,
@@ -32,25 +44,57 @@ export async function GET(
           )
         )
       `)
-      .eq('id', params.id)
-      .single()
+      .eq('id', projectId)
+      .single();
 
-    if (error) {
-      return NextResponse.json({ error: 'Project not found' }, { status: 404 })
+    if (error || !project) {
+      console.error('Project fetch error:', error);
+      return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
-    return NextResponse.json(data)
+    // Transform to export format
+    const projectData = {
+      id: project.id,
+      title: project.title,
+      intro: project.intro,
+      problem: project.problem,
+      opportunity: project.opportunity,
+      responsible: project.responsible,
+      phase: project.phase,
+      created_at: project.created_at,
+      municipalities: project.project_municipalities?.map((pm: any) => ({
+        name: pm.municipalities.name,
+        county: pm.municipalities.county
+      })) || [],
+      location_type: project.overview_details?.location_type,
+      county_codes: project.overview_details?.county_codes,
+      areas: project.areas || [],
+      value_dimensions: project.value_dimensions || [],
+      cost_data: project.cost_data,
+      effects_data: project.effects_data,
+      technical_data: project.technical_data,
+      leadership_data: project.leadership_data,
+      legal_data: project.legal_data,
+      overview_details: project.overview_details
+    };
+
+    return NextResponse.json(projectData);
+
   } catch (error) {
-    console.error('Get project error:', error)
-    return NextResponse.json({ error: 'Server error' }, { status: 500 })
+    console.error('Project fetch error:', error);
+    return NextResponse.json({ 
+      error: 'Failed to fetch project', 
+      details: error instanceof Error ? error.message : 'Unknown error'
+    }, { status: 500 });
   }
 }
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id: projectId } = await params;
     const payload = await request.json()
     
     const { 
@@ -74,7 +118,7 @@ export async function PUT(
     } = payload;
 
     // 1. Update the main project record
-    const { data: project, error: projectError } = await sb()
+    const { data: project, error: projectError } = await serverSupabase()
       .from('projects')
       .update({
         title,
@@ -92,7 +136,7 @@ export async function PUT(
         leadership_data: leadership_data || {},
         legal_data: legal_data || {},
       })
-      .eq('id', params.id)
+      .eq('id', projectId)
       .select()
       .single()
 
@@ -104,21 +148,21 @@ export async function PUT(
     // 2. Update municipality relationships if provided
     if (municipality_ids && Array.isArray(municipality_ids)) {
       // First delete existing relationships
-      await sb()
+      await serverSupabase()
         .from('project_municipalities')
         .delete()
-        .eq('project_id', params.id)
+        .eq('project_id', projectId)
 
       // Then insert new relationships
       const municipalityRows = municipality_ids
         .filter((id: any) => id && id !== '') // Filter out empty values
         .map((id: any) => ({
-          project_id: params.id,
+          project_id: projectId,
           municipality_id: parseInt(id),
         }));
 
       if (municipalityRows.length > 0) {
-        const { error: municipalityError } = await sb()
+        const { error: municipalityError } = await serverSupabase()
           .from('project_municipalities')
           .insert(municipalityRows);
 
@@ -132,16 +176,16 @@ export async function PUT(
     // 3. Update area relationships if provided
     if (areas && Array.isArray(areas)) {
       // Delete existing
-      await sb().from('project_areas').delete().eq('project_id', params.id);
+      await serverSupabase().from('project_areas').delete().eq('project_id', projectId);
       // Insert new
       if (areas.length > 0) {
-        const { data: areaData } = await sb().from('areas').select('id, name').in('name', areas);
+        const { data: areaData } = await serverSupabase().from('areas').select('id, name').in('name', areas);
         if (areaData) {
           const areaRows = areaData.map(area => ({
-            project_id: params.id,
+            project_id: projectId,
             area_id: area.id,
           }));
-          await sb().from('project_areas').insert(areaRows);
+          await serverSupabase().from('project_areas').insert(areaRows);
         }
       }
     }
@@ -149,16 +193,16 @@ export async function PUT(
     // 4. Update value dimension relationships if provided
     if (value_dimensions && Array.isArray(value_dimensions)) {
       // Delete existing
-      await sb().from('project_value_dimensions').delete().eq('project_id', params.id);
+      await serverSupabase().from('project_value_dimensions').delete().eq('project_id', projectId);
       // Insert new
       if (value_dimensions.length > 0) {
-        const { data: valueData } = await sb().from('value_dimensions').select('id, name').in('name', value_dimensions);
+        const { data: valueData } = await serverSupabase().from('value_dimensions').select('id, name').in('name', value_dimensions);
         if (valueData) {
           const valueRows = valueData.map(value => ({
-            project_id: params.id,
+            project_id: projectId,
             value_dimension_id: value.id,
           }));
-          await sb().from('project_value_dimensions').insert(valueRows);
+          await serverSupabase().from('project_value_dimensions').insert(valueRows);
         }
       }
     }
@@ -172,20 +216,22 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id: projectId } = await params;
+    
     // First delete from project_municipalities to maintain referential integrity
-    await sb()
+    await serverSupabase()
       .from('project_municipalities')
       .delete()
-      .eq('project_id', params.id)
+      .eq('project_id', projectId)
 
     // Then delete the project
-    const { error } = await sb()
+    const { error } = await serverSupabase()
       .from('projects')
       .delete()
-      .eq('id', params.id)
+      .eq('id', projectId)
 
     if (error) {
       console.error('Delete project error:', error)

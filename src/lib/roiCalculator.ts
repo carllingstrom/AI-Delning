@@ -389,8 +389,16 @@ export function calculateROI(input: ROIInput): ROIMetrics {
     const dimension = entry.valueDimension;
     
     // Check if this entry actually has any effects reported
-    const hasQualitative = (entry.hasQualitative === true || entry.hasQualitative === 'true') && entry.qualitativeDetails;
-    const hasQuantitative = (entry.hasQuantitative === true || entry.hasQuantitative === 'true') && entry.quantitativeDetails;
+    const hasQualitative = (entry.hasQualitative === true || entry.hasQualitative === 'true') && 
+      entry.qualitativeDetails && 
+      Object.keys(entry.qualitativeDetails).length > 0 &&
+      entry.qualitativeDetails.factor && 
+      entry.qualitativeDetails.currentRating !== null && 
+      entry.qualitativeDetails.targetRating !== null;
+    
+    const hasQuantitative = (entry.hasQuantitative === true || entry.hasQuantitative === 'true') && 
+      entry.quantitativeDetails && 
+      Object.keys(entry.quantitativeDetails).length > 0;
     
     // Skip this entry if it has no effects
     if (!hasQualitative && !hasQuantitative) {
