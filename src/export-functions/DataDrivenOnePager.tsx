@@ -1,5 +1,6 @@
 import React from 'react';
 import { Document, Page, Text, View, StyleSheet, Font, Image } from '@react-pdf/renderer';
+import { generateSimplePieChart } from '@/lib/pieChartGenerator';
 
 // Register custom fonts
 Font.register({
@@ -96,6 +97,56 @@ const styles = StyleSheet.create({
     lineHeight: 1.4,
     textAlign: 'justify',
     flexWrap: 'wrap',
+  },
+  
+  // Main content area - full width layout
+  mainContent: {
+    flexDirection: 'column',
+    flex: 1,
+  },
+  
+  // Bottom section for pie chart - full width layout
+  bottomSection: {
+    flexDirection: 'column',
+    marginTop: 20,
+  },
+  
+  // Pie chart container - takes right half of page
+  pieChartContainer: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    alignItems: 'flex-start',
+    marginTop: 15,
+  },
+  
+  // Right column for pie chart
+  rightColumn: {
+    width: '50%',
+    flexDirection: 'column',
+    alignItems: 'center',
+  },
+  
+  // Cost distribution section - right side
+  costDistributionSection: {
+    alignItems: 'center',
+    marginTop: 10,
+  },
+  
+  // Chart section
+  chartSection: {
+    alignItems: 'center',
+    marginBottom: 15,
+  },
+  
+  chartTitle: {
+    fontSize: 10,
+    fontWeight: 'bold',
+    color: '#ffffff',
+    marginBottom: 6,
+    textTransform: 'uppercase',
+    letterSpacing: 1,
+    textAlign: 'center',
+    whiteSpace: 'nowrap',
   },
   
   // ROI Section - more compact
@@ -197,6 +248,72 @@ const styles = StyleSheet.create({
     borderRadius: 2,
   },
   
+  // Simple pie chart styles
+  pieChartSection: {
+    alignItems: 'center',
+    marginBottom: 15,
+  },
+  
+  pieChartInnerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginBottom: 6,
+  },
+  
+  pieChartImage: {
+    width: 70,
+    height: 70,
+  },
+  
+  pieChartLegend: {
+    flexDirection: 'column',
+    gap: 3,
+    minWidth: 100,
+  },
+  
+  pieLegend: {
+    width: '100%',
+    flexDirection: 'column',
+    gap: 4,
+  },
+  
+  legendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginBottom: 2,
+  },
+  
+  legendColor: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  
+  legendText: {
+    fontSize: 8,
+    color: '#ffffff',
+    flex: 1,
+    flexWrap: 'nowrap',
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    fontWeight: 'normal',
+  },
+  
+  legendValue: {
+    fontSize: 7,
+    color: '#ffd700',
+    fontWeight: 'bold',
+    minWidth: 40,
+    textAlign: 'right',
+    whiteSpace: 'nowrap',
+  },
+  
+
+  
   // Footer
   footer: {
     position: 'absolute',
@@ -207,6 +324,23 @@ const styles = StyleSheet.create({
     fontSize: 9, // Smaller
     color: '#888888',
   },
+
+
+
+  totalCostSection: {
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  totalCostLabel: {
+    fontSize: 9,
+    color: '#ffffff',
+    marginBottom: 3,
+  },
+  totalCostAmount: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#ffd700',
+  },
 });
 
 interface DataDrivenOnePagerProps {
@@ -215,7 +349,10 @@ interface DataDrivenOnePagerProps {
 }
 
 const DataDrivenOnePager: React.FC<DataDrivenOnePagerProps> = ({ project, aiSummary }) => {
-  if (!project) return null;
+  if (!project) {
+    console.warn('DataDrivenOnePager: No project data provided');
+    return null;
+  }
 
   // Use calculated values from the controller
   const totalBenefit = project.totalBenefit || 0;
@@ -230,6 +367,81 @@ const DataDrivenOnePager: React.FC<DataDrivenOnePagerProps> = ({ project, aiSumm
   
   // Use AI summary or fallback to project description
   const summaryText = aiSummary || project.intro || project.description || 'Ingen sammanfattning tillgänglig för detta projekt.';
+
+  // Define formatCurrency function first
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('sv-SE', {
+      style: 'currency',
+      currency: 'SEK',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(amount);
+  };
+
+  // Prepare cost data for pie chart
+  const costData = [];
+  if (project.cost_data && project.cost_data.actualCostDetails && project.cost_data.actualCostDetails.costEntries && project.cost_data.actualCostDetails.costEntries.length > 0) {
+    project.cost_data.actualCostDetails.costEntries.forEach((entry: any, index: number) => {
+      if (!entry) return;
+      
+      let entryTotal = 0;
+      let entryLabel = '';
+      
+      try {
+        switch (entry?.costUnit) {
+          case 'hours':
+            const hours = Number(entry.hoursDetails?.hours) || 0;
+            const hourlyRate = Number(entry.hoursDetails?.hourlyRate) || 0;
+            entryTotal = hours * hourlyRate;
+            entryLabel = entry.costLabel || entry.description || entry.hoursDetails?.description || 'Timmar';
+            break;
+          case 'fixed':
+            entryTotal = Number(entry.fixedDetails?.fixedAmount) || 0;
+            entryLabel = entry.costLabel || entry.description || entry.fixedDetails?.description || 'Fast kostnad';
+            break;
+          case 'monthly':
+            const monthlyAmount = Number(entry.monthlyDetails?.monthlyAmount) || 0;
+            const monthlyDuration = Number(entry.monthlyDetails?.monthlyDuration) || 1;
+            entryTotal = monthlyAmount * monthlyDuration;
+            entryLabel = entry.costLabel || entry.description || entry.monthlyDetails?.description || 'Månadsvis kostnad';
+            break;
+          case 'yearly':
+            const yearlyAmount = Number(entry.yearlyDetails?.yearlyAmount) || 0;
+            const yearlyDuration = Number(entry.yearlyDetails?.yearlyDuration) || 1;
+            entryTotal = yearlyAmount * yearlyDuration;
+            entryLabel = entry.costLabel || entry.description || entry.yearlyDetails?.description || 'Årlig kostnad';
+            break;
+        }
+      } catch (error) {
+        console.warn('Error calculating cost entry for chart:', error);
+        return;
+      }
+      
+      if (entryTotal > 0) {
+        costData.push({
+          x: entryLabel,
+          y: entryTotal,
+          label: `${formatCurrency(entryTotal)}`
+        });
+      }
+    });
+  }
+  
+  // If no cost data, create a simple placeholder
+  if (costData.length === 0) {
+    costData.push({
+      x: 'Ingen kostnadsdata',
+      y: 1,
+      label: 'N/A'
+    });
+  }
+
+
+
+
+
+  // Chart colors
+  const chartColors = ['#ffd700', '#ff6b6b', '#4ecdc4', '#45b7d1', '#96ceb4', '#feca57', '#ff9ff3', '#54a0ff'];
 
   // Extract technical information for future diagrams
   const technicalInfo = {
@@ -275,51 +487,96 @@ const DataDrivenOnePager: React.FC<DataDrivenOnePagerProps> = ({ project, aiSumm
           </Text>
         </View>
 
-        {/* ROI Section - keep as is (working well) */}
-        <View style={styles.roiSection}>
-          <Text style={styles.roiValue}>{roi >= 0 ? '+' : ''}{roi.toFixed(1)}%</Text>
-          <Text style={styles.roiLabel}>Return on Investment</Text>
-        </View>
+        {/* Main content - full width layout */}
+        <View style={styles.mainContent}>
+          {/* ROI Section - full width */}
+          <View style={styles.roiSection}>
+            <Text style={styles.roiValue}>{roi >= 0 ? '+' : ''}{roi.toFixed(1)}%</Text>
+            <Text style={styles.roiLabel}>Return on Investment</Text>
+          </View>
 
-        {/* Claw-down separator - keep as is */}
-        <View style={styles.separator}>
-          <View style={styles.separatorLeft} />
-          <View style={styles.separatorRight} />
-        </View>
+          {/* Claw-down separator - full width */}
+          <View style={styles.separator}>
+            <View style={styles.separatorLeft} />
+            <View style={styles.separatorRight} />
+          </View>
 
-        {/* Key figures grid - more compact */}
-        <View style={styles.metricsGrid}>
-          <View style={styles.metricItem}>
-            <Text style={styles.metricValue}>{(totalBenefit / 1000000).toFixed(1)} Mkr</Text>
-            <Text style={styles.metricLabel}>TOTAL NYTTA</Text>
-          </View>
-          
-          <View style={styles.metricItem}>
-            <Text style={styles.metricValue}>{(totalCost / 1000000).toFixed(1)} Mkr</Text>
-            <Text style={styles.metricLabel}>TOTAL KOSTNAD</Text>
-          </View>
-          
-          <View style={styles.metricItem}>
-            <Text style={styles.metricValue}>{paybackPeriod > 0 ? paybackPeriod.toFixed(1) : '0.0'} år</Text>
-            <Text style={styles.metricLabel}>ÅTERBETALNINGSTID</Text>
-          </View>
-          
-          <View style={styles.metricItem}>
-            <Text style={styles.metricValue}>{locationCount}</Text>
-            <Text style={styles.metricLabel}>LOKALISERING</Text>
-          </View>
-          
-          <View style={styles.metricItem}>
-            <Text style={styles.metricValue}>{sharingScore}%</Text>
-            <Text style={styles.metricLabel}>DELNINGSPOÄNG</Text>
-          </View>
-        </View>
 
-        {/* Progress bar for sharing score */}
-        <View style={styles.progressSection}>
-          <Text style={styles.progressLabel}>DELNINGSPOÄNG PROGRESS</Text>
-          <View style={styles.progressBar}>
-            <View style={[styles.progressFill, { width: `${sharingScore}%` }]} />
+
+          {/* Key figures grid - full width */}
+          <View style={styles.metricsGrid}>
+            <View style={styles.metricItem}>
+              <Text style={styles.metricValue}>{(totalBenefit / 1000000).toFixed(1)} Mkr</Text>
+              <Text style={styles.metricLabel}>TOTAL NYTTA</Text>
+            </View>
+            
+            <View style={styles.metricItem}>
+              <Text style={styles.metricValue}>{(totalCost / 1000000).toFixed(1)} Mkr</Text>
+              <Text style={styles.metricLabel}>TOTAL KOSTNAD</Text>
+            </View>
+            
+            <View style={styles.metricItem}>
+              <Text style={styles.metricValue}>{paybackPeriod > 0 ? paybackPeriod.toFixed(1) : '0.0'} år</Text>
+              <Text style={styles.metricLabel}>ÅTERBETALNINGSTID</Text>
+            </View>
+            
+            <View style={styles.metricItem}>
+              <Text style={styles.metricValue}>{locationCount}</Text>
+              <Text style={styles.metricLabel}>LOKALISERING</Text>
+            </View>
+            
+            <View style={styles.metricItem}>
+              <Text style={styles.metricValue}>{sharingScore}%</Text>
+              <Text style={styles.metricLabel}>DELNINGSPOÄNG</Text>
+            </View>
+          </View>
+
+          {/* Progress bar for sharing score - full width */}
+          <View style={styles.progressSection}>
+            <Text style={styles.progressLabel}>DELNINGSPOÄNG PROGRESS</Text>
+            <View style={styles.progressBar}>
+              <View style={[styles.progressFill, { width: `${sharingScore}%` }]} />
+            </View>
+          </View>
+
+          {/* Bottom section - Pie chart on the right half */}
+          <View style={styles.bottomSection}>
+            {/* Pie chart container - takes right half of page */}
+            <View style={styles.pieChartContainer}>
+              {/* Right column - Cost distribution */}
+              <View style={styles.rightColumn}>
+                <View style={styles.costDistributionSection}>
+                  <Text style={styles.chartTitle}>KOSTNADSFÖRDELNING</Text>
+                  
+                  {/* Simple Pie Chart */}
+                  <View style={styles.pieChartSection}>
+                    <View style={styles.pieChartInnerContainer}>
+                      {/* Generate pie chart image */}
+                      <Image 
+                        src={generateSimplePieChart(costData)}
+                        style={styles.pieChartImage}
+                      />
+                      
+                      {/* Legend next to the chart */}
+                      <View style={styles.pieChartLegend}>
+                        {costData.map((item, index) => {
+                          const percentage = totalCost > 0 ? (item.y / totalCost) * 100 : 0;
+                          const color = chartColors[index % chartColors.length];
+                          
+                          return (
+                            <View key={index} style={styles.legendItem}>
+                              <View style={[styles.legendColor, { backgroundColor: color }]} />
+                              <Text style={styles.legendText}>{item.x}</Text>
+                              <Text style={styles.legendValue}>{formatCurrency(item.y)}</Text>
+                            </View>
+                          );
+                        })}
+                      </View>
+                    </View>
+                  </View>
+                </View>
+              </View>
+            </View>
           </View>
         </View>
 
