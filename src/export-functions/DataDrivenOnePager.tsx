@@ -47,7 +47,7 @@ const styles = StyleSheet.create({
   },
   
   projectTitle: {
-    fontSize: 20, // Even smaller font
+    fontSize: 16, // Smaller font for better fit
     fontWeight: 'bold',
     color: '#ffffff',
     marginBottom: 4, // Minimal margin
@@ -84,7 +84,7 @@ const styles = StyleSheet.create({
     // No background, border, or special padding
   },
   summaryTitle: {
-    fontSize: 12,
+    fontSize: 10,
     fontWeight: 'bold',
     color: '#ffffff', // Changed from #FECB00 to white
     marginBottom: 8,
@@ -139,7 +139,7 @@ const styles = StyleSheet.create({
   },
   
   chartTitle: {
-    fontSize: 10,
+    fontSize: 8,
     fontWeight: 'bold',
     color: '#ffffff',
     marginBottom: 6,
@@ -229,7 +229,7 @@ const styles = StyleSheet.create({
   },
   
   progressLabel: {
-    fontSize: 9, // Reduced from 10
+    fontSize: 8, // Smaller for better fit
     color: '#ffffff',
     marginBottom: 6, // Reduced from 8
     textAlign: 'center',

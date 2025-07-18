@@ -6,6 +6,8 @@ import Header from '@/components/Header';
 import ProjectScoreBar from '@/components/ProjectScoreBar';
 import { calculateProjectScore } from '@/lib/projectScore';
 import AIOnePagerPDF from '@/components/AIOnePagerPDF';
+import PowerPointOnePager from '@/export-functions/PowerPointOnePager';
+import CollapsibleSection from '@/components/CollapsibleSection';
 
 interface Project {
   id: string;
@@ -2641,6 +2643,34 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
                       )}
                     </AIOnePagerPDF>
                     
+                    <PowerPointOnePager project={project}>
+                      {({ loading, generatePowerPoint }) => (
+                        <button
+                          onClick={() => {
+                            generatePowerPoint();
+                            setShowExportMenu(false);
+                          }}
+                          disabled={loading}
+                          className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-[#2a3441] rounded-md transition-colors flex items-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <div className="w-8 h-8 bg-orange-600 rounded-lg flex items-center justify-center text-white text-xs font-bold">
+                            {loading ? (
+                              <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
+                              </svg>
+                            ) : (
+                              'PPT'
+                            )}
+                          </div>
+                          <div>
+                            <div className="font-medium">PowerPoint OnePager</div>
+                            <div className="text-xs text-gray-500">Presentation-ready PowerPoint slide</div>
+                          </div>
+                        </button>
+                      )}
+                    </PowerPointOnePager>
+                    
 
                   </div>
                 </div>
@@ -2894,40 +2924,35 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
         </div>
 
         {/* Content Sections */}
-        <div className="space-y-12">
+        <div className="space-y-6">
           
           {/* Cost Analysis Section */}
-          <section>
-            <h2 className="text-2xl font-bold text-[#FECB00] mb-6">Kostnadsanalys</h2>
+          <CollapsibleSection title="Kostnadsanalys" defaultOpen={true}>
             {renderCostData(project.cost_data)}
-          </section>
+          </CollapsibleSection>
 
           {/* Effects Analysis Section */}
-          <section>
-            <h2 className="text-2xl font-bold text-[#FECB00] mb-6">Effektanalys</h2>
+          <CollapsibleSection title="Effektanalys" defaultOpen={false}>
             {renderEffectsData(project!.effects_data, project!.cost_data)}
-          </section>
+          </CollapsibleSection>
 
           {/* Technical Information Section */}
-          <section>
-            <h2 className="text-2xl font-bold text-[#FECB00] mb-6">Teknisk information</h2>
+          <CollapsibleSection title="Teknisk information" defaultOpen={false}>
             {renderTechnicalData(project.technical_data)}
-          </section>
+          </CollapsibleSection>
 
           {/* Leadership Section */}
           {project.leadership_data && Object.keys(project.leadership_data).length > 0 && (
-            <section>
-              <h2 className="text-2xl font-bold text-[#FECB00] mb-6">Organisation & Ledarskap</h2>
+            <CollapsibleSection title="Organisation & Ledarskap" defaultOpen={false}>
               {renderLeadershipData(project.leadership_data)}
-            </section>
+            </CollapsibleSection>
           )}
 
           {/* Legal & Compliance Section */}
           {project.legal_data && Object.keys(project.legal_data).length > 0 && (
-            <section>
-              <h2 className="text-2xl font-bold text-[#FECB00] mb-6">Juridisk & Etisk analys</h2>
+            <CollapsibleSection title="Juridisk & Etisk analys" defaultOpen={false}>
               {renderLegalData(project.legal_data)}
-            </section>
+            </CollapsibleSection>
           )}
         </div>
 
