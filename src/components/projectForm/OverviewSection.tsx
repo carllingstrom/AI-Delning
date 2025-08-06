@@ -11,11 +11,12 @@ type Props = {
   clearErrors?: UseFormClearErrors<any>;
   errors?: FieldErrors<any>;
   municipalities: { id: number; name: string }[];
+  isEditing?: boolean;
 };
 
-export default function OverviewSection({ register, watch, setValue, setError, clearErrors, errors, municipalities }: Props) {
+export default function OverviewSection({ register, watch, setValue, setError, clearErrors, errors, municipalities, isEditing = false }: Props) {
   const selectedAreas = watch('areas') || [];
-  const selectedValues = watch('valueDimensions') || [];
+  const selectedValues = watch('value_dimensions') || [];
   const [municipalityIds, setMunicipalityIds] = useState<string[]>(watch('municipality_ids') || ['']);
   
   // New state for region/county selection
@@ -136,9 +137,9 @@ export default function OverviewSection({ register, watch, setValue, setError, c
   // Validate value dimensions selection
   useEffect(() => {
     if (selectedValues.length === 0) {
-      setError?.('valueDimensions', { message: 'Minst en värdeskapande dimension måste väljas' });
+      setError?.('value_dimensions', { message: 'Minst en värdeskapande dimension måste väljas' });
     } else {
-      clearErrors?.('valueDimensions');
+      clearErrors?.('value_dimensions');
     }
   }, [selectedValues, setError, clearErrors]);
 
@@ -146,9 +147,9 @@ export default function OverviewSection({ register, watch, setValue, setError, c
     <div className="space-y-8 max-w-3xl mx-auto">
       {/* Projektöversikt */}
       <div className="bg-[#121F2B] rounded-lg p-6 space-y-6 shadow">
-        <h2 className="text-xl font-bold text-[#FFD600] mb-2">Projektöversikt</h2>
+        <h2 className="text-xl font-bold text-[#fecb00] mb-2">Projektöversikt</h2>
         <div>
-          <label className="block font-medium text-white mb-1">
+          <label className="block font-medium text-[#fffefa] mb-1">
             Titel <span className="text-red-400">*</span>
           </label>
           <input 
@@ -159,7 +160,7 @@ export default function OverviewSection({ register, watch, setValue, setError, c
           {errors?.title && <p className="text-red-400 text-sm mt-1">{String(errors.title.message || 'Detta fält är obligatoriskt')}</p>}
         </div>
         <div>
-          <label className="block font-medium text-white mb-1">
+          <label className="block font-medium text-[#fffefa] mb-1">
             Intro till projektet <span className="text-red-400">*</span>
           </label>
           <textarea 
@@ -171,7 +172,7 @@ export default function OverviewSection({ register, watch, setValue, setError, c
           {errors?.intro && <p className="text-red-400 text-sm mt-1">{String(errors.intro.message || 'Detta fält är obligatoriskt')}</p>}
         </div>
         <div>
-          <label className="block font-medium text-white mb-1">Problem</label>
+          <label className="block font-medium text-[#fffefa] mb-1">Problem</label>
           <textarea 
             {...register('problem')} 
             className="w-full p-3 rounded border border-gray-600 bg-[#121F2B]" 
@@ -180,7 +181,7 @@ export default function OverviewSection({ register, watch, setValue, setError, c
           />
         </div>
         <div>
-          <label className="block font-medium text-white mb-1">Möjlighet</label>
+          <label className="block font-medium text-[#fffefa] mb-1">Möjlighet</label>
           <textarea 
             {...register('opportunity')} 
             className="w-full p-3 rounded border border-gray-600 bg-[#121F2B]" 
@@ -189,7 +190,7 @@ export default function OverviewSection({ register, watch, setValue, setError, c
           />
         </div>
         <div>
-          <label className="block font-medium text-white mb-1">
+          <label className="block font-medium text-[#fffefa] mb-1">
             Ansvarig för implementationen <span className="text-red-400">*</span>
           </label>
           <input 
@@ -203,7 +204,7 @@ export default function OverviewSection({ register, watch, setValue, setError, c
       
       {/* Location Selection (Municipality or County) */}
       <div className="bg-[#121F2B] rounded-lg p-6 space-y-4 shadow">
-        <label className="block font-bold text-white">
+        <label className="block font-bold text-[#fffefa]">
           Geografisk omfattning <span className="text-red-400">*</span>
         </label>
         
@@ -213,8 +214,8 @@ export default function OverviewSection({ register, watch, setValue, setError, c
             type="button"
             className={`px-4 py-2 rounded text-sm font-medium transition-colors ${
               locationMode === 'municipality' 
-                ? 'bg-[#FFD600] text-[#121F2B]' 
-                : 'bg-gray-600 text-white hover:bg-gray-500'
+                ? 'bg-[#fecb00] text-[#121F2B]' 
+                : 'bg-gray-600 text-[#fffefa] hover:bg-gray-500'
             }`}
             onClick={() => handleLocationModeChange('municipality')}
           >
@@ -224,8 +225,8 @@ export default function OverviewSection({ register, watch, setValue, setError, c
             type="button"
             className={`px-4 py-2 rounded text-sm font-medium transition-colors ${
               locationMode === 'county' 
-                ? 'bg-[#FFD600] text-[#121F2B]' 
-                : 'bg-gray-600 text-white hover:bg-gray-500'
+                ? 'bg-[#fecb00] text-[#121F2B]' 
+                : 'bg-gray-600 text-[#fffefa] hover:bg-gray-500'
             }`}
             onClick={() => handleLocationModeChange('county')}
           >
@@ -236,7 +237,7 @@ export default function OverviewSection({ register, watch, setValue, setError, c
         {/* Municipality Selection */}
         {locationMode === 'municipality' && (
           <div>
-            <label className="block text-white text-sm mb-2">
+            <label className="block text-[#fffefa] text-sm mb-2">
               Välj en eller flera kommuner
             </label>
             {municipalityIds.map((id, idx) => (
@@ -259,13 +260,13 @@ export default function OverviewSection({ register, watch, setValue, setError, c
                     )}
                 </select>
                 {municipalityIds.length > 1 && (
-                  <button type="button" onClick={() => removeMunicipality(idx)} className="w-6 h-6 flex items-center justify-center text-white hover:text-gray-300 transition-colors">
+                  <button type="button" onClick={() => removeMunicipality(idx)} className="w-6 h-6 flex items-center justify-center text-[#fffefa] hover:text-gray-300 transition-colors">
                     ×
                   </button>
                 )}
               </div>
             ))}
-            <button type="button" onClick={addMunicipality} className="px-3 py-1 bg-[#FFD600] text-[#121F2B] rounded mb-2">
+            <button type="button" onClick={addMunicipality} className="px-3 py-1 bg-[#fecb00] text-[#121F2B] rounded mb-2">
               + Lägg till kommun
             </button>
             {errors?.municipality_ids && <p className="text-red-400 text-sm mt-1">{String(errors.municipality_ids.message || 'Minst en kommun måste väljas')}</p>}
@@ -275,7 +276,7 @@ export default function OverviewSection({ register, watch, setValue, setError, c
         {/* County Selection */}
         {locationMode === 'county' && (
           <div>
-            <label className="block text-white text-sm mb-2">
+            <label className="block text-[#fffefa] text-sm mb-2">
               Välj ett eller flera län
             </label>
             {countyCodes.map((code, idx) => (
@@ -296,13 +297,13 @@ export default function OverviewSection({ register, watch, setValue, setError, c
                     ))}
                 </select>
                 {countyCodes.length > 1 && (
-                  <button type="button" onClick={() => removeCounty(idx)} className="w-6 h-6 flex items-center justify-center text-white hover:text-gray-300 transition-colors">
+                  <button type="button" onClick={() => removeCounty(idx)} className="w-6 h-6 flex items-center justify-center text-[#fffefa] hover:text-gray-300 transition-colors">
                     ×
                   </button>
                 )}
               </div>
             ))}
-            <button type="button" onClick={addCounty} className="px-3 py-1 bg-[#FFD600] text-[#121F2B] rounded mb-2">
+            <button type="button" onClick={addCounty} className="px-3 py-1 bg-[#fecb00] text-[#121F2B] rounded mb-2">
               + Lägg till län
             </button>
             {errors?.county_codes && <p className="text-red-400 text-sm mt-1">{String(errors.county_codes.message || 'Minst ett län måste väljas')}</p>}
@@ -312,7 +313,7 @@ export default function OverviewSection({ register, watch, setValue, setError, c
 
       {/* Område */}
       <div className="bg-[#121F2B] rounded-lg p-6 space-y-4 shadow">
-        <label className="block font-bold text-white">
+        <label className="block font-bold text-[#fffefa]">
           Område <span className="text-red-400">*</span>
         </label>
         <div className="flex flex-wrap gap-2">
@@ -320,7 +321,7 @@ export default function OverviewSection({ register, watch, setValue, setError, c
             <button
               type="button"
               key={area}
-              className={`px-3 py-1 rounded-full border text-sm font-medium ${selectedAreas.includes(area) ? 'bg-[#FFD600] text-[#121F2B]' : 'bg-[#121F2B] text-white border-gray-600'}`}
+              className={`px-3 py-1 rounded-full border text-sm font-medium ${selectedAreas.includes(area) ? 'bg-[#fecb00] text-[#121F2B]' : 'bg-[#121F2B] text-[#fffefa] border-gray-600'}`}
               onClick={() => {
                 const newAreas = selectedAreas.includes(area) ? selectedAreas.filter((a: string) => a !== area) : [...selectedAreas, area];
                 setValue('areas', newAreas);
@@ -334,7 +335,7 @@ export default function OverviewSection({ register, watch, setValue, setError, c
       </div>
       {/* Värdeskapande dimension */}
       <div className="bg-[#121F2B] rounded-lg p-6 space-y-4 shadow">
-        <label className="block font-bold text-white">
+        <label className="block font-bold text-[#fffefa]">
           Värdeskapande dimension <span className="text-red-400">*</span>
         </label>
         <div className="flex flex-wrap gap-2">
@@ -342,10 +343,10 @@ export default function OverviewSection({ register, watch, setValue, setError, c
             <button
               type="button"
               key={val}
-              className={`px-3 py-1 rounded-full border text-sm font-medium ${selectedValues.includes(val) ? 'bg-[#FFD600] text-[#121F2B]' : 'bg-[#121F2B] text-white border-gray-600'}`}
+              className={`px-3 py-1 rounded-full border text-sm font-medium ${selectedValues.includes(val) ? 'bg-[#fecb00] text-[#121F2B]' : 'bg-[#121F2B] text-[#fffefa] border-gray-600'}`}
               onClick={() => {
                 const newVals = selectedValues.includes(val) ? selectedValues.filter((v: string) => v !== val) : [...selectedValues, val];
-                setValue('valueDimensions', newVals);
+                setValue('value_dimensions', newVals);
               }}
             >
               {val}
@@ -360,11 +361,11 @@ export default function OverviewSection({ register, watch, setValue, setError, c
             placeholder="Beskriv annan typ av värdeskapande"
           />
         )}
-        {errors?.valueDimensions && <p className="text-red-400 text-sm mt-1">{String(errors.valueDimensions.message || 'Minst en värdeskapande dimension måste väljas')}</p>}
+        {errors?.value_dimensions && <p className="text-red-400 text-sm mt-1">{String(errors.value_dimensions.message || 'Minst en värdeskapande dimension måste väljas')}</p>}
       </div>
       {/* Projektskede */}
       <div className="bg-[#121F2B] rounded-lg p-6 space-y-4 shadow">
-        <label className="block font-bold text-white">
+        <label className="block font-bold text-[#fffefa]">
           Projektskede <span className="text-red-400">*</span>
         </label>
         <select {...register('phase', { required: 'Projektskede är obligatoriskt' })} className="w-full p-3 rounded border border-gray-600 bg-[#121F2B]">
@@ -375,6 +376,81 @@ export default function OverviewSection({ register, watch, setValue, setError, c
           ))}
         </select>
       </div>
+
+      {/* Project Expansion - Only show when editing */}
+      {isEditing && (
+        <div className="bg-[#121F2B] rounded-lg p-6 space-y-4 shadow">
+          <label className="block font-bold text-[#fffefa]">
+            Projektutvidgning
+          </label>
+          <div className="space-y-3">
+            <div>
+              <label className="block text-[#fffefa] text-sm mb-2">
+                Är detta en utvidgning eller fortsättning av ett befintligt projekt?
+              </label>
+              <div className="flex gap-4">
+                <label className="flex items-center">
+                  <input
+                    type="radio"
+                    {...register('isExpansion')}
+                    value="yes"
+                    className="mr-2"
+                  />
+                  <span className="text-[#fffefa]">Ja</span>
+                </label>
+                <label className="flex items-center">
+                  <input
+                    type="radio"
+                    {...register('isExpansion')}
+                    value="no"
+                    className="mr-2"
+                  />
+                  <span className="text-[#fffefa]">Nej</span>
+                </label>
+              </div>
+            </div>
+            
+            {watch('isExpansion') === 'yes' && (
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-[#fffefa] text-sm mb-2">
+                    Vad är det ursprungliga projektet?
+                  </label>
+                  <input
+                    {...register('originalProject')}
+                    className="w-full p-3 rounded border border-gray-600 bg-[#121F2B]"
+                    placeholder="Beskriv det ursprungliga projektet"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-[#fffefa] text-sm mb-2">
+                    Vad är nytt i denna utvidgning?
+                  </label>
+                  <textarea
+                    {...register('expansionDetails')}
+                    className="w-full p-3 rounded border border-gray-600 bg-[#121F2B]"
+                    rows={3}
+                    placeholder="Beskriv vad som är nytt eller förändrat i denna utvidgning"
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-[#fffefa] text-sm mb-2">
+                    Vilka lärdomar från det ursprungliga projektet används?
+                  </label>
+                  <textarea
+                    {...register('lessonsApplied')}
+                    className="w-full p-3 rounded border border-gray-600 bg-[#121F2B]"
+                    rows={3}
+                    placeholder="Beskriv vilka lärdomar från det ursprungliga projektet som används"
+                  />
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 } 

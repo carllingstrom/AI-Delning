@@ -53,7 +53,7 @@ export default function LegalChecklist({ sections, register, watch, setValue }: 
     <div className="space-y-8 max-w-3xl mx-auto">
       {sections.map((section) => (
         <div key={section.title} className="bg-[#181A1B] rounded-lg p-6 space-y-6 shadow">
-          <h2 className="text-xl font-bold text-[#FFD600] mb-2">{section.title}</h2>
+          <h2 className="text-xl font-bold text-[#fecb00] mb-2">{section.title}</h2>
           {section.questions.map((q) => shouldRender(q) && (
             <div key={q.id} className="space-y-2">
               <label className="block font-medium">{q.label}</label>
@@ -61,14 +61,14 @@ export default function LegalChecklist({ sections, register, watch, setValue }: 
                 <div className="flex flex-wrap gap-4">
                   {q.options.map((opt) => (
                     <label key={opt} className="flex items-center gap-2">
-                      <input type="radio" value={opt} {...register(q.id)} className="accent-[#FFD600]" />
+                      <input type="radio" value={opt} {...register(q.id)} className="accent-[#fecb00]" />
                       {opt}
                     </label>
                   ))}
                 </div>
               )}
               {q.type === 'select' && q.options && (
-                <select {...register(q.id)} className="w-full p-3 rounded border border-gray-600 bg-[#23272A]">
+                <select {...register(q.id)} className="w-full p-3 rounded border border-gray-600 bg-[#224556]">
                   <option value="">Välj...</option>
                   {q.options.map((o) => (
                     <option key={o} value={o}>{o}</option>
@@ -96,7 +96,7 @@ export default function LegalChecklist({ sections, register, watch, setValue }: 
                 <textarea
                   {...register(q.id)}
                   placeholder={q.placeholder || ''}
-                  className="w-full p-3 rounded border border-gray-600 bg-[#23272A]"
+                  className="w-full p-3 rounded border border-gray-600 bg-[#224556]"
                   rows={3}
                 />
               )}

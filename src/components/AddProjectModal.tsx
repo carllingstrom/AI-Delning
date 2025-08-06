@@ -102,7 +102,7 @@ export default function AddProjectModal({ municipalities }: AddProjectModalProps
     <>
       <button
         onClick={() => setOpen(true)}
-        style={{ position: 'fixed', bottom: 24, right: 24, borderRadius: '50%', height: 48, width: 48, fontSize: 28, background: '#FECB00', color: '#004D66', border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.15)', cursor: 'pointer', zIndex: 1000 }}
+        style={{ position: 'fixed', bottom: 24, right: 24, borderRadius: '50%', height: 48, width: 48, fontSize: 28, background: '#fecb00', color: '#004D66', border: 'none', boxShadow: '0 2px 8px rgba(0,0,0,0.15)', cursor: 'pointer', zIndex: 1000 }}
         aria-label="Lägg till projekt"
       >
         +
@@ -139,7 +139,7 @@ export default function AddProjectModal({ municipalities }: AddProjectModalProps
                   )}
                 </div>
               ))}
-              <button type="button" onClick={handleAddMunicipality} style={{ background: '#FECB00', color:'#121F2B', border: 'none', borderRadius: 4, padding: '4px 12px', fontWeight: 600, fontSize: 14, marginTop: 4, cursor: 'pointer' }}>
+              <button type="button" onClick={handleAddMunicipality} style={{ background: '#fecb00', color:'#121F2B', border: 'none', borderRadius: 4, padding: '4px 12px', fontWeight: 600, fontSize: 14, marginTop: 4, cursor: 'pointer' }}>
                 + Lägg till kommun
               </button>
               <div style={{ fontSize: 12, color:'#121F2B', marginTop: 4 }}>

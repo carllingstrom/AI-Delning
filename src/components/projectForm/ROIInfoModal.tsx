@@ -12,31 +12,31 @@ export default function ROIInfoModal({ isOpen, onClose }: ROIInfoModalProps) {
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-[#121F2B] rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto p-6">
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-2xl font-bold text-[#FFD600]">ROI-ramverk förklaring</h2>
+          <h2 className="text-2xl font-bold text-[#fecb00]">ROI-ramverk förklaring</h2>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-white text-2xl font-bold"
+            className="text-gray-400 hover:text-[#fffefa] text-2xl font-bold"
           >
             ×
           </button>
         </div>
 
-        <div className="space-y-6 text-white">
+        <div className="space-y-6 text-[#fffefa]">
           <section>
-            <h3 className="text-xl font-semibold text-[#FFD600] mb-3">Ramverk för ROI-beräkning</h3>
+            <h3 className="text-xl font-semibold text-[#fecb00] mb-3">Ramverk för ROI-beräkning</h3>
             <p className="mb-4">
               För att ta vara på möjligheten att fånga alla effekter från ett AI-projekt används ett kombinerat ramverk som tar hänsyn till både ekonomiska och kvalitativa effekter:
             </p>
             
             <div className="grid md:grid-cols-2 gap-6 mb-6">
               <div className="bg-[#1a2a3a] p-4 rounded">
-                <h4 className="font-semibold text-[#FFD600] mb-2">Ekonomiskt förhållande</h4>
+                <h4 className="font-semibold text-[#fecb00] mb-2">Ekonomiskt förhållande</h4>
                 <p className="text-sm mb-2">ROI = (Total monetär nytta - Total kostnad) / Total kostnad</p>
                 <p className="text-xs text-gray-300">Baserat på finansiella effekter och omdistribuerade resurser</p>
               </div>
               
               <div className="bg-[#1a2a3a] p-4 rounded">
-                <h4 className="font-semibold text-[#FFD600] mb-2">Kvalitativt förhållande</h4>
+                <h4 className="font-semibold text-[#fecb00] mb-2">Kvalitativt förhållande</h4>
                 <p className="text-sm mb-2">Kvalitativ ROI = (Målvärde - Nuläge) / Nuläge</p>
                 <p className="text-xs text-gray-300">Baserat på kvalitativa mätningar (1-10 skala)</p>
               </div>
@@ -44,7 +44,7 @@ export default function ROIInfoModal({ isOpen, onClose }: ROIInfoModalProps) {
           </section>
 
           <section>
-            <h3 className="text-xl font-semibold text-[#FFD600] mb-3">Typer av effekter</h3>
+            <h3 className="text-xl font-semibold text-[#fecb00] mb-3">Typer av effekter</h3>
             
             <div className="space-y-4">
               <div className="border-l-4 border-green-500 pl-4">
@@ -74,7 +74,7 @@ export default function ROIInfoModal({ isOpen, onClose }: ROIInfoModalProps) {
           </section>
 
           <section>
-            <h3 className="text-xl font-semibold text-[#FFD600] mb-3">Beräkningsexempel</h3>
+            <h3 className="text-xl font-semibold text-[#fecb00] mb-3">Beräkningsexempel</h3>
             
             <div className="bg-[#1a2a3a] p-4 rounded">
               <h4 className="font-semibold mb-3">Projekt: Digitalisering av ansökningsprocess</h4>
@@ -100,7 +100,7 @@ export default function ROIInfoModal({ isOpen, onClose }: ROIInfoModalProps) {
                   <strong>Kvalitativ ROI:</strong> (8 - 6) / 6 = 33%
                 </div>
                 
-                <div className="mt-3 p-2 bg-[#2a3a4a] rounded">
+                <div className="mt-3 p-2 bg-[#224556] rounded">
                   <strong>Total nytta:</strong> 1,652,000 SEK<br/>
                   <strong>Kombinerat ROI:</strong> 130% ekonomiskt + 33% kvalitativt
                 </div>
@@ -109,7 +109,7 @@ export default function ROIInfoModal({ isOpen, onClose }: ROIInfoModalProps) {
           </section>
 
           <section>
-            <h3 className="text-xl font-semibold text-[#FFD600] mb-3">Viktiga punkter</h3>
+            <h3 className="text-xl font-semibold text-[#fecb00] mb-3">Viktiga punkter</h3>
             <ul className="space-y-2 text-sm">
               <li>• <strong>Annualisering:</strong> Användare anger själv hur länge effekten håller i sig</li>
               <li>• <strong>Monetära uppskattningar:</strong> Valfria för kvalitativa effekter men hjälper till ROI-beräkning</li>
@@ -122,7 +122,7 @@ export default function ROIInfoModal({ isOpen, onClose }: ROIInfoModalProps) {
         <div className="mt-6 flex justify-end">
           <button
             onClick={onClose}
-            className="px-6 py-2 bg-[#FFD600] text-black font-semibold rounded hover:bg-yellow-400 transition-colors"
+            className="px-6 py-2 bg-[#fecb00] text-black font-semibold rounded hover:bg-yellow-400 transition-colors"
           >
             Stäng
           </button>

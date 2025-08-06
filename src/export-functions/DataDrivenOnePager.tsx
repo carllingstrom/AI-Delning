@@ -86,7 +86,7 @@ const styles = StyleSheet.create({
   summaryTitle: {
     fontSize: 10,
     fontWeight: 'bold',
-    color: '#ffffff', // Changed from #FECB00 to white
+    color: '#ffffff', // Changed from #fecb00 to white
     marginBottom: 8,
     textTransform: 'uppercase',
     letterSpacing: 1,
@@ -440,8 +440,26 @@ const DataDrivenOnePager: React.FC<DataDrivenOnePagerProps> = ({ project, aiSumm
 
 
 
-  // Chart colors
-  const chartColors = ['#ffd700', '#ff6b6b', '#4ecdc4', '#45b7d1', '#96ceb4', '#feca57', '#ff9ff3', '#54a0ff'];
+  // Chart colors - using the design system colorscale
+  const chartColors = [
+    '#fecb00', // Primary yellow
+    '#007399', // Light blue
+    '#004d66', // Blue
+    '#34af8f', // Accent green
+    '#ff153b', // Accent red
+    '#224556', // Blue-gray
+    '#f4f2e6', // Off-white
+    '#fffefa', // White
+    // Additional colors for more variety
+    '#fecb00', // Primary yellow (repeated)
+    '#007399', // Light blue (repeated)
+    '#004d66', // Blue (repeated)
+    '#34af8f', // Accent green (repeated)
+    '#ff153b', // Accent red (repeated)
+    '#224556', // Blue-gray (repeated)
+    '#f4f2e6', // Off-white (repeated)
+    '#fffefa'  // White (repeated)
+  ];
 
   // Extract technical information for future diagrams
   const technicalInfo = {

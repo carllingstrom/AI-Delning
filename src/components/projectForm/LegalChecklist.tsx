@@ -48,7 +48,7 @@ export default function LegalChecklist({ sections, register, watch, setValue }: 
     <div className="space-y-8 max-w-3xl mx-auto">
       {sections.map((section) => (
         <div key={section.title} className="bg-[#121F2B] rounded-lg p-6 space-y-6 shadow">
-          <h2 className="text-xl font-bold text-[#FFD600] mb-2">{section.title}</h2>
+          <h2 className="text-xl font-bold text-[#fecb00] mb-2">{section.title}</h2>
           {section.questions.map((q) => shouldRender(q) && (
             <div key={q.id} className="space-y-2">
               <label className="block font-medium">{q.label}</label>
@@ -56,7 +56,7 @@ export default function LegalChecklist({ sections, register, watch, setValue }: 
                 <div className="flex flex-wrap gap-4">
                   {q.options.map((opt) => (
                     <label key={opt} className="flex items-center gap-2">
-                      <input type="radio" value={opt} {...register(q.id)} className="accent-[#FFD600]" />
+                      <input type="radio" value={opt} {...register(q.id)} className="accent-[#fecb00]" />
                       {opt}
                     </label>
                   ))}
@@ -80,7 +80,7 @@ export default function LegalChecklist({ sections, register, watch, setValue }: 
                       <button
                         type="button"
                         key={opt}
-                        className={`px-3 py-1 rounded-full border text-sm font-medium ${selected ? 'bg-[#FFD600] text-[#121F2B]' : 'bg-[#121F2B] text-white border-gray-600'}`}
+                        className={`px-3 py-1 rounded-full border text-sm font-medium ${selected ? 'bg-[#fecb00] text-[#121F2B]' : 'bg-[#121F2B] text-[#fffefa] border-gray-600'}`}
                         onClick={() => handleCheckbox(q.id, opt, !selected)}
                       >
                         {opt}
@@ -107,7 +107,7 @@ export default function LegalChecklist({ sections, register, watch, setValue }: 
               )}
               {q.type === 'matrix' && q.rows && q.columns && (
                 <div className="overflow-auto">
-                  <table className="min-w-full text-sm text-white border border-gray-700">
+                  <table className="min-w-full text-sm text-[#fffefa] border border-gray-700">
                     <thead>
                       <tr>
                         <th className="p-2 border-b border-gray-700"></th>
@@ -128,7 +128,7 @@ export default function LegalChecklist({ sections, register, watch, setValue }: 
                                 type="radio"
                                 value={col}
                                 {...register(`${q.id}.${row}` as const)}
-                                className="accent-[#FFD600]"
+                                className="accent-[#fecb00]"
                               />
                             </td>
                           ))}

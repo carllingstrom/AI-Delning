@@ -172,9 +172,6 @@ async function seedBasicData() {
     }
     
     console.log('\nBasic data seeding complete!')
-console.log('Map should now work at /map')
-console.log('Analytics should work at /analytics')
-console.log('You can add new projects at /projects/new')
     
   } catch (error) {
     console.error('Error during seeding:', error)

@@ -80,6 +80,7 @@ export const dataSections = [
         type: 'textarea',
         label: 'Fri beskrivning av data (t.ex. volym, format, begränsningar)',
       },
+
     ],
   },
   {
@@ -133,7 +134,8 @@ export const dataSections = [
         label: 'Hur löstes de tekniska utmaningarna?',
         placeholder: 'T.ex. cleansing, ny pipeline, samarbete med extern part',
         optional: true
-      }
+      },
+
     ]
   }
 ];

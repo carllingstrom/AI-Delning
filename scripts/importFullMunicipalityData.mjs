@@ -197,11 +197,9 @@ async function importMunicipalityData() {
     if (viewError) {
       console.error('View creation error:', viewError)
     } else {
-      console.log('Created municipality_display_data and municipality_project_counts views')
     }
     
     console.log('\nMunicipality data is now ready for filtering and display!')
-console.log('You can now use this data for:')
     console.log('   • Map visualization with exact coordinates')
     console.log('   • Filtering by county (län)')
     console.log('   • Geographic search and analysis')
@@ -230,7 +228,6 @@ async function createExecSqlFunction() {
   })
   
   if (error && !error.message.includes('already exists')) {
-    console.log('Note: Could not create exec_sql function. Manual schema updates may be needed.')
   }
 }
 

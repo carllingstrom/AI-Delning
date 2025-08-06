@@ -258,6 +258,7 @@ export async function GET(req: NextRequest) {
       let budget = null;
       let actualCost = 0;
       let roi = null;
+      let totalMonetaryValue = null;
       let affectedGroups: string[] = [];
       let technologies: string[] = [];
 
@@ -291,11 +292,75 @@ export async function GET(req: NextRequest) {
         }
       }
 
-      // Extract ROI from effects_data
-      if (project.effects_data && project.effects_data.monetaryValue) {
-        const monetaryValue = parseFloat(project.effects_data.monetaryValue) || 0;
-        if (budget && budget > 0) {
-          roi = ((monetaryValue - budget) / budget) * 100;
+      // Extract ROI from effects_data using the comprehensive ROI calculator
+      if (project.effects_data && project.effects_data.effectDetails) {
+        try {
+          // Use the same ROI calculator as analytics API
+          const { calculateROI: newCalculateROI } = require('@/lib/roiCalculator');
+          
+          const effectEntries = project.effects_data.effectDetails || [];
+          const costEntries = project.cost_data?.actualCostDetails?.costEntries || [];
+          
+          if (effectEntries.length > 0) {
+            // Check if project actually has measurable effects
+            const hasActualEffects = effectEntries.some((effect: any) => {
+              const hasQuantitative = (effect.hasQuantitative === true || effect.hasQuantitative === 'true') && 
+                                    effect.quantitativeDetails && 
+                                    (effect.quantitativeDetails.financialDetails || effect.quantitativeDetails.redistributionDetails);
+              
+              const hasQualitative = (effect.hasQualitative === true || effect.hasQualitative === 'true') && 
+                                   effect.qualitativeDetails && 
+                                   effect.qualitativeDetails.factor;
+              
+              return hasQuantitative || hasQualitative;
+            });
+            
+            if (hasActualEffects) {
+              // Calculate total investment from cost entries ONLY
+              const totalInvestment = costEntries.reduce((total: number, entry: any) => {
+                if (!entry) return total;
+                
+                let entryTotal = 0;
+                
+                switch (entry.costUnit) {
+                  case 'hours':
+                    const hours = Number(entry.hoursDetails?.hours) || 0;
+                    const rate = Number(entry.hoursDetails?.hourlyRate) || 0;
+                    entryTotal = hours * rate;
+                    break;
+                  case 'fixed':
+                    entryTotal = Number(entry.fixedDetails?.fixedAmount) || 0;
+                    break;
+                  case 'monthly':
+                    const monthlyAmount = Number(entry.monthlyDetails?.monthlyAmount) || 0;
+                    const monthlyDuration = Number(entry.monthlyDetails?.monthlyDuration) || 1;
+                    entryTotal = monthlyAmount * monthlyDuration;
+                    break;
+                  case 'yearly':
+                    const yearlyAmount = Number(entry.yearlyDetails?.yearlyAmount) || 0;
+                    const yearlyDuration = Number(entry.yearlyDetails?.yearlyDuration) || 1;
+                    entryTotal = yearlyAmount * yearlyDuration;
+                    break;
+                  default:
+                    entryTotal = 0;
+                }
+                
+                return total + entryTotal;
+              }, 0);
+              
+              const roiMetrics = newCalculateROI({ 
+                effectEntries, 
+                totalProjectInvestment: totalInvestment 
+              });
+              
+              roi = roiMetrics.economicROI; // Only use economic ROI, not combined
+              totalMonetaryValue = roiMetrics.totalMonetaryValue;
+              actualCost = totalInvestment; // Use the calculated total investment
+            }
+          }
+        } catch (err) {
+          console.error('Error calculating ROI for project:', project.id, err);
+          roi = null;
         }
       }
 
@@ -324,6 +389,7 @@ export async function GET(req: NextRequest) {
           budget,
           actualCost,
           roi,
+          totalMonetaryValue,
           affectedGroups,
           technologies
         },

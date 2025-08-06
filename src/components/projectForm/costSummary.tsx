@@ -74,8 +74,8 @@ export const renderCostSummary = (items: CostEntry[] = []) => {
   const grandTotal = Object.values(totalsByType).reduce((acc, total) => acc + total, 0);
 
   return (
-    <div className="mt-4 p-4 bg-[#23272A] rounded-lg">
-      <h4 className="font-semibold text-lg text-white mb-3">Kostnadssammanställning</h4>
+    <div className="mt-4 p-4 bg-[#224556] rounded-lg">
+      <h4 className="font-semibold text-lg text-[#fffefa] mb-3">Kostnadssammanställning</h4>
       
       {Object.keys(totalsByType).length > 0 ? (
         <>
@@ -83,13 +83,13 @@ export const renderCostSummary = (items: CostEntry[] = []) => {
           {Object.entries(totalsByType).map(([type, total]) => (
             <li key={type} className="flex justify-between items-center text-sm">
               <span>{type}</span>
-              <span className="font-medium text-white">{total.toLocaleString('sv-SE')} SEK</span>
+              <span className="font-medium text-[#fffefa]">{total.toLocaleString('sv-SE')} SEK</span>
             </li>
           ))}
         </ul>
       <div className="flex justify-between items-center">
-        <p className="font-semibold text-base text-white">Total beräknad kostnad:</p>
-        <p className="font-bold text-xl text-[#FFD600]">
+        <p className="font-semibold text-base text-[#fffefa]">Total beräknad kostnad:</p>
+        <p className="font-bold text-xl text-[#fecb00]">
           {grandTotal.toLocaleString('sv-SE')} SEK
         </p>
       </div>

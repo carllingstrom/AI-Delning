@@ -84,7 +84,7 @@ export default function MapSwedenLeaflet({ aiFilter, valFilter, onSelectMunicipa
         zoom={5}
         minZoom={5}
         maxZoom={8}
-        style={{ width: '100%', height: '100%', background: '#0D1B2A' }}
+        style={{ width: '100%', height: '100%', background: '#121f2b' }}
         scrollWheelZoom
         attributionControl={false}
         zoomControl={false}
@@ -174,7 +174,7 @@ function ForceLayer({ nodes, onSelectMunicipality }: { nodes: Node[]; onSelectMu
     <>
       {fixed.map((n) => {
         const active = n.name === selected;
-        const fill   = n.n ? '#FECB00' : '#A9A980';
+        const fill   = n.n ? '#fecb00' : '#A9A980';
         return (
           <CircleMarker
             key={n.name}
@@ -182,7 +182,7 @@ function ForceLayer({ nodes, onSelectMunicipality }: { nodes: Node[]; onSelectMu
             radius={n.rDraw!}
             pathOptions={{
               color: active ? '#004D66' : fill,
-              fillColor: active ? '#FECB00' : fill,
+              fillColor: active ? '#fecb00' : fill,
               weight: active ? 2 : 0,
               fillOpacity: 1,
             }}

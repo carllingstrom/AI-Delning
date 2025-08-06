@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef } from 'react';
 import { calculateROI, getROIInsights, type EffectEntry } from '@/lib/roiCalculator';
+import { formatCurrency } from '@/lib/utils';
 
 interface Project {
   id: string;
@@ -55,7 +56,7 @@ export default function AdvancedROIAnalysis({ projects }: AdvancedROIAnalysisPro
   const chartInstance = useRef<any>(null);
 
   const analyzeROI = (): ROIAnalysisData => {
-    const projectsWithEffects = projects.filter(p => p.effects_data?.effectDetails?.length > 0);
+    const projectsWithEffects = projects.filter(p => p.effects_data?.effectDetails && p.effects_data.effectDetails.length > 0);
     
     if (projectsWithEffects.length === 0) {
       return {
@@ -87,13 +88,13 @@ export default function AdvancedROIAnalysis({ projects }: AdvancedROIAnalysisPro
       if (effectEntries.length === 0) return;
 
       const roiMetrics = calculateROI({ effectEntries });
-      const qualitativeValue = roiMetrics.qualitativeEffects.reduce((sum, q) => sum + q.weightedValue, 0);
+      const qualitativeValue = roiMetrics.qualitativeEffects.reduce((sum, q) => sum + q.totalValue, 0);
       
       totalInvestment += roiMetrics.totalInvestment;
       totalMonetaryValue += roiMetrics.totalMonetaryValue;
       totalQualitativeValue += qualitativeValue;
 
-      const projectROI = roiMetrics.percentageROI;
+      const projectROI = roiMetrics.economicROI;
       if (!isNaN(projectROI) && isFinite(projectROI)) {
         allROIs.push(projectROI);
         projectROIs.push({
@@ -113,8 +114,8 @@ export default function AdvancedROIAnalysis({ projects }: AdvancedROIAnalysisPro
         dimensionData[dimension].count++;
         dimensionData[dimension].totalValue += data.totalValue;
         dimensionData[dimension].totalInvestment += data.totalInvestment;
-        if (data.roi && !isNaN(data.roi) && isFinite(data.roi)) {
-          dimensionData[dimension].rois.push(data.roi);
+        if (data.economicROI && !isNaN(data.economicROI) && isFinite(data.economicROI)) {
+          dimensionData[dimension].rois.push(data.economicROI);
         }
       });
     });
@@ -201,19 +202,10 @@ export default function AdvancedROIAnalysis({ projects }: AdvancedROIAnalysisPro
   //   };
   // }, [data]);
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('sv-SE', {
-      style: 'currency',
-      currency: 'SEK',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(amount);
-  };
-
   if (data.projectsWithEffects === 0) {
     return (
       <div className="bg-[#1E3A4A] rounded-lg p-6 mb-8">
-        <h2 className="text-xl font-bold text-[#FFD600] mb-4">Avancerad ROI-analys</h2>
+        <h2 className="text-xl font-bold text-[#fecb00] mb-4">Avancerad ROI-analys</h2>
         <div className="text-gray-300">
           <p>Inga projekt med effektdata hittades.</p>
           <p className="mt-2">För att se ROI-analys, lägg till effektdata i projekten.</p>
@@ -224,25 +216,25 @@ export default function AdvancedROIAnalysis({ projects }: AdvancedROIAnalysisPro
 
   return (
     <div className="bg-[#1E3A4A] rounded-lg p-6 mb-8">
-      <h2 className="text-xl font-bold text-[#FFD600] mb-6">Avancerad ROI-analys</h2>
+      <h2 className="text-xl font-bold text-[#fecb00] mb-6">Avancerad ROI-analys</h2>
       
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <div className="bg-[#121F2B] p-4 rounded-lg">
           <div className="text-sm text-gray-400">Total investering</div>
-          <div className="text-xl font-bold text-white">{formatCurrency(data.totalInvestment)}</div>
+          <div className="text-xl font-bold text-[#fffefa]">{formatCurrency(data.totalInvestment)}</div>
         </div>
         <div className="bg-[#121F2B] p-4 rounded-lg">
           <div className="text-sm text-gray-400">Total monetär effekt</div>
-          <div className="text-xl font-bold text-white">{formatCurrency(data.totalMonetaryValue)}</div>
+          <div className="text-xl font-bold text-[#fffefa]">{formatCurrency(data.totalMonetaryValue)}</div>
         </div>
         <div className="bg-[#121F2B] p-4 rounded-lg">
           <div className="text-sm text-gray-400">Genomsnittlig ROI</div>
-          <div className="text-xl font-bold text-white">{data.averageROI.toFixed(1)}%</div>
+          <div className="text-xl font-bold text-[#fffefa]">{data.averageROI.toFixed(1)}%</div>
         </div>
         <div className="bg-[#121F2B] p-4 rounded-lg">
           <div className="text-sm text-gray-400">Projekt med effekter</div>
-          <div className="text-xl font-bold text-white">{data.projectsWithEffects}/{data.totalProjects}</div>
+          <div className="text-xl font-bold text-[#fffefa]">{data.projectsWithEffects}/{data.totalProjects}</div>
         </div>
       </div>
 
@@ -250,7 +242,7 @@ export default function AdvancedROIAnalysis({ projects }: AdvancedROIAnalysisPro
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         {/* ROI Distribution Chart */}
         <div className="bg-[#121F2B] p-4 rounded-lg">
-          <h3 className="text-lg font-semibold text-white mb-4">ROI-fördelning</h3>
+          <h3 className="text-lg font-semibold text-[#fffefa] mb-4">ROI-fördelning</h3>
           <div className="h-[300px] flex items-center justify-center text-gray-400">
             <div className="text-center">
               <div className="text-lg mb-2">Chart temporarily disabled</div>
@@ -261,12 +253,12 @@ export default function AdvancedROIAnalysis({ projects }: AdvancedROIAnalysisPro
 
         {/* Top Performers */}
         <div className="bg-[#121F2B] p-4 rounded-lg">
-          <h3 className="text-lg font-semibold text-white mb-4">Topp 5 ROI-projekt</h3>
+          <h3 className="text-lg font-semibold text-[#fffefa] mb-4">Topp 5 ROI-projekt</h3>
           <div className="space-y-2">
             {data.topPerformers.map((project, index) => (
               <div key={project.projectId} className="flex justify-between items-center p-2 bg-[#1E3A4A] rounded">
                 <div>
-                  <div className="font-medium text-white">{index + 1}. {project.title}</div>
+                  <div className="font-medium text-[#fffefa]">{index + 1}. {project.title}</div>
                   <div className="text-sm text-gray-400">{formatCurrency(project.investment)} investering</div>
                 </div>
                 <div className="text-right">
@@ -281,11 +273,11 @@ export default function AdvancedROIAnalysis({ projects }: AdvancedROIAnalysisPro
 
       {/* Dimension Breakdown */}
       <div className="bg-[#121F2B] p-4 rounded-lg mb-6">
-        <h3 className="text-lg font-semibold text-white mb-4">ROI per värdedimension</h3>
+        <h3 className="text-lg font-semibold text-[#fffefa] mb-4">ROI per värdedimension</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {Object.entries(data.dimensionBreakdown).map(([dimension, stats]) => (
             <div key={dimension} className="p-3 bg-[#1E3A4A] rounded">
-              <div className="font-medium text-white">{dimension}</div>
+              <div className="font-medium text-[#fffefa]">{dimension}</div>
               <div className="text-sm text-gray-400">
                 {stats.count} projekt • {formatCurrency(stats.totalValue)} totalt värde
               </div>
@@ -300,11 +292,11 @@ export default function AdvancedROIAnalysis({ projects }: AdvancedROIAnalysisPro
       {/* Insights and Recommendations */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="bg-[#121F2B] p-4 rounded-lg">
-          <h3 className="text-lg font-semibold text-[#FFD600] mb-3">Insikter</h3>
+          <h3 className="text-lg font-semibold text-[#fecb00] mb-3">Insikter</h3>
           <ul className="space-y-2">
             {data.insights.map((insight, index) => (
-              <li key={index} className="text-white text-sm flex items-start">
-                <span className="text-[#FFD600] mr-2">•</span>
+              <li key={index} className="text-[#fffefa] text-sm flex items-start">
+                <span className="text-[#fecb00] mr-2">•</span>
                 {insight}
               </li>
             ))}
@@ -312,11 +304,11 @@ export default function AdvancedROIAnalysis({ projects }: AdvancedROIAnalysisPro
         </div>
 
         <div className="bg-[#121F2B] p-4 rounded-lg">
-          <h3 className="text-lg font-semibold text-[#FFD600] mb-3">Rekommendationer</h3>
+          <h3 className="text-lg font-semibold text-[#fecb00] mb-3">Rekommendationer</h3>
           <ul className="space-y-2">
             {data.recommendations.map((rec, index) => (
-              <li key={index} className="text-white text-sm flex items-start">
-                <span className="text-[#FFD600] mr-2">•</span>
+              <li key={index} className="text-[#fffefa] text-sm flex items-start">
+                <span className="text-[#fecb00] mr-2">•</span>
                 {rec}
               </li>
             ))}

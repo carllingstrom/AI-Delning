@@ -10,21 +10,28 @@ export function generatePieChartImage(costData: CostData[], width: number = 200,
   const ctx = canvas.getContext('2d');
 
   // Set background
-  ctx.fillStyle = '#1a1a2e';
+  ctx.fillStyle = '#121f2b';
   ctx.fillRect(0, 0, width, height);
 
-  // Colors for the pie chart - ensure good contrast and visibility
+  // Colors for the pie chart - using the design system colorscale
   const colors = [
-    '#FECB00', // AI Sweden yellow
-    '#E76F51', // Red orange (good contrast with yellow)
-    '#4A90E2', // Sky blue
-    '#A8D5BA', // Mint green
-    '#9B5DE5', // Purple
-    '#F4A261', // Orange
-    '#7FB3D3', // Light sky blue
-    '#2E5984', // Light blue
-    '#1B365D', // Medium blue
-    '#0D1B2A'  // Dark blue
+    '#fecb00', // Primary yellow
+    '#007399', // Light blue
+    '#004d66', // Blue
+    '#34af8f', // Accent green
+    '#ff153b', // Accent red
+    '#224556', // Blue-gray
+    '#f4f2e6', // Off-white
+    '#fffefa', // White
+    // Additional colors for more variety
+    '#fecb00', // Primary yellow (repeated for more data points)
+    '#007399', // Light blue (repeated)
+    '#004d66', // Blue (repeated)
+    '#34af8f', // Accent green (repeated)
+    '#ff153b', // Accent red (repeated)
+    '#224556', // Blue-gray (repeated)
+    '#f4f2e6', // Off-white (repeated)
+    '#fffefa'  // White (repeated)
   ];
 
   // Calculate total
@@ -51,7 +58,7 @@ export function generatePieChartImage(costData: CostData[], width: number = 200,
     ctx.fill();
 
     // Draw border
-    ctx.strokeStyle = '#ffffff';
+    ctx.strokeStyle = '#fffefa';
     ctx.lineWidth = 2;
     ctx.stroke();
 
@@ -68,7 +75,7 @@ export function generateSimplePieChart(costData: CostData[]): string {
   const ctx = canvas.getContext('2d');
 
   // Set background
-  ctx.fillStyle = '#1a1a2e';
+  ctx.fillStyle = '#121f2b';
   ctx.fillRect(0, 0, 200, 200);
 
   // Draw a simple pie chart
@@ -79,9 +86,16 @@ export function generateSimplePieChart(costData: CostData[]): string {
   const total = costData.reduce((sum, item) => sum + item.y, 0);
   if (total === 0) return canvas.toDataURL();
 
+  // Using the design system colorscale
   const colors = [
-    '#FECB00', '#E76F51', '#4A90E2', '#A8D5BA', '#9B5DE5',
-    '#F4A261', '#7FB3D3', '#2E5984', '#1B365D', '#0D1B2A'
+    '#fecb00', // Primary yellow
+    '#007399', // Light blue
+    '#004d66', // Blue
+    '#34af8f', // Accent green
+    '#ff153b', // Accent red
+    '#224556', // Blue-gray
+    '#f4f2e6', // Off-white
+    '#fffefa'  // White
   ];
 
   let currentAngle = 0;
@@ -99,7 +113,7 @@ export function generateSimplePieChart(costData: CostData[]): string {
     ctx.fill();
 
     // Draw border
-    ctx.strokeStyle = '#ffffff';
+    ctx.strokeStyle = '#fffefa';
     ctx.lineWidth = 2;
     ctx.stroke();
 

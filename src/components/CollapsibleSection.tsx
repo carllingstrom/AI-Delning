@@ -29,9 +29,9 @@ const CollapsibleSection: React.FC<CollapsibleSectionProps> = ({
         onClick={() => setIsOpen(!isOpen)}
         className="w-full px-6 py-4 bg-gray-800 hover:bg-gray-700 transition-colors flex justify-between items-center"
       >
-        <h2 className="text-xl font-bold text-[#FECB00]">{title}</h2>
+        <h2 className="text-xl font-bold text-[#fecb00]">{title}</h2>
         <svg
-          className={`w-5 h-5 text-[#FECB00] transition-transform ${isOpen ? 'rotate-180' : ''}`}
+          className={`w-5 h-5 text-[#fecb00] transition-transform ${isOpen ? 'rotate-180' : ''}`}
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"

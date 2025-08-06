@@ -62,21 +62,133 @@ export async function GET(
       responsible: project.responsible,
       phase: project.phase,
       created_at: project.created_at,
+      updated_at: project.updated_at,
+      // Return the nested data structures as expected by frontend
+      project_municipalities: project.project_municipalities || [],
+      project_areas: project.project_areas || [],
+      project_value_dimensions: project.project_value_dimensions || [],
+      // Also include the flat arrays for backward compatibility
       municipalities: project.project_municipalities?.map((pm: any) => ({
         name: pm.municipalities.name,
         county: pm.municipalities.county
       })) || [],
-      location_type: project.overview_details?.location_type,
-      county_codes: project.overview_details?.county_codes,
       areas: project.areas || [],
       value_dimensions: project.value_dimensions || [],
       cost_data: project.cost_data,
       effects_data: project.effects_data,
+      ease_of_implementation_data: project.ease_of_implementation_data,
       technical_data: project.technical_data,
       leadership_data: project.leadership_data,
       legal_data: project.legal_data,
-      overview_details: project.overview_details
+      overview_details: project.overview_details,
+      // Add calculatedMetrics to match the list API
+      calculatedMetrics: {
+        budget: project.cost_data?.budgetDetails?.budgetAmount ? parseFloat(project.cost_data.budgetDetails.budgetAmount) : null,
+        actualCost: project.cost_data?.actualCostDetails?.costEntries ? 
+          project.cost_data.actualCostDetails.costEntries.reduce((total: number, entry: any) => {
+            if (!entry) return total;
+            let entryTotal = 0;
+            switch (entry.costUnit) {
+              case 'hours':
+                const hours = Number(entry.hoursDetails?.hours) || 0;
+                const rate = Number(entry.hoursDetails?.hourlyRate) || 0;
+                entryTotal = hours * rate;
+                break;
+              case 'fixed':
+                entryTotal = Number(entry.fixedDetails?.fixedAmount) || 0;
+                break;
+              case 'monthly':
+                const monthlyAmount = Number(entry.monthlyDetails?.monthlyAmount) || 0;
+                const monthlyDuration = Number(entry.monthlyDetails?.monthlyDuration) || 1;
+                entryTotal = monthlyAmount * monthlyDuration;
+                break;
+              case 'yearly':
+                const yearlyAmount = Number(entry.yearlyDetails?.yearlyAmount) || 0;
+                const yearlyDuration = Number(entry.yearlyDetails?.yearlyDuration) || 1;
+                entryTotal = yearlyAmount * yearlyDuration;
+                break;
+              default:
+                entryTotal = 0;
+            }
+            return total + entryTotal;
+          }, 0) : 0,
+        roi: null, // Will be calculated below
+        totalMonetaryValue: null, // Will be calculated below
+        affectedGroups: project.effects_data?.affectedGroups || [],
+        technologies: project.technical_data?.aiMethodology || []
+      }
     };
+
+    // Calculate ROI if effects data exists
+    if (project.effects_data && project.effects_data.effectDetails) {
+      try {
+        const { calculateROI } = require('@/lib/roiCalculator');
+        
+        const effectEntries = project.effects_data.effectDetails || [];
+        const costEntries = project.cost_data?.actualCostDetails?.costEntries || [];
+        
+        if (effectEntries.length > 0) {
+          // Check if project actually has measurable effects
+          const hasActualEffects = effectEntries.some((effect: any) => {
+            const hasQuantitative = (effect.hasQuantitative === true || effect.hasQuantitative === 'true') && 
+                                  effect.quantitativeDetails && 
+                                  (effect.quantitativeDetails.financialDetails || effect.quantitativeDetails.redistributionDetails);
+            
+            const hasQualitative = (effect.hasQualitative === true || effect.hasQualitative === 'true') && 
+                                 effect.qualitativeDetails && 
+                                 effect.qualitativeDetails.factor;
+            
+            return hasQuantitative || hasQualitative;
+          });
+          
+          if (hasActualEffects) {
+            // Calculate total investment from cost entries ONLY
+            const totalInvestment = costEntries.reduce((total: number, entry: any) => {
+              if (!entry) return total;
+              
+              let entryTotal = 0;
+              
+              switch (entry.costUnit) {
+                case 'hours':
+                  const hours = Number(entry.hoursDetails?.hours) || 0;
+                  const rate = Number(entry.hoursDetails?.hourlyRate) || 0;
+                  entryTotal = hours * rate;
+                  break;
+                case 'fixed':
+                  entryTotal = Number(entry.fixedDetails?.fixedAmount) || 0;
+                  break;
+                case 'monthly':
+                  const monthlyAmount = Number(entry.monthlyDetails?.monthlyAmount) || 0;
+                  const monthlyDuration = Number(entry.monthlyDetails?.monthlyDuration) || 1;
+                  entryTotal = monthlyAmount * monthlyDuration;
+                  break;
+                case 'yearly':
+                  const yearlyAmount = Number(entry.yearlyDetails?.yearlyAmount) || 0;
+                  const yearlyDuration = Number(entry.yearlyDetails?.yearlyDuration) || 1;
+                  entryTotal = yearlyAmount * yearlyDuration;
+                  break;
+                default:
+                  entryTotal = 0;
+              }
+              
+              return total + entryTotal;
+            }, 0);
+            
+            const roiMetrics = calculateROI({ 
+              effectEntries, 
+              totalProjectInvestment: totalInvestment 
+            });
+            
+
+            
+            projectData.calculatedMetrics.roi = roiMetrics.economicROI;
+            projectData.calculatedMetrics.totalMonetaryValue = roiMetrics.totalMonetaryValue;
+          }
+        }
+      } catch (err) {
+        console.error('Error calculating ROI for project:', project.id, err);
+      }
+    }
 
     return NextResponse.json(projectData);
 
@@ -110,6 +222,7 @@ export async function PUT(
       // Form section data
       cost_data,
       effects_data,
+      ease_of_implementation_data,
       technical_data,
       leadership_data,
       legal_data,
@@ -118,24 +231,29 @@ export async function PUT(
     } = payload;
 
     // 1. Update the main project record
+    const updateData: any = {
+      title,
+      intro,
+      problem,
+      opportunity,
+      responsible,
+      phase: phase || 'idea',
+      areas: areas || [],
+      value_dimensions: value_dimensions || [],
+    };
+
+    // Only update form section data if it's actually provided (not undefined/null)
+    if (overview_details !== undefined) updateData.overview_details = overview_details;
+    if (cost_data !== undefined) updateData.cost_data = cost_data;
+    if (effects_data !== undefined) updateData.effects_data = effects_data;
+    if (ease_of_implementation_data !== undefined) updateData.ease_of_implementation_data = ease_of_implementation_data;
+    if (technical_data !== undefined) updateData.technical_data = technical_data;
+    if (leadership_data !== undefined) updateData.leadership_data = leadership_data;
+    if (legal_data !== undefined) updateData.legal_data = legal_data;
+
     const { data: project, error: projectError } = await serverSupabase()
       .from('projects')
-      .update({
-        title,
-        intro,
-        problem,
-        opportunity,
-        responsible,
-        phase: phase || 'idea',
-        areas: areas || [],
-        value_dimensions: value_dimensions || [],
-        overview_details: overview_details || {},
-        cost_data: cost_data || {},
-        effects_data: effects_data || {},
-        technical_data: technical_data || {},
-        leadership_data: leadership_data || {},
-        legal_data: legal_data || {},
-      })
+      .update(updateData)
       .eq('id', projectId)
       .select()
       .single()

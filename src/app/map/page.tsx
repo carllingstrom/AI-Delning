@@ -193,7 +193,7 @@ export default function MapPage() {
   const bar = (count: number) => (
     <div className="flex-1 mx-2">
       <div className="h-2 bg-[#F9E9A0] relative">
-        {count > 0 && <div className="absolute left-0 top-0 h-2 bg-[#FECB00]" style={{ width: `${Math.min(100, count * 30)}%` }} />}
+        {count > 0 && <div className="absolute left-0 top-0 h-2 bg-[#fecb00]" style={{ width: `${Math.min(100, count * 30)}%` }} />}
       </div>
     </div>
   );
@@ -239,8 +239,8 @@ export default function MapPage() {
             <div className="flex-1 overflow-y-auto">
               <h2 className="text-lg font-bold text-[#004D66] mb-2">Nationell översikt</h2>
               <div className="flex gap-2 mb-4 border-b border-gray-200 text-sm font-semibold">
-                <button className={`${tab==='areas'?'border-b-2 border-[#FECB00] text-[#004D66]':'text-gray-400'}`} onClick={()=>setTab('areas')}>Områden</button>
-                <button className={`${tab==='value'?'border-b-2 border-[#FECB00] text-[#004D66]':'text-gray-400'}`} onClick={()=>setTab('value')}>Värdeskapande</button>
+                <button className={`${tab==='areas'?'border-b-2 border-[#fecb00] text-[#004D66]':'text-gray-400'}`} onClick={()=>setTab('areas')}>Områden</button>
+                <button className={`${tab==='value'?'border-b-2 border-[#fecb00] text-[#004D66]':'text-gray-400'}`} onClick={()=>setTab('value')}>Värdeskapande</button>
               </div>
               {tab==='areas' && (
                 <ul className="space-y-2 text-xs">
@@ -276,7 +276,7 @@ export default function MapPage() {
                   </svg>
                   Idébank
                 </h2>
-                <button className="text-sm underline text-[#004D66] hover:text-[#FECB00]" onClick={()=>setIdeaProjects(null)}>Tillbaka</button>
+                <button className="text-sm underline text-[#004D66] hover:text-[#fecb00]" onClick={()=>setIdeaProjects(null)}>Tillbaka</button>
               </div>
               <div className="text-xs text-gray-600 mb-3">
                 {ideaProjects.length} idéer från kommuner över hela Sverige
@@ -296,7 +296,7 @@ export default function MapPage() {
                         </button>
                         <button 
                           onClick={() => setSelectedProject(p)}
-                          className="text-blue-600 underline hover:text-[#FECB00]"
+                          className="text-blue-600 underline hover:text-[#fecb00]"
                         >
                           Detaljer
                         </button>
@@ -347,8 +347,8 @@ export default function MapPage() {
                 <h2 className="text-lg font-bold text-[#004D66]">{selectedMunicipalityName}</h2>
               </div>
               <div className="flex gap-2 mb-4 border-b border-gray-200 text-sm font-semibold">
-                <button className={`${tab==='areas'?'border-b-2 border-[#FECB00] text-[#004D66]':'text-gray-400'}`} onClick={()=>setTab('areas')}>Områden</button>
-                <button className={`${tab==='value'?'border-b-2 border-[#FECB00] text-[#004D66]':'text-gray-400'}`} onClick={()=>setTab('value')}>Värdeskapande</button>
+                <button className={`${tab==='areas'?'border-b-2 border-[#fecb00] text-[#004D66]':'text-gray-400'}`} onClick={()=>setTab('areas')}>Områden</button>
+                <button className={`${tab==='value'?'border-b-2 border-[#fecb00] text-[#004D66]':'text-gray-400'}`} onClick={()=>setTab('value')}>Värdeskapande</button>
               </div>
               {tab==='areas' && (
                 <ul className="space-y-2 text-xs">
@@ -434,7 +434,7 @@ export default function MapPage() {
               
               <div className="flex items-center space-x-2">
                 <span className="font-semibold text-[#004D66]">Fas:</span>
-                <span className={`px-2 py-1 rounded text-white text-xs ${
+                <span className={`px-2 py-1 rounded text-[#fffefa] text-xs ${
                   selectedProject.phase === 'idea' ? 'bg-blue-500' :
                   selectedProject.phase === 'pilot' ? 'bg-yellow-500' :
                   selectedProject.phase === 'implemented' ? 'bg-green-500' : 'bg-gray-500'
@@ -778,13 +778,13 @@ export default function MapPage() {
               <div className="mt-4 pt-3 border-t space-x-2">
                 <button 
                   onClick={() => handleDelete(selectedProject.id)}
-                  className="px-3 py-1 bg-red-500 text-white rounded text-sm font-medium hover:bg-red-600"
+                  className="px-3 py-1 bg-red-500 text-[#fffefa] rounded text-sm font-medium hover:bg-red-600"
                 >
                   Ta bort projekt
                 </button>
                 <button 
                   onClick={() => window.open(`/projects/new?edit=${selectedProject.id}`, '_blank')}
-                  className="px-3 py-1 bg-[#004D66] text-white rounded text-sm font-medium hover:bg-[#003A52]"
+                  className="px-3 py-1 bg-[#004D66] text-[#fffefa] rounded text-sm font-medium hover:bg-[#003A52]"
                 >
                   Redigera projekt
                 </button>

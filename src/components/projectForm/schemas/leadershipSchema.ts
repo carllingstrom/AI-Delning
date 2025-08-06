@@ -15,6 +15,13 @@ export const leadershipSchema: SectionSchema = {
       ]
     },
     {
+      id: 'projectOwnershipOther',
+      type: 'text',
+      label: 'Beskriv annan projektägare',
+      placeholder: 't.ex. "Extern partner", "Gemensamt med region"',
+      condition: { id: 'projectOwnership', value: 'other' }
+    },
+    {
       id: 'organizationalChange',
       type: 'checkbox',
       label: 'Har projektet inneburit förändringar i organisationen?',
@@ -50,6 +57,8 @@ export const leadershipSchema: SectionSchema = {
         'Hälsa och välbefinnande (mål 3)',
         'God utbildning (mål 4)',
         'Jämställdhet (mål 5)',
+        'Industri, innovation och infrastruktur (mål 9)',
+        'Minskad ojämlikhet (mål 10)',
         'Hållbara städer och samhällen (mål 11)',
         'Bekämpa klimatförändringarna (mål 13)',
         'Fredliga och inkluderande samhällen (mål 16)',
@@ -76,6 +85,7 @@ export const leadershipSchema: SectionSchema = {
       type: 'textarea',
       label: 'Lärdomar & utmaningar',
       placeholder: 'Beskriv viktiga lärdomar, erfarenheter eller hinder under projektet'
-    }
+    },
+
   ]
 };

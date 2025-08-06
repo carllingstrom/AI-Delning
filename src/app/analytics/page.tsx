@@ -1,19 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import AdvancedROIAnalysis from '@/components/analytics/AdvancedROIAnalysis';
-import SimpleWordcloud from '@/components/SimpleWordcloud';
-import {
-  ResponsiveContainer,
-  Sankey,
-  ScatterChart,
-  CartesianGrid,
-  XAxis,
-  YAxis,
-  Scatter,
-  Tooltip as ChartTooltip,
-  Label
-} from 'recharts';
+import Header from '@/components/Header';
+import Link from 'next/link';
+import { formatCurrency, formatPercentage } from '@/lib/utils';
 
 interface AnalyticsData {
   summary: {
@@ -22,6 +12,17 @@ interface AnalyticsData {
     averageBudget: number;
     totalROI: number;
     averageROI: number;
+    averageSharingScore: number;
+    averageActualCost: number;
+    averageBudgetUsage: number;
+    averageEffectsCount: number;
+    averageEffectsValue: number;
+    averageAffectedGroups: number;
+    averageTechnologies: number;
+    projectsWithQuantifiableEffects: { count: number; percentage: number };
+    projectsWithCostData: { count: number; percentage: number };
+    projectsWithEffectData: { count: number; percentage: number };
+    totalMonetaryValue: number;
   };
   breakdowns: {
     byPhase: Record<string, number>;
@@ -61,6 +62,7 @@ interface AnalyticsData {
       totalAffected: number;
       averageGroupsPerProject: number;
     };
+    roiByValueDimension: Record<string, { count: number; totalROI: number; averageROI: number }>;
   };
   technologyInsights: {
     mostUsedTechnologies: [string, number][];
@@ -87,293 +89,390 @@ interface AnalyticsData {
 export default function AnalyticsPage() {
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [filters, setFilters] = useState({
-    phase: '',
-    county: '',
-    area: '',
-    valueDimension: '',
-    minBudget: '',
-    maxBudget: '',
-    hasROI: '',
-    technology: '',
-    affectedGroups: ''
-  });
+  const [selectedChart, setSelectedChart] = useState<string>('overview');
 
   useEffect(() => {
     fetchAnalytics();
-  }, [filters]);
+  }, []);
 
   const fetchAnalytics = async () => {
-    setLoading(true);
     try {
-      const params = new URLSearchParams();
-      Object.entries(filters).forEach(([key, value]) => {
-        if (value) params.append(key, value);
-      });
-
-      const response = await fetch(`/api/analytics?${params}`);
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+      const response = await fetch('/api/analytics');
+      if (response.ok) {
+        const data = await response.json();
+        setAnalytics(data);
       }
-      
-      const data = await response.json();
-      
-      if (data.error) {
-        throw new Error(data.error);
-      }
-      
-      if (!data.summary || typeof data.summary.totalProjects === 'undefined') {
-        console.error('Invalid analytics data structure:', data);
-        throw new Error('Invalid data structure received from API');
-      }
-      
-      setAnalytics(data);
     } catch (error) {
       console.error('Failed to fetch analytics:', error);
-      setAnalytics(null);
     } finally {
       setLoading(false);
     }
   };
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('sv-SE', {
-      style: 'currency',
-      currency: 'SEK',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(amount);
+  const createBarChart = (data: Record<string, number>, title: string, color: string = '#fecb00') => {
+    const maxValue = Math.max(...Object.values(data));
+    return (
+      <div className="bg-[#224556] p-6 rounded-lg">
+        <h3 className="text-xl font-bold text-[#fecb00] mb-4">{title}</h3>
+        <div className="space-y-3">
+          {Object.entries(data).map(([key, value]) => (
+            <div key={key} className="flex items-center space-x-3">
+              <div className="w-32 text-sm text-gray-300 truncate">{key}</div>
+              <div className="flex-1 bg-gray-700 rounded-full h-4">
+                <div 
+                  className="h-4 rounded-full transition-all duration-500"
+                  style={{ 
+                    width: `${(value / maxValue) * 100}%`,
+                    backgroundColor: color
+                  }}
+                />
+              </div>
+              <div className="w-16 text-right text-sm font-semibold text-[#fecb00]">
+                {value}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
   };
 
-  const formatPercent = (value: number) => {
-    return `${value.toFixed(1)}%`;
+  const createPieChart = (data: Record<string, number>, title: string) => {
+    const total = Object.values(data).reduce((sum, val) => sum + val, 0);
+    // Using the design system colorscale
+    const colors = [
+      '#fecb00', // Primary yellow
+      '#007399', // Light blue
+      '#004d66', // Blue
+      '#34af8f', // Accent green
+      '#ff153b', // Accent red
+      '#224556', // Blue-gray
+      '#f4f2e6', // Off-white
+      '#fffefa', // White
+      // Additional colors for more variety
+      '#fecb00', // Primary yellow (repeated)
+      '#007399', // Light blue (repeated)
+      '#004d66', // Blue (repeated)
+      '#34af8f', // Accent green (repeated)
+      '#ff153b', // Accent red (repeated)
+      '#224556', // Blue-gray (repeated)
+      '#f4f2e6', // Off-white (repeated)
+      '#fffefa'  // White (repeated)
+    ];
+    
+    return (
+      <div className="bg-[#224556] p-6 rounded-lg">
+        <h3 className="text-xl font-bold text-[#fecb00] mb-4">{title}</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="relative w-48 h-48 mx-auto">
+            <svg className="w-full h-full" viewBox="0 0 100 100">
+              {Object.entries(data).map(([key, value], index) => {
+                const percentage = (value / total) * 100;
+                const startAngle = index === 0 ? 0 : 
+                  Object.entries(data).slice(0, index).reduce((sum, [, val]) => sum + (val / total) * 360, 0);
+                const endAngle = startAngle + (percentage * 360 / 100);
+                
+                const x1 = 50 + 40 * Math.cos(startAngle * Math.PI / 180);
+                const y1 = 50 + 40 * Math.sin(startAngle * Math.PI / 180);
+                const x2 = 50 + 40 * Math.cos(endAngle * Math.PI / 180);
+                const y2 = 50 + 40 * Math.sin(endAngle * Math.PI / 180);
+                
+                const largeArcFlag = percentage > 50 ? 1 : 0;
+                
+                return (
+                  <path
+                    key={key}
+                    d={`M 50 50 L ${x1} ${y1} A 40 40 0 ${largeArcFlag} 1 ${x2} ${y2} Z`}
+                    fill={colors[index % colors.length]}
+                    className="hover:opacity-80 transition-opacity"
+                  />
+                );
+              })}
+            </svg>
+          </div>
+          <div className="space-y-2">
+            {Object.entries(data).map(([key, value], index) => (
+              <div key={key} className="flex items-center space-x-2">
+                <div 
+                  className="w-4 h-4 rounded"
+                  style={{ backgroundColor: colors[index % colors.length] }}
+                />
+                <span className="text-sm text-gray-300">{key}</span>
+                <span className="text-sm font-semibold text-[#fecb00]">
+                  {formatPercentage((value / total) * 100)}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const createLineChart = (data: Array<{ x: string; y: number }>, title: string) => {
+    const maxY = Math.max(...data.map(d => d.y));
+    const minY = Math.min(...data.map(d => d.y));
+    const range = maxY - minY;
+    
+    return (
+      <div className="bg-[#224556] p-6 rounded-lg">
+        <h3 className="text-xl font-bold text-[#fecb00] mb-4">{title}</h3>
+        <div className="relative h-64">
+          <svg className="w-full h-full" viewBox={`0 0 ${data.length * 60} 200`}>
+            <polyline
+              fill="none"
+              stroke="#fecb00"
+              strokeWidth="3"
+              points={data.map((d, i) => 
+                `${i * 60 + 30},${200 - ((d.y - minY) / range) * 180}`
+              ).join(' ')}
+            />
+            {data.map((d, i) => (
+              <circle
+                key={i}
+                cx={i * 60 + 30}
+                cy={200 - ((d.y - minY) / range) * 180}
+                r="4"
+                fill="#fecb00"
+              />
+            ))}
+          </svg>
+        </div>
+      </div>
+    );
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#121F2B] p-8 text-white">
-        <div className="max-w-7xl mx-auto">
-          <h1 className="text-3xl font-bold text-[#FFD600] mb-8">Projektanalys</h1>
-          <div className="animate-pulse">Laddar data...</div>
-        </div>
-      </div>
-    );
-  }
-
-  if (!analytics) {
-    return (
-      <div className="min-h-screen bg-[#121F2B] p-8 text-white">
-        <div className="max-w-7xl mx-auto">
-          <h1 className="text-3xl font-bold text-[#FFD600] mb-8">Projektanalys</h1>
-          <div className="text-red-400">Kunde inte ladda analysdata</div>
+      <div className="min-h-screen bg-[#121f2b] text-[#fffefa]">
+        <Header />
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="text-center">
+            <div className="text-xl mb-4 text-[#fecb00]">Laddar avancerad analys...</div>
+            <div className="w-8 h-8 border-2 border-[#fecb00] border-t-transparent rounded-full animate-spin mx-auto"></div>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#121F2B] p-8 text-white">
-      <div className="max-w-7xl mx-auto">
-        <h1 className="text-3xl font-bold text-[#FFD600] mb-8">Projektanalys & Insikter</h1>
-
-        {/* Filter Controls */}
-        <div className="bg-[#1E3A4A] p-6 rounded-lg mb-8">
-          <h2 className="text-xl font-bold text-[#FFD600] mb-4">Filter</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-4">
-            <div>
-              <label className="block text-sm font-medium mb-2">Projektfas</label>
-              <select
-                value={filters.phase}
-                onChange={(e) => setFilters({...filters, phase: e.target.value})}
-                className="w-full p-2 bg-[#121F2B] border border-gray-600 rounded text-white"
-              >
-                <option value="">Alla</option>
-                <option value="idea">Idé</option>
-                <option value="pilot">Pilot</option>
-                <option value="implemented">Implementerat</option>
-              </select>
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium mb-2">Minsta budget (SEK)</label>
-              <input
-                type="number"
-                value={filters.minBudget}
-                onChange={(e) => setFilters({...filters, minBudget: e.target.value})}
-                className="w-full p-2 bg-[#121F2B] border border-gray-600 rounded text-white"
-                placeholder="0"
-              />
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium mb-2">Största budget (SEK)</label>
-              <input
-                type="number"
-                value={filters.maxBudget}
-                onChange={(e) => setFilters({...filters, maxBudget: e.target.value})}
-                className="w-full p-2 bg-[#121F2B] border border-gray-600 rounded text-white"
-                placeholder="∞"
-              />
-            </div>
-            
-            <div>
-              <label className="block text-sm font-medium mb-2">Har ROI-data</label>
-              <select
-                value={filters.hasROI}
-                onChange={(e) => setFilters({...filters, hasROI: e.target.value})}
-                className="w-full p-2 bg-[#121F2B] border border-gray-600 rounded text-white"
-              >
-                <option value="">Alla</option>
-                <option value="true">Ja</option>
-                <option value="false">Nej</option>
-              </select>
-            </div>
-          </div>
+    <div className="min-h-screen bg-[#121f2b] text-[#fffefa]">
+      <Header />
+      
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Header */}
+        <div className="mb-8">
+          <h1 className="text-3xl font-bold text-[#fecb00] mb-2">Avancerad Analys</h1>
+          <p className="text-gray-300">Experimentell sida för djupare insikter och visualiseringar</p>
         </div>
 
-        {/* Summary Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <div className="bg-[#1E3A4A] p-6 rounded-lg">
-            <h3 className="text-lg font-semibold text-[#FFD600] mb-2">Totalt antal projekt</h3>
-            <div className="text-3xl font-bold text-white">{analytics.summary.totalProjects}</div>
-          </div>
-          
-          <div className="bg-[#1E3A4A] p-6 rounded-lg">
-            <h3 className="text-lg font-semibold text-[#FFD600] mb-2">Total budget</h3>
-            <div className="text-3xl font-bold text-white">{formatCurrency(analytics.summary.totalBudget)}</div>
-          </div>
-          
-          <div className="bg-[#1E3A4A] p-6 rounded-lg">
-            <h3 className="text-lg font-semibold text-[#FFD600] mb-2">Genomsnittlig budget</h3>
-            <div className="text-3xl font-bold text-white">{formatCurrency(analytics.summary.averageBudget)}</div>
-          </div>
-          
-          <div className="bg-[#1E3A4A] p-6 rounded-lg">
-            <h3 className="text-lg font-semibold text-[#FFD600] mb-2">Genomsnittlig ROI</h3>
-            <div className="text-3xl font-bold text-white">{formatPercent(analytics.summary.averageROI)}</div>
-          </div>
+        {/* Chart Navigation */}
+        <div className="flex flex-wrap gap-2 mb-8">
+          {[
+            { key: 'overview', label: 'Översikt' },
+            { key: 'costs', label: 'Kostnader' },
+            { key: 'effects', label: 'Effekter' },
+            { key: 'technology', label: 'Teknologi' },
+            { key: 'performance', label: 'Prestation' }
+          ].map((chart) => (
+            <button
+              key={chart.key}
+              onClick={() => setSelectedChart(chart.key)}
+              className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                selectedChart === chart.key
+                  ? 'bg-[#fecb00] text-[#121f2b]'
+                  : 'bg-[#224556] text-gray-300 hover:text-[#fffefa]'
+              }`}
+            >
+              {chart.label}
+            </button>
+          ))}
         </div>
 
-        {/* Advanced ROI Analysis */}
-        <AdvancedROIAnalysis projects={analytics.projects} />
+        {/* Chart Content */}
+        {selectedChart === 'overview' && analytics && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {createPieChart(analytics.breakdowns.byPhase, 'Projekt per Fas')}
+            {createBarChart(analytics.breakdowns.byArea, 'Projekt per Område')}
+            {createPieChart(analytics.breakdowns.byValueDimension, 'Värdedimensioner')}
+            {createBarChart(analytics.breakdowns.byCounty, 'Projekt per Län')}
+          </div>
+        )}
 
-        {/* Breakdowns */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-          {/* Phase Breakdown */}
-          <div className="bg-[#1E3A4A] p-6 rounded-lg">
-            <h2 className="text-xl font-bold text-[#FFD600] mb-4">Fördelning per fas</h2>
-            <div className="space-y-3">
-              {analytics.breakdowns?.byPhase && Object.entries(analytics.breakdowns.byPhase).map(([phase, count]) => (
-                <div key={phase} className="flex justify-between items-center">
-                  <span className="text-white">{phase}</span>
-                  <span className="text-[#FFD600] font-semibold">{count}</span>
+        {selectedChart === 'costs' && analytics && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {createBarChart(
+              Object.fromEntries(
+                Object.entries(analytics.costAnalysis.byCostType).map(([key, value]) => [
+                  key, 
+                  value.count
+                ])
+              ),
+              'Kostnadstyper (Antal Projekt)'
+            )}
+            {createPieChart(
+              Object.fromEntries(
+                Object.entries(analytics.costAnalysis.byCostType).map(([key, value]) => [
+                  key, 
+                  value.totalCost
+                ])
+              ),
+              'Total Kostnad per Typ'
+            )}
+            <div className="bg-[#224556] p-6 rounded-lg">
+              <h3 className="text-xl font-bold text-[#fecb00] mb-4">Kostnadsstatistik</h3>
+              <div className="space-y-3">
+                <div className="flex justify-between">
+                  <span>Genomsnittlig timkostnad:</span>
+                  <span className="text-[#fecb00] font-semibold">
+                    {formatCurrency(analytics.costAnalysis.costPerHour.average)}
+                  </span>
                 </div>
-              )) || (
-                <div className="text-gray-400 text-sm">Ingen fasdata tillgänglig</div>
-              )}
-            </div>
-          </div>
-
-          {/* County Breakdown */}
-          <div className="bg-[#1E3A4A] p-6 rounded-lg">
-            <h2 className="text-xl font-bold text-[#FFD600] mb-4">Fördelning per län</h2>
-            <div className="space-y-3">
-              {analytics.breakdowns?.byCounty && Object.entries(analytics.breakdowns.byCounty).map(([county, count]) => (
-                <div key={county} className="flex justify-between items-center">
-                  <span className="text-white">{county}</span>
-                  <span className="text-[#FFD600] font-semibold">{count}</span>
+                <div className="flex justify-between">
+                  <span>Median timkostnad:</span>
+                  <span className="text-[#fecb00] font-semibold">
+                    {formatCurrency(analytics.costAnalysis.costPerHour.median)}
+                  </span>
                 </div>
-              )) || (
-                <div className="text-gray-400 text-sm">Ingen ländata tillgänglig</div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Technology Insights */}
-        <div className="bg-[#1E3A4A] p-6 rounded-lg mb-8">
-          <h2 className="text-xl font-bold text-[#FFD600] mb-4">Teknologi-insikter</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            <div>
-              <h3 className="text-lg font-semibold text-white mb-3">Mest använda teknologier</h3>
-              <div className="space-y-2">
-                {analytics.technologyInsights?.mostUsedTechnologies?.slice(0, 5).map(([tech, count]) => (
-                  <div key={tech} className="flex justify-between items-center">
-                    <span className="text-white">{tech}</span>
-                    <span className="text-[#FFD600] font-semibold">{count}</span>
-                  </div>
-                )) || (
-                  <div className="text-gray-400 text-sm">Ingen teknologidata tillgänglig</div>
-                )}
-              </div>
-            </div>
-            
-            <div>
-              <h3 className="text-lg font-semibold text-white mb-3">Deployment-miljöer</h3>
-              <div className="space-y-2">
-                {analytics.technologyInsights?.deploymentEnvironments && Object.entries(analytics.technologyInsights.deploymentEnvironments).map(([env, count]) => (
-                  <div key={env} className="flex justify-between items-center">
-                    <span className="text-white">{env}</span>
-                    <span className="text-[#FFD600] font-semibold">{count}</span>
-                  </div>
-                )) || (
-                  <div className="text-gray-400 text-sm">Ingen deployment-data tillgänglig</div>
-                )}
-              </div>
-            </div>
-            
-            <div>
-              <h3 className="text-lg font-semibold text-white mb-3">Datatyper</h3>
-              <div className="space-y-2">
-                {analytics.technologyInsights?.dataTypes && Object.entries(analytics.technologyInsights.dataTypes).map(([type, count]) => (
-                  <div key={type} className="flex justify-between items-center">
-                    <span className="text-white">{type}</span>
-                    <span className="text-[#FFD600] font-semibold">{count}</span>
-                  </div>
-                )) || (
-                  <div className="text-gray-400 text-sm">Ingen datatypdata tillgänglig</div>
-                )}
+                <div className="flex justify-between">
+                  <span>Lägsta timkostnad:</span>
+                  <span className="text-gray-300">
+                    {formatCurrency(analytics.costAnalysis.costPerHour.min)}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Högsta timkostnad:</span>
+                  <span className="text-gray-300">
+                    {formatCurrency(analytics.costAnalysis.costPerHour.max)}
+                  </span>
+                </div>
               </div>
             </div>
           </div>
-        </div>
+        )}
 
-        {/* Top Performers */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-          <div className="bg-[#1E3A4A] p-6 rounded-lg">
-            <h2 className="text-xl font-bold text-[#FFD600] mb-4">Högsta ROI</h2>
-            <div className="space-y-3">
-              {analytics.topPerformers?.highestROI?.slice(0, 5).map((project: any) => (
-                <div key={project.id} className="flex justify-between items-center">
-                  <span className="text-white truncate">{project.title}</span>
-                  <span className="text-[#FFD600] font-semibold">{formatPercent(project.roi)}</span>
+        {selectedChart === 'effects' && analytics && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {createPieChart(
+              analytics.effectsAnalysis.byEffectType,
+              'Effekttyper'
+            )}
+            {createBarChart(
+              Object.fromEntries(
+                Object.entries(analytics.effectsAnalysis.roiByValueDimension).map(([key, value]) => [
+                  key, 
+                  value.averageROI
+                ])
+              ),
+              'Genomsnittlig ROI per Värdedimension'
+            )}
+            <div className="bg-[#224556] p-6 rounded-lg">
+              <h3 className="text-xl font-bold text-[#fecb00] mb-4">Effektstatistik</h3>
+              <div className="space-y-3">
+                <div className="flex justify-between">
+                  <span>Projekt med kvantifierbara effekter:</span>
+                  <span className="text-[#fecb00] font-semibold">
+                    {analytics.effectsAnalysis.quantifiableEffects.withQuantifiable}
+                  </span>
                 </div>
-              )) || (
-                <div className="text-gray-400 text-sm">Ingen ROI-data tillgänglig</div>
-              )}
+                <div className="flex justify-between">
+                  <span>Kvantifieringsgrad:</span>
+                  <span className="text-[#fecb00] font-semibold">
+                    {formatPercentage(analytics.effectsAnalysis.quantifiableEffects.percentage)}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Total monetärt värde:</span>
+                  <span className="text-[#fecb00] font-semibold">
+                    {formatCurrency(analytics.effectsAnalysis.monetaryValue)}
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
-          
-          <div className="bg-[#1E3A4A] p-6 rounded-lg">
-            <h2 className="text-xl font-bold text-[#FFD600] mb-4">Största budgetar</h2>
-            <div className="space-y-3">
-              {analytics.topPerformers?.largestBudget?.slice(0, 5).map((project: any) => (
-                <div key={project.id} className="flex justify-between items-center">
-                  <span className="text-white truncate">{project.title}</span>
-                  <span className="text-[#FFD600] font-semibold">{formatCurrency(project.budget)}</span>
+        )}
+
+        {selectedChart === 'technology' && analytics && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {createBarChart(
+              Object.fromEntries(analytics.technologyInsights.mostUsedTechnologies),
+              'Mest Använda Teknologier'
+            )}
+            {createPieChart(
+              analytics.technologyInsights.deploymentEnvironments,
+              'Deployment-miljöer'
+            )}
+            {createBarChart(
+              analytics.technologyInsights.dataTypes,
+              'Datatyper'
+            )}
+            <div className="bg-[#224556] p-6 rounded-lg">
+              <h3 className="text-xl font-bold text-[#fecb00] mb-4">Tekniska Utmaningar</h3>
+              <div className="space-y-3">
+                <div className="flex justify-between">
+                  <span>Totalt utmaningar:</span>
+                  <span className="text-[#fecb00] font-semibold">
+                    {analytics.technologyInsights.technicalChallenges.totalChallenges}
+                  </span>
                 </div>
-              )) || (
-                <div className="text-gray-400 text-sm">Ingen budgetdata tillgänglig</div>
-              )}
+                <div className="flex justify-between">
+                  <span>Totalt lösningar:</span>
+                  <span className="text-[#fecb00] font-semibold">
+                    {analytics.technologyInsights.technicalChallenges.totalSolutions}
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Lösningsgrad:</span>
+                  <span className="text-[#fecb00] font-semibold">
+                    {formatPercentage(analytics.technologyInsights.technicalChallenges.resolutionRate)}
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
-        {/* Footer Info */}
-        <div className="text-center text-gray-400 text-sm">
-          Analysdata baserad på {analytics.summary.totalProjects} projekt. 
-          Senast uppdaterad: {new Date().toLocaleDateString('sv-SE')}
+        {selectedChart === 'performance' && analytics && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div className="bg-[#224556] p-6 rounded-lg">
+              <h3 className="text-xl font-bold text-[#fecb00] mb-4">Top ROI-projekt</h3>
+              <div className="space-y-3">
+                {analytics.topPerformers.highestROI.slice(0, 5).map((project, index) => (
+                  <div key={project.id} className="flex justify-between items-center">
+                    <span className="text-sm truncate">{index + 1}. {project.title}</span>
+                    <span className="text-[#fecb00] font-semibold">
+                      {formatPercentage(project.roi)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+            
+            <div className="bg-[#224556] p-6 rounded-lg">
+              <h3 className="text-xl font-bold text-[#fecb00] mb-4">Största Budget-projekt</h3>
+              <div className="space-y-3">
+                {analytics.topPerformers.largestBudget.slice(0, 5).map((project, index) => (
+                  <div key={project.id} className="flex justify-between items-center">
+                    <span className="text-sm truncate">{index + 1}. {project.title}</span>
+                    <span className="text-[#fecb00] font-semibold">
+                      {formatCurrency(project.budget)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Back to main pages */}
+        <div className="mt-12 text-center">
+          <Link 
+            href="/projects" 
+            className="px-6 py-3 bg-[#fecb00] text-[#121f2b] font-bold rounded-lg hover:bg-[#fecb00] transition-colors"
+          >
+            Tillbaka till Projektportalen
+          </Link>
         </div>
       </div>
     </div>

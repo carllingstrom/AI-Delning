@@ -27,18 +27,25 @@ export default function PieChartToImage({
   const chartRef = useRef<HTMLDivElement>(null);
   const [imageData, setImageData] = useState<string>('');
 
-  // AI Sweden theme colors
+  // Using the design system colorscale
   const colors = [
-    '#FECB00', // AI Sweden yellow
-    '#0D1B2A', // Dark blue
-    '#1B365D', // Medium blue
-    '#2E5984', // Light blue
-    '#4A90E2', // Sky blue
-    '#7FB3D3', // Light sky blue
-    '#A8D5BA', // Mint green
-    '#F4A261', // Orange
-    '#E76F51', // Red orange
-    '#9B5DE5'  // Purple
+    '#fecb00', // Primary yellow
+    '#007399', // Light blue
+    '#004d66', // Blue
+    '#34af8f', // Accent green
+    '#ff153b', // Accent red
+    '#224556', // Blue-gray
+    '#f4f2e6', // Off-white
+    '#fffefa', // White
+    // Additional colors for more variety
+    '#fecb00', // Primary yellow (repeated)
+    '#007399', // Light blue (repeated)
+    '#004d66', // Blue (repeated)
+    '#34af8f', // Accent green (repeated)
+    '#ff153b', // Accent red (repeated)
+    '#224556', // Blue-gray (repeated)
+    '#f4f2e6', // Off-white (repeated)
+    '#fffefa'  // White (repeated)
   ];
 
   useEffect(() => {
@@ -46,7 +53,7 @@ export default function PieChartToImage({
       if (chartRef.current) {
         try {
           const canvas = await html2canvas(chartRef.current, {
-            backgroundColor: '#1a1a2e',
+            backgroundColor: '#121f2b',
             scale: 2, // Higher resolution
             useCORS: true,
             allowTaint: true,
@@ -74,7 +81,7 @@ export default function PieChartToImage({
       display: 'flex', 
       flexDirection: 'column', 
       alignItems: 'center',
-      backgroundColor: '#1a1a2e',
+      backgroundColor: '#121f2b',
       padding: '15px',
       borderRadius: '8px'
     }}>
@@ -82,7 +89,7 @@ export default function PieChartToImage({
         <h3 style={{
           fontSize: '12px',
           fontWeight: 'bold',
-          color: '#ffffff',
+          color: '#fffefa',
           marginBottom: '10px',
           textTransform: 'uppercase',
           letterSpacing: '1px',
@@ -151,7 +158,7 @@ export default function PieChartToImage({
             </span>
             <span style={{
               fontSize: '8px',
-              color: '#FECB00',
+              color: '#fecb00',
               fontWeight: 'bold'
             }}>
               {new Intl.NumberFormat('sv-SE', {

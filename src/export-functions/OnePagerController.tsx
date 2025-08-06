@@ -537,27 +537,16 @@ export default function OnePagerController({ project, children }: OnePagerContro
       const transformedProject = transformProjectForPDF(project);
       if (!transformedProject) throw new Error('Kunde inte transformera projektdata');
       
-      console.log('DEBUG: Starting AI summary generation...');
-      console.log('DEBUG: Input intro:', transformedProject.intro);
-      console.log('DEBUG: Input problem:', transformedProject.problem);
-      console.log('DEBUG: Input opportunity:', transformedProject.opportunity);
-      
       const intro = prepareTextForAI(transformedProject.intro || '');
       const problem = prepareTextForAI(transformedProject.problem || '');
       const opportunity = prepareTextForAI(transformedProject.opportunity || '');
       
-      console.log('DEBUG: Prepared intro:', intro);
-      console.log('DEBUG: Prepared problem:', problem);
-      console.log('DEBUG: Prepared opportunity:', opportunity);
-      
       let summary = '';
       try {
-        console.log('DEBUG: Calling generateAISummary...');
         summary = await generateAISummary(intro, problem, opportunity);
-        console.log('DEBUG: Raw AI summary received:', summary);
         
         if (!summary || summary.length < 10) {
-          console.warn('DEBUG: AI summary too short or empty, using fallback');
+          console.warn('AI summary too short or empty, using fallback');
           throw new Error('Empty AI summary');
         }
         
@@ -573,18 +562,16 @@ export default function OnePagerController({ project, children }: OnePagerContro
                                   summary.includes('Möjligheten:');
         
         if (isRepeating || hasAwkwardPatterns) {
-          console.warn('DEBUG: AI summary appears to be just repeating input or has awkward patterns, using improved fallback...');
+          console.warn('AI summary appears to be just repeating input or has awkward patterns, using improved fallback...');
           // Use an improved fallback instead of trying again
           summary = generateImprovedFallback(intro, problem, opportunity);
-          console.log('DEBUG: Using improved fallback summary:', summary);
         }
         
       } catch (err) {
-        console.error('DEBUG: AI summary generation failed:', err);
+        console.error('AI summary generation failed:', err);
         summary = transformedProject.intro || transformedProject.description || 'Ingen sammanfattning tillgänglig för detta projekt.';
       }
       
-      console.log('DEBUG: Final summary for PDF:', summary);
       setAiSummary(summary);
 
       // Decide which version to use

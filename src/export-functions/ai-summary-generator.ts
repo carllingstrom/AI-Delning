@@ -3,55 +3,24 @@ export async function generateAISummary(intro: string, problem: string, opportun
   // Target word count for summary
   const TARGET_WORDS = 60;
 
-  // Clean and prepare input text
-  const cleanIntro = (intro || '').trim();
-  const cleanProblem = (problem || '').trim();
-  const cleanOpportunity = (opportunity || '').trim();
-
-  // Compose the prompt for the AI
-  const prompt = `Du är en expert på att skriva professionella, konsultmässiga sammanfattningar för AI-projekt i offentlig sektor.
-
-UPPGIFT:
-Skapa en sammanfattning som är EXAKT ${TARGET_WORDS} ord lång som beskriver projektet på ett naturligt och flytande sätt.
-
-Bakgrundsinformation:
-- Projektets syfte: ${cleanIntro || 'Ingen introduktion tillgänglig'}
-- Utmaning/Problem: ${cleanProblem || 'Inget specifikt problem beskrivet'}
-- Möjlighet/Lösning: ${cleanOpportunity || 'Ingen möjlighet beskriven'}
-
-KRAV:
-- Exakt ${TARGET_WORDS} ord - varken mer eller mindre
-- Mycket koncis och faktabaserad
-- Lätt att förstå för beslutsfattare
-- Naturligt flöde från problem till lösning till värde
-- Fokusera på konkreta resultat och nytta
-- Använd aktivt språk och professionell ton
-- Undvik onödiga ord och repetitioner
-- SKRIV INTE "Problemet:" eller "Möjligheten:" - integrera allt i en flytande text
-- Avsluta aldrig mitt i en mening - se till att texten är komplett
-- Använd korta, direkta meningar
-- Om information saknas, fyll ut med relevanta insikter om AI-projekt i offentlig sektor
-- Om information är för mycket, prioritera det viktigaste
-- VAR KREATIV - skapa en naturlig, flytande text som inte bara repeterar input-informationen
-
-STRUKTUR:
-Skapa en samhängande text som beskriver:
-1. Vad projektet handlar om (kort)
-2. Vilken utmaning det löser (kort)
-3. Hur det skapar värde för samhället (kort)
-
-Skriv på svenska och se till att texten alltid fyller utrymmet bra och är professionell.`;
-
   const groqApiKey = process.env.GROQ_API_KEY;
   
   if (!groqApiKey) {
-    console.warn('GROQ_API_KEY not found, using fallback summary');
-    return generateFallbackSummary(cleanIntro, cleanProblem, cleanOpportunity);
+    console.error('GROQ_API_KEY not found in environment variables');
+    return generateFallbackSummary(intro, problem, opportunity);
+  }
+
+  // Clean and prepare the input texts
+  const cleanIntro = prepareTextForAI(intro);
+  const cleanProblem = prepareTextForAI(problem);
+  const cleanOpportunity = prepareTextForAI(opportunity);
+
+  // Skip API call if no meaningful content
+  if (!cleanIntro && !cleanProblem && !cleanOpportunity) {
+    return generateFallbackSummary(intro, problem, opportunity);
   }
 
   try {
-    console.log('DEBUG: Calling Groq API with key:', groqApiKey.substring(0, 10) + '...');
-    
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -63,37 +32,38 @@ Skriv på svenska och se till att texten alltid fyller utrymmet bra och är prof
         messages: [
           {
             role: 'system',
-            content: 'Du är en expert på att skriva mycket korta, professionella sammanfattningar för AI-projekt. Du följer alltid ordgränsen exakt och skapar text som fyller utrymmet perfekt. Du skriver aldrig "Problemet:" eller "Möjligheten:" - allt ska vara en flytande text. Du skapar naturliga, flytande sammanfattningar som inte bara repeterar input-texten. Du är kreativ och skapar nya, sammanhängande meningar som beskriver projektet på ett professionellt sätt.'
+            content: `Du är en expert på att sammanfatta kommunala AI-projekt på svenska. Skapa en sammanfattning på 80-100 ord som beskriver projektets syfte, utmaningar och möjligheter. Använd naturlig svenska och undvik att bara upprepa input-texten. Fokusera på att förklara vad projektet gör och varför det är viktigt.`
           },
           {
             role: 'user',
-            content: prompt
+            content: `Sammanfatta detta AI-projekt:
+
+Intro: ${cleanIntro}
+Problem/Utmaning: ${cleanProblem}
+Möjlighet/Lösning: ${cleanOpportunity}
+
+Skapa en sammanfattning på 80-100 ord som förklarar projektets syfte och värde.`
           }
         ],
-        max_tokens: 150,
-        temperature: 0.8,
-      }),
+        temperature: 0.7,
+        max_tokens: 300
+      })
     });
-
-    console.log('DEBUG: Groq API response status:', response.status);
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('DEBUG: Groq API error response:', errorText);
-      throw new Error(`Groq API error: ${response.status} - ${errorText}`);
+      console.error('Groq API error:', response.status, errorText);
+      throw new Error(`Groq API error: ${response.status}`);
     }
 
     const data = await response.json();
-    console.log('DEBUG: Groq API response data:', JSON.stringify(data, null, 2));
     
     const summary = data.choices[0]?.message?.content?.trim();
     
     if (!summary) {
-      console.error('DEBUG: No summary in Groq API response');
+      console.error('No summary in Groq API response');
       throw new Error('No summary generated from Groq API');
     }
-
-    console.log('DEBUG: Raw AI summary from Groq:', summary);
 
     // Clean up the summary - remove any "Problemet:" or "Möjligheten:" prefixes
     let cleanedSummary = summary
@@ -105,24 +75,18 @@ Skriv på svenska och se till att texten alltid fyller utrymmet bra och är prof
     const wordCount = cleanedSummary.split(/\s+/).length;
     const charCount = cleanedSummary.length;
     
-    console.log('DEBUG: Summary stats - words:', wordCount, 'chars:', charCount);
-    
     if (wordCount < TARGET_WORDS - 5) {
       // Too short - expand it
-      console.log('DEBUG: Summary too short, expanding...');
       return expandSummary(cleanedSummary, cleanIntro, cleanProblem, cleanOpportunity);
     } else if (wordCount > TARGET_WORDS + 5 || charCount > 320) {
       // Too long - truncate it intelligently
-      console.log('DEBUG: Summary too long, truncating...');
       return truncateSummary(cleanedSummary, TARGET_WORDS, 320);
     }
 
-    console.log('DEBUG: Final summary:', cleanedSummary);
     return cleanedSummary;
 
   } catch (error) {
     console.error('Error generating AI summary:', error);
-    console.log('DEBUG: Falling back to manual summary generation');
     return generateFallbackSummary(cleanIntro, cleanProblem, cleanOpportunity);
   }
 }

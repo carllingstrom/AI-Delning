@@ -19,18 +19,25 @@ export default function CostPieChart({
   height = 120,
   title = "KOSTNADSFÖRDELNING"
 }: CostPieChartProps) {
-  // AI Sweden theme colors
+  // Using the design system colorscale
   const colors = [
-    '#FECB00', // AI Sweden yellow
-    '#0D1B2A', // Dark blue
-    '#1B365D', // Medium blue
-    '#2E5984', // Light blue
-    '#4A90E2', // Sky blue
-    '#7FB3D3', // Light sky blue
-    '#A8D5BA', // Mint green
-    '#F4A261', // Orange
-    '#E76F51', // Red orange
-    '#9B5DE5'  // Purple
+    '#fecb00', // Primary yellow
+    '#007399', // Light blue
+    '#004d66', // Blue
+    '#34af8f', // Accent green
+    '#ff153b', // Accent red
+    '#224556', // Blue-gray
+    '#f4f2e6', // Off-white
+    '#fffefa', // White
+    // Additional colors for more variety
+    '#fecb00', // Primary yellow (repeated)
+    '#007399', // Light blue (repeated)
+    '#004d66', // Blue (repeated)
+    '#34af8f', // Accent green (repeated)
+    '#ff153b', // Accent red (repeated)
+    '#224556', // Blue-gray (repeated)
+    '#f4f2e6', // Off-white (repeated)
+    '#fffefa'  // White (repeated)
   ];
 
   return (
@@ -38,7 +45,7 @@ export default function CostPieChart({
       display: 'flex', 
       flexDirection: 'column', 
       alignItems: 'center',
-      backgroundColor: '#1a1a2e',
+      backgroundColor: '#121f2b',
       padding: '15px',
       borderRadius: '8px'
     }}>
@@ -46,7 +53,7 @@ export default function CostPieChart({
         <h3 style={{
           fontSize: '12px',
           fontWeight: 'bold',
-          color: '#ffffff',
+          color: '#fffefa',
           marginBottom: '10px',
           textTransform: 'uppercase',
           letterSpacing: '1px',
@@ -65,13 +72,13 @@ export default function CostPieChart({
           theme={VictoryTheme.material}
           style={{
             data: {
-              stroke: '#ffffff',
+              stroke: '#fffefa',
               strokeWidth: 2,
             },
             labels: {
               fontSize: 8,
               fontWeight: 'bold',
-              fill: '#ffffff',
+              fill: '#fffefa',
             }
           }}
           labelComponent={
@@ -79,7 +86,7 @@ export default function CostPieChart({
               style={{
                 fontSize: 8,
                 fontWeight: 'bold',
-                fill: '#ffffff',
+                fill: '#fffefa',
               }}
             />
           }
@@ -98,32 +105,29 @@ export default function CostPieChart({
           <div key={item.x} style={{
             display: 'flex',
             alignItems: 'center',
-            gap: '6px'
+            justifyContent: 'space-between',
+            fontSize: '8px',
+            color: '#fffefa'
           }}>
             <div style={{
-              width: '8px',
-              height: '8px',
-              borderRadius: '4px',
-              backgroundColor: colors[index % colors.length]
-            }} />
-            <span style={{
-              fontSize: '8px',
-              color: '#ffffff',
-              flex: 1
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px'
             }}>
-              {item.x}
-            </span>
-            <span style={{
-              fontSize: '8px',
-              color: '#FECB00',
-              fontWeight: 'bold'
+              <div style={{
+                width: '8px',
+                height: '8px',
+                backgroundColor: colors[index % colors.length],
+                borderRadius: '2px'
+              }} />
+              <span style={{ fontSize: '7px' }}>{item.x}</span>
+            </div>
+            <span style={{ 
+              fontSize: '7px', 
+              fontWeight: 'bold',
+              color: '#fecb00'
             }}>
-              {new Intl.NumberFormat('sv-SE', {
-                style: 'currency',
-                currency: 'SEK',
-                minimumFractionDigits: 0,
-                maximumFractionDigits: 0,
-              }).format(item.y)}
+              {item.y.toLocaleString('sv-SE')} kr
             </span>
           </div>
         ))}

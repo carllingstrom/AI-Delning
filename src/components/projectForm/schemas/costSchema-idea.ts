@@ -44,6 +44,13 @@ export const costSectionSchemaIdea: SectionSchema = {
           optional: true,
           placeholder: 'T.ex. finansieringskällor, osäkerheter eller budgetmetod',
         },
+        {
+          id: 'budgetOtherCommentIdea',
+          type: 'text',
+          label: 'Beskriv annan budgetpost',
+          placeholder: 't.ex. "Materialkostnader", "Resekostnader"',
+          condition: { id: 'budgetBreakdown', value: 'other' },
+        },
       ],
     },
     // Skip the "actualCostDetails" section for IDEA stage

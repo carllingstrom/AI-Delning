@@ -40,7 +40,6 @@ async function seedMunicipalities() {
     if (e) console.error('Error upserting municipalities:', e);
   }
 
-  console.log('Municipalities seeded:', rows.length);
   return rows;
 }
 
@@ -66,14 +65,12 @@ async function seedProjectCounts(municipalities) {
 
   if (stockholmIndex !== -1) {
     projectCounts[stockholmIndex].project_count = 3;
-    console.log('Set Stockholm count to 3');
   } else {
     console.log('Stockholm not found in municipalities');
   }
 
   if (goteborgIndex !== -1) {
     projectCounts[goteborgIndex].project_count = 1;
-    console.log('Set Göteborg count to 1');
   } else {
     console.log('Göteborg not found in municipalities');
   }
@@ -87,7 +84,6 @@ async function seedProjectCounts(municipalities) {
     if (e) console.error('Error upserting project counts:', e);
   }
 
-  console.log('Project counts initialized for all municipalities');
 }
 
 async function run() {

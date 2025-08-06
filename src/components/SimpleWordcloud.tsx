@@ -9,7 +9,7 @@ export default function SimpleWordcloud({ words }: SimpleWordcloudProps) {
         {words.slice(0, 10).map((word, index) => (
           <span
             key={index}
-            className="px-3 py-1 rounded-full text-white"
+            className="px-3 py-1 rounded-full text-[#fffefa]"
             style={{
               fontSize: `${Math.max(12, Math.min(24, 12 + word.value * 2))}px`,
               backgroundColor: `hsl(${index * 36}, 70%, 50%)`,

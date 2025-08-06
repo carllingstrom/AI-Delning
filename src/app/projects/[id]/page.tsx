@@ -6,8 +6,10 @@ import Header from '@/components/Header';
 import ProjectScoreBar from '@/components/ProjectScoreBar';
 import { calculateProjectScore } from '@/lib/projectScore';
 import AIOnePagerPDF from '@/components/AIOnePagerPDF';
-import PowerPointOnePager from '@/export-functions/PowerPointOnePager';
+import ROIInfoModal from '@/components/projectForm/ROIInfoModal';
+
 import CollapsibleSection from '@/components/CollapsibleSection';
+import { formatCurrency } from '@/lib/utils';
 
 interface Project {
   id: string;
@@ -22,6 +24,7 @@ interface Project {
   overview_details: any;
   cost_data: any;
   effects_data: any;
+
   technical_data: any;
   leadership_data: any;
   legal_data: any;
@@ -46,6 +49,10 @@ interface Project {
       name: string;
     };
   }>;
+  calculatedMetrics?: {
+    roi: number;
+    totalMonetaryValue: number;
+  };
 }
 
 export default function ProjectDetailPage() {
@@ -56,6 +63,7 @@ export default function ProjectDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const [showROIInfo, setShowROIInfo] = useState(false);
   const exportMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -176,7 +184,7 @@ export default function ProjectDetailPage() {
             text-align: center;
             margin-bottom: 30px;
             padding-bottom: 20px;
-            border-bottom: 2px solid #FFD600;
+            border-bottom: 2px solid #fecb00;
           }
           
           .title {
@@ -200,7 +208,7 @@ export default function ProjectDetailPage() {
           .section-title {
             font-size: 18px;
             font-weight: bold;
-            color: #FFD600;
+            color: #fecb00;
             background: #1a1a1a;
             padding: 8px 16px;
             margin: 0 0 15px 0;
@@ -483,7 +491,7 @@ export default function ProjectDetailPage() {
       
       if (totalCost > 0 && effectEntries.length > 0) {
         const roiMetrics = calculateROI({ effectEntries, totalProjectInvestment: totalCost });
-        parts.push(`Ekonomisk analys:\n• Total investering: ${formatCurrency(totalCost)}\n• Förväntad ROI: ${roiMetrics.combinedROI.toFixed(1)}%\n• Återbetalningstid: ${roiMetrics.paybackPeriod.toFixed(1)} år`);
+        parts.push(`Ekonomisk analys:\n• Total investering: ${formatCurrency(totalCost)}\n• Förväntad ROI: ${roiMetrics.economicROI.toFixed(1)}%\n• Återbetalningstid: ${roiMetrics.paybackPeriod.toFixed(1)} år`);
       }
     } catch (error) {
       // Handle ROI calculation error silently
@@ -560,19 +568,10 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
     
     return (
       <div className="bg-[#1E3A4A] p-6 rounded-lg">
-        <h3 className="text-xl font-bold text-[#FECB00] mb-4">{title}</h3>
+        <h3 className="text-xl font-bold text-[#fecb00] mb-4">{title}</h3>
         {content}
       </div>
     );
-  };
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('sv-SE', {
-      style: 'currency',
-      currency: 'SEK',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0
-    }).format(amount);
   };
 
   // Helper function to get meaningful effect names
@@ -712,7 +711,9 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
   const parseRedistributionDetails = (details: any) => {
     if (!details || typeof details !== 'object') return null;
     
-    const { valueUnit, resourceType, annualizationYears, hoursDetails, currencyDetails, countDetails, otherDetails } = details;
+    const { valueUnit, resourceType, annualizationYears, hoursDetails, currencyDetails, countDetails, otherDetails, percentageDetails } = details;
+    
+
     
     let value = 0;
     let description = '';
@@ -767,6 +768,8 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
       savedAmount = currentTotalHours - newTotalHours;
       value = Math.abs(savedAmount) * hourlyRate;
       
+
+      
       description = `${peopleDescription} = ${Math.abs(savedAmount).toFixed(0)} ${savedAmount > 0 ? 'besparade' : 'extra'} timmar`;
       if (hourlyRate > 0) {
         description += ` × ${formatCurrency(hourlyRate)}/timme`;
@@ -776,6 +779,26 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
         value *= annualizationYears;
         description += ` under ${annualizationYears} år`;
       }
+      
+
+    } else if (valueUnit === 'percentage' && percentageDetails) {
+      const baseValue = percentageDetails.baseValue || 0;
+      const currentPercentage = percentageDetails.currentPercentage || 100;
+      const newPercentage = percentageDetails.newPercentage || 0;
+      
+      const currentAmount = (baseValue * currentPercentage) / 100;
+      const newAmount = (baseValue * newPercentage) / 100;
+      savedAmount = currentAmount - newAmount;
+      value = Math.abs(savedAmount);
+      
+      description = `${resourceType}: ${currentPercentage}% → ${newPercentage}% av ${formatCurrency(baseValue)}`;
+      
+      if (annualizationYears && annualizationYears > 1) {
+        value *= annualizationYears;
+        description += ` under ${annualizationYears} år`;
+      }
+      
+
     } else if (valueUnit === 'currency' && currencyDetails) {
       const currentAmount = currencyDetails.currentAmount || 0;
       const newAmount = currencyDetails.newAmount || 0;
@@ -860,15 +883,23 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
       <div className="space-y-8">
         {/* Effects Summary */}
         <div>
-          <h3 className="text-lg font-semibold text-white mb-4">Sammanfattning</h3>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-semibold text-[#fffefa]">Sammanfattning</h3>
+            <button
+              onClick={() => setShowROIInfo(true)}
+              className="text-[#fecb00] hover:text-[#ffe066] text-sm font-medium transition-colors"
+            >
+              Förklaring av beräkningar
+            </button>
+          </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm border-collapse">
               <thead>
                 <tr className="border-b border-gray-600">
-                  <th className="text-left py-3 text-[#FECB00] font-medium">Effekt</th>
-                  <th className="text-left py-3 text-[#FECB00] font-medium">Typ</th>
-                  <th className="text-left py-3 text-[#FECB00] font-medium">Beskrivning</th>
-                  <th className="text-right py-3 text-[#FECB00] font-medium">Monetärt värde</th>
+                  <th className="text-left py-3 text-[#fecb00] font-medium">Effekt</th>
+                  <th className="text-left py-3 text-[#fecb00] font-medium">Typ</th>
+                  <th className="text-left py-3 text-[#fecb00] font-medium">Beskrivning</th>
+                  <th className="text-right py-3 text-[#fecb00] font-medium">Monetärt värde</th>
                 </tr>
               </thead>
               <tbody>
@@ -902,19 +933,19 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
                   
                   return rows.map((row, rowIndex) => (
                     <tr key={`${index}-${rowIndex}`} className="border-b border-gray-700">
-                      <td className="py-3 text-white">{row.name}</td>
+                      <td className="py-3 text-[#fffefa]">{row.name}</td>
                       <td className="py-3 text-gray-300">{row.type}</td>
                       <td className="py-3 text-gray-300">{row.description}</td>
-                      <td className="py-3 text-right text-white font-medium">
+                      <td className="py-3 text-right text-[#fffefa] font-medium">
                         {row.value !== null ? formatCurrency(row.value) : '—'}
                       </td>
                     </tr>
                   ));
                 })}
                 {totalQuantitativeValue > 0 && (
-                  <tr className="border-t-2 border-[#FECB00] font-semibold">
-                    <td className="py-3 text-[#FECB00]" colSpan={3}>Total kvantifierat monetärt värde</td>
-                    <td className="py-3 text-right text-[#FECB00] font-bold">{formatCurrency(totalQuantitativeValue)}</td>
+                  <tr className="border-t-2 border-[#fecb00] font-semibold">
+                    <td className="py-3 text-[#fecb00]" colSpan={3}>Total kvantifierat monetärt värde</td>
+                    <td className="py-3 text-right text-[#fecb00] font-bold">{formatCurrency(totalQuantitativeValue)}</td>
                   </tr>
                 )}
               </tbody>
@@ -922,16 +953,18 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
           </div>
         </div>
 
+
+
         {/* Key Insights */}
         {(totalQuantitativeValue > 0 || totalQualitativeEffects > 0) && (
           <div>
-            <h3 className="text-lg font-semibold text-white mb-4">Nyckelinsikter</h3>
+            <h3 className="text-lg font-semibold text-[#fffefa] mb-4">Nyckelinsikter</h3>
             <div className="space-y-3">
               {totalQuantitativeValue > 0 && (
                 <div className="border-l-4 border-gray-600 pl-4">
-                  <div className="text-white font-medium">Monetär nytta</div>
+                  <div className="text-[#fffefa] font-medium">Monetär nytta</div>
                   <div className="text-gray-300">
-                    Projektet förväntas generera <span className="text-white font-semibold">{formatCurrency(totalQuantitativeValue)}</span> i 
+                    Projektet förväntas generera <span className="text-[#fffefa] font-semibold">{formatCurrency(totalQuantitativeValue)}</span> i 
                     kvantifierbara värden genom tidsbesparingar, kostnadsreduceringar och effektiviseringar.
                   </div>
                 </div>
@@ -939,9 +972,9 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
               
               {totalQualitativeEffects > 0 && (
                 <div className="border-l-4 border-gray-600 pl-4">
-                  <div className="text-white font-medium">Kvalitativa effekter</div>
+                  <div className="text-[#fffefa] font-medium">Kvalitativa effekter</div>
                   <div className="text-gray-300">
-                    <span className="text-white font-semibold">{totalQualitativeEffects}</span> kvalitativa effekter identifierade:
+                    <span className="text-[#fffefa] font-semibold">{totalQualitativeEffects}</span> kvalitativa effekter identifierade:
                     <div className="mt-2">
                       {effectEntries.filter((effect: any) => 
                         effect.hasQualitative && effect.qualitativeDetails?.factor
@@ -952,7 +985,7 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
                         
                         return (
                           <div key={idx} className="text-sm mt-1">
-                            • <span className="text-white font-medium">{qual.factor}</span>: 
+                            • <span className="text-[#fffefa] font-medium">{qual.factor}</span>: 
                             {improvement > 0 ? (
                               <span className="text-green-400"> +{improvementPercent}% förbättring</span>
                             ) : (
@@ -1006,12 +1039,12 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
                     
                     return (
                       <div className="border-l-4 border-gray-600 pl-4">
-                        <div className="text-white font-medium">Investeringsanalys</div>
+                        <div className="text-[#fffefa] font-medium">Investeringsanalys</div>
                         <div className="text-gray-300">
-                          Investeringen på <span className="text-white font-semibold">{formatCurrency(totalCost)}</span> förväntas 
-                          betala tillbaka sig på <span className="text-white font-semibold">{roiMetrics.paybackPeriod.toFixed(1)} år</span> med 
-                          en total ROI på <span className={`font-semibold ${roiMetrics.combinedROI > 0 ? 'text-green-400' : 'text-red-400'}`}>
-                            {roiMetrics.combinedROI.toFixed(1)}%
+                          Investeringen på <span className="text-[#fffefa] font-semibold">{formatCurrency(totalCost)}</span> förväntas 
+                          betala tillbaka sig på <span className="text-[#fffefa] font-semibold">{roiMetrics.paybackPeriod.toFixed(1)} år</span> med 
+                          en total ROI på <span className={`font-semibold ${roiMetrics.economicROI > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                            {roiMetrics.economicROI.toFixed(1)}%
                           </span>.
                         </div>
                       </div>
@@ -1022,27 +1055,43 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
                 }
                 return null;
               })()}
+
+              {/* PoV Information */}
+              {effectsData?.povTimeframe && (
+                <div className="border-l-4 border-gray-600 pl-4">
+                  <div className="text-[#fffefa] font-medium">Proof of Value (PoV) tidsram</div>
+                  <div className="text-gray-300">
+                    Förväntad tid till PoV-verifiering: <span className="text-[#fffefa] font-semibold">
+                      {effectsData.povTimeframe === 1 ? 'Mer än 12 månader' :
+                       effectsData.povTimeframe === 2 ? '10 till 12 månader' :
+                       effectsData.povTimeframe === 3 ? '7 till 9 månader' :
+                       effectsData.povTimeframe === 4 ? '4 till 6 månader' :
+                       effectsData.povTimeframe === 5 ? 'Mindre än 3 månader' : 'Ej specificerat'}
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
 
         {/* Detailed Effects */}
         <div>
-          <h3 className="text-lg font-semibold text-white mb-4">Detaljerad analys</h3>
+          <h3 className="text-lg font-semibold text-[#fffefa] mb-4">Detaljerad analys</h3>
           <div className="space-y-6">
             {effectEntries.map((effect: any, index: number) => (
-              <div key={index} className="border-l-4 border-[#FECB00] pl-6">
-                <h4 className="text-white font-semibold mb-3">{getEffectName(effect, index)}</h4>
+              <div key={index} className="border-l-4 border-[#fecb00] pl-6">
+                <h4 className="text-[#fffefa] font-semibold mb-3">{getEffectName(effect, index)}</h4>
                 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   {effect.hasQuantitative && effect.quantitativeDetails && (
                     <div>
-                      <h5 className="text-[#FECB00] font-medium mb-3">Kvantifierbara effekter</h5>
+                      <h5 className="text-[#fecb00] font-medium mb-3">Kvantifierbara effekter</h5>
                       <div className="space-y-3 text-sm">
                         {effect.quantitativeDetails.effectType && (
                           <div>
                             <span className="text-gray-400">Typ av effekt: </span>
-                            <span className="text-white">
+                            <span className="text-[#fffefa]">
                               {effect.quantitativeDetails.effectType === 'financial' ? 'Finansiell effekt' : 'Omfördelad resurs'}
                             </span>
                           </div>
@@ -1050,18 +1099,18 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
                         
                         {effect.quantitativeDetails.financialDetails && (
                           <div className="pt-2 border-t border-gray-600">
-                            <div className="text-white font-medium mb-1">Finansiella effekter</div>
+                            <div className="text-[#fffefa] font-medium mb-1">Finansiella effekter</div>
                             <div className="space-y-2">
                               {effect.quantitativeDetails.financialDetails.measurementName && (
                                 <div>
                                   <span className="text-gray-400">Vad mäts: </span>
-                                  <span className="text-white">{effect.quantitativeDetails.financialDetails.measurementName}</span>
+                                  <span className="text-[#fffefa]">{effect.quantitativeDetails.financialDetails.measurementName}</span>
                                 </div>
                               )}
                               {effect.quantitativeDetails.financialDetails.valueUnit && (
                                 <div>
                                   <span className="text-gray-400">Enhet: </span>
-                                  <span className="text-white">{effect.quantitativeDetails.financialDetails.valueUnit}</span>
+                                  <span className="text-[#fffefa]">{effect.quantitativeDetails.financialDetails.valueUnit}</span>
                                 </div>
                               )}
                               {(() => {
@@ -1069,7 +1118,7 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
                                 return data ? (
                                   <div>
                                     <div className="text-gray-300">{data.description}</div>
-                                    <div className="text-white font-semibold">Värde: {formatCurrency(data.value)}</div>
+                                    <div className="text-[#fffefa] font-semibold">Värde: {formatCurrency(data.value)}</div>
                                   </div>
                                 ) : <div className="text-gray-400">Ingen finansiell data tillgänglig</div>;
                               })()}
@@ -1079,18 +1128,18 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
                         
                         {effect.quantitativeDetails.redistributionDetails && (
                           <div className="pt-2 border-t border-gray-600">
-                            <div className="text-white font-medium mb-1">Omfördelningseffekter</div>
+                            <div className="text-[#fffefa] font-medium mb-1">Omfördelningseffekter</div>
                             <div className="space-y-2">
                               {effect.quantitativeDetails.redistributionDetails.resourceType && (
                                 <div>
                                   <span className="text-gray-400">Resurstyp: </span>
-                                  <span className="text-white">{effect.quantitativeDetails.redistributionDetails.resourceType}</span>
+                                  <span className="text-[#fffefa]">{effect.quantitativeDetails.redistributionDetails.resourceType}</span>
                                 </div>
                               )}
                               {effect.quantitativeDetails.redistributionDetails.valueUnit && (
                                 <div>
                                   <span className="text-gray-400">Enhet: </span>
-                                  <span className="text-white">{effect.quantitativeDetails.redistributionDetails.valueUnit}</span>
+                                  <span className="text-[#fffefa]">{effect.quantitativeDetails.redistributionDetails.valueUnit}</span>
                                 </div>
                               )}
                               {(() => {
@@ -1098,7 +1147,7 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
                                 return data ? (
                                   <div>
                                     <div className="text-gray-300">{data.description}</div>
-                                    <div className="text-white font-semibold">Värde: {formatCurrency(data.value)}</div>
+                                    <div className="text-[#fffefa] font-semibold">Värde: {formatCurrency(data.value)}</div>
                                   </div>
                                 ) : <div className="text-gray-400">Ingen omfördelningsdata tillgänglig</div>;
                               })()}
@@ -1111,18 +1160,18 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
 
                   {effect.hasQualitative && effect.qualitativeDetails && (
                     <div>
-                      <h5 className="text-[#FECB00] font-medium mb-3">Kvalitativa effekter</h5>
+                      <h5 className="text-[#fecb00] font-medium mb-3">Kvalitativa effekter</h5>
                       <div className="space-y-3 text-sm">
                         {effect.qualitativeDetails.factor && (
                           <div>
                             <span className="text-gray-400">Faktor som mäts: </span>
-                            <span className="text-white">{effect.qualitativeDetails.factor}</span>
+                            <span className="text-[#fffefa]">{effect.qualitativeDetails.factor}</span>
                           </div>
                         )}
                         {effect.qualitativeDetails.currentRating && effect.qualitativeDetails.targetRating && (
                           <div>
                             <span className="text-gray-400">Förbättring: </span>
-                            <span className="text-white">
+                            <span className="text-[#fffefa]">
                               från {effect.qualitativeDetails.currentRating} till {effect.qualitativeDetails.targetRating}
                               {(() => {
                                 const improvement = effect.qualitativeDetails.targetRating - effect.qualitativeDetails.currentRating;
@@ -1139,7 +1188,7 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
                         {effect.qualitativeDetails.annualizationYears && (
                           <div>
                             <span className="text-gray-400">Tidsperiod: </span>
-                            <span className="text-white">{effect.qualitativeDetails.annualizationYears} år</span>
+                            <span className="text-[#fffefa]">{effect.qualitativeDetails.annualizationYears} år</span>
                           </div>
                         )}
                       </div>
@@ -1194,10 +1243,10 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
       <div className="space-y-8">
         {/* Cost Summary */}
         <div>
-          <h3 className="text-lg font-semibold text-white mb-4">Sammanfattning</h3>
+          <h3 className="text-lg font-semibold text-[#fffefa] mb-4">Sammanfattning</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="border border-gray-600 p-4 rounded-lg text-center">
-              <div className="text-2xl font-bold text-[#FECB00] mb-1">
+              <div className="text-2xl font-bold text-[#fecb00] mb-1">
                 {budgetAmount > 0 ? formatCurrency(budgetAmount) : '—'}
               </div>
               <div className="text-gray-400 text-sm">Planerad budget</div>
@@ -1207,7 +1256,7 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
             </div>
             
             <div className="border border-gray-600 p-4 rounded-lg text-center">
-              <div className="text-2xl font-bold text-[#FECB00] mb-1">
+              <div className="text-2xl font-bold text-[#fecb00] mb-1">
                 {totalActualCost > 0 ? formatCurrency(totalActualCost) : '—'}
               </div>
               <div className="text-gray-400 text-sm">Faktisk kostnad</div>
@@ -1240,16 +1289,16 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
         {/* Cost Analysis Insights */}
         {(totalActualCost > 0 || budgetAmount > 0) && (
           <div>
-            <h3 className="text-lg font-semibold text-white mb-4">Kostnadsinsikter</h3>
+            <h3 className="text-lg font-semibold text-[#fffefa] mb-4">Kostnadsinsikter</h3>
             <div className="space-y-3">
               {budgetAmount > 0 && totalActualCost > 0 && (
                 <div className="border-l-4 border-gray-600 pl-4">
-                  <div className="text-white font-medium">Budgetanalys</div>
+                  <div className="text-[#fffefa] font-medium">Budgetanalys</div>
                   <div className="text-gray-300">
                     {budgetUsagePercent <= 100 ? (
-                      <>Projektet håller sig inom budget med <span className="text-white font-semibold">{(100 - budgetUsagePercent).toFixed(1)}%</span> marginal kvar.</>
+                      <>Projektet håller sig inom budget med <span className="text-[#fffefa] font-semibold">{(100 - budgetUsagePercent).toFixed(1)}%</span> marginal kvar.</>
                     ) : (
-                      <>Projektet överskrider budget med <span className="text-white font-semibold">{formatCurrency(totalActualCost - budgetAmount)}</span> ({(budgetUsagePercent - 100).toFixed(1)}% över).</>
+                      <>Projektet överskrider budget med <span className="text-[#fffefa] font-semibold">{formatCurrency(totalActualCost - budgetAmount)}</span> ({(budgetUsagePercent - 100).toFixed(1)}% över).</>
                     )}
                     {costEntries.length > 0 && (() => {
                       // Check if there are any "annat" entries with custom descriptions
@@ -1258,8 +1307,8 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
                       );
                       
                       if (annatEntries.length > 0) {
-                        // Try costComment first, then costLabel for custom description
-                        const customDescription = annatEntries[0]?.costComment || annatEntries[0]?.costLabel;
+                                              // Try costTypeOther first, then costComment, then costLabel for custom description
+                      const customDescription = annatEntries[0]?.costTypeOther || annatEntries[0]?.costComment || annatEntries[0]?.costLabel;
                         if (customDescription && customDescription.trim() !== '') {
                           return (
                             <span> Budgeten täcker kostnader för {customDescription.toLowerCase()}.</span>
@@ -1301,10 +1350,10 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
               
               {costEntries.length > 0 && (
                 <div className="border-l-4 border-gray-600 pl-4">
-                  <div className="text-white font-medium">Kostnadsstruktur</div>
+                  <div className="text-[#fffefa] font-medium">Kostnadsstruktur</div>
                   <div className="text-gray-300">
-                    Kostnaden består av <span className="text-white font-semibold">{costEntries.length}</span> olika poster 
-                    med en genomsnittlig kostnad på <span className="text-white font-semibold">{formatCurrency(totalActualCost / costEntries.length)}</span> per post.
+                    Kostnaden består av <span className="text-[#fffefa] font-semibold">{costEntries.length}</span> olika poster 
+                    med en genomsnittlig kostnad på <span className="text-[#fffefa] font-semibold">{formatCurrency(totalActualCost / costEntries.length)}</span> per post.
                   </div>
                 </div>
               )}
@@ -1315,21 +1364,21 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
         {/* Detailed Cost Breakdown */}
         {costEntries.length > 0 && (
           <div>
-            <h3 className="text-lg font-semibold text-white mb-4">Detaljerad kostnadsfördelning</h3>
+            <h3 className="text-lg font-semibold text-[#fffefa] mb-4">Detaljerad kostnadsfördelning</h3>
             <div className="overflow-x-auto">
               <table className="w-full text-sm border-collapse">
                 <thead>
                   <tr className="border-b border-gray-600">
-                    <th className="text-left py-3 text-[#FECB00] font-medium">Typ</th>
-                    <th className="text-left py-3 text-[#FECB00] font-medium">Beskrivning</th>
-                    <th className="text-right py-3 text-[#FECB00] font-medium">Belopp</th>
-                    <th className="text-right py-3 text-[#FECB00] font-medium">Total</th>
+                    <th className="text-left py-3 text-[#fecb00] font-medium">Typ</th>
+                    <th className="text-left py-3 text-[#fecb00] font-medium">Beskrivning</th>
+                    <th className="text-right py-3 text-[#fecb00] font-medium">Beräkning</th>
+                    <th className="text-right py-3 text-[#fecb00] font-medium">Total</th>
                   </tr>
                 </thead>
                 <tbody>
                   {costEntries.map((entry: any, index: number) => {
                     let description = '';
-                    let amount = '';
+                    let calculation = '';
                     let total = 0;
 
                     switch (entry?.costUnit) {
@@ -1338,48 +1387,48 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
                         const rate = Number(entry.hoursDetails?.hourlyRate) || 0;
                         total = hours * rate;
                         description = entry.costLabel || `${hours} timmar`;
-                        amount = `${formatCurrency(rate)}/tim`;
+                        calculation = `${formatCurrency(rate)}/tim × ${hours}h`;
                         break;
                       case 'fixed':
                         total = Number(entry.fixedDetails?.fixedAmount) || 0;
                         description = entry.costLabel || 'Fast kostnad';
-                        amount = formatCurrency(total);
+                        calculation = formatCurrency(total);
                         break;
                       case 'monthly':
                         const monthlyAmount = Number(entry.monthlyDetails?.monthlyAmount) || 0;
                         const monthlyDuration = Number(entry.monthlyDetails?.monthlyDuration) || 1;
                         total = monthlyAmount * monthlyDuration;
                         description = entry.costLabel || `${monthlyDuration} månader`;
-                        amount = `${formatCurrency(monthlyAmount)}/mån`;
+                        calculation = `${formatCurrency(monthlyAmount)}/mån × ${monthlyDuration}mån`;
                         break;
                       case 'yearly':
                         const yearlyAmount = Number(entry.yearlyDetails?.yearlyAmount) || 0;
                         const yearlyDuration = Number(entry.yearlyDetails?.yearlyDuration) || 1;
                         total = yearlyAmount * yearlyDuration;
                         description = entry.costLabel || `${yearlyDuration} år`;
-                        amount = `${formatCurrency(yearlyAmount)}/år`;
+                        calculation = `${formatCurrency(yearlyAmount)}/år × ${yearlyDuration}år`;
                         break;
                     }
 
                     return (
                       <tr key={index} className="border-b border-gray-700">
-                        <td className="py-3 text-white font-medium capitalize">
+                        <td className="py-3 text-[#fffefa] font-medium capitalize">
                           {entry.costUnit === 'hours' ? 'Timmar' :
                            entry.costUnit === 'fixed' ? 'Fast' :
                            entry.costUnit === 'monthly' ? 'Månadsvis' :
                            entry.costUnit === 'yearly' ? 'Årsvis' : entry.costUnit}
                         </td>
                         <td className="py-3 text-gray-300">{description}</td>
-                        <td className="py-3 text-right text-gray-300">{amount}</td>
-                        <td className="py-3 text-right text-white font-semibold">
+                        <td className="py-3 text-right text-gray-300">{calculation}</td>
+                        <td className="py-3 text-right text-[#fffefa] font-semibold">
                           {formatCurrency(total)}
                         </td>
                       </tr>
                     );
                   })}
-                  <tr className="border-t-2 border-[#FECB00] font-bold">
-                    <td className="py-3 text-[#FECB00]" colSpan={3}>Total kostnad</td>
-                    <td className="py-3 text-right text-[#FECB00] font-bold text-lg">
+                  <tr className="border-t-2 border-[#fecb00] font-bold">
+                    <td className="py-3 text-[#fecb00]" colSpan={3}>Total kostnad</td>
+                    <td className="py-3 text-right text-[#fecb00] font-bold text-lg">
                       {formatCurrency(totalActualCost)}
                     </td>
                   </tr>
@@ -1536,10 +1585,10 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
       <div className="space-y-8">
         {/* Leadership Summary Cards */}
         <div>
-          <h3 className="text-lg font-semibold text-white mb-4">Ledarskap & Organisationsanalys</h3>
+          <h3 className="text-lg font-semibold text-[#fffefa] mb-4">Ledarskap & Organisationsanalys</h3>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
             <div className="border border-gray-600 p-4 rounded-lg text-center">
-              <div className="text-2xl font-bold text-[#FECB00] mb-1">
+              <div className="text-2xl font-bold text-[#fecb00] mb-1">
                 {metrics.changeReadiness}%
               </div>
               <div className="text-gray-400 text-sm">Förändringsberedskap</div>
@@ -1551,7 +1600,7 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
             </div>
             
             <div className="border border-gray-600 p-4 rounded-lg text-center">
-              <div className="text-2xl font-bold text-[#FECB00] mb-1">
+              <div className="text-2xl font-bold text-[#fecb00] mb-1">
                 {metrics.stakeholderEngagement}%
               </div>
               <div className="text-gray-400 text-sm">Intressent&shy;engagemang</div>
@@ -1563,7 +1612,7 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
             </div>
             
             <div className="border border-gray-600 p-4 rounded-lg text-center">
-              <div className="text-2xl font-bold text-[#FECB00] mb-1">
+              <div className="text-2xl font-bold text-[#fecb00] mb-1">
                 {metrics.strategicAlignment}%
               </div>
               <div className="text-gray-400 text-sm">Strategisk koppling</div>
@@ -1597,15 +1646,15 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
 
         {/* Key Leadership Insights */}
         <div>
-          <h3 className="text-lg font-semibold text-white mb-4">Styrningsinsikter</h3>
+          <h3 className="text-lg font-semibold text-[#fffefa] mb-4">Styrningsinsikter</h3>
           <div className="space-y-3">
             {leadershipData.projectOwnership && (
               <div className="border-l-4 border-gray-600 pl-4">
-                <div className="text-white font-medium">Ägarskapsanalys</div>
+                <div className="text-[#fffefa] font-medium">Ägarskapsanalys</div>
                 <div className="text-gray-300">
                   <span className="font-semibold">{getOwnershipInsight(leadershipData.projectOwnership).label}</span> - {getOwnershipInsight(leadershipData.projectOwnership).insight}.
-                  Styrka: <span className="text-white">{getOwnershipInsight(leadershipData.projectOwnership).strength}</span>, 
-                  Utmaning: <span className="text-white">{getOwnershipInsight(leadershipData.projectOwnership).challenge}</span>.
+                  Styrka: <span className="text-[#fffefa]">{getOwnershipInsight(leadershipData.projectOwnership).strength}</span>, 
+                  Utmaning: <span className="text-[#fffefa]">{getOwnershipInsight(leadershipData.projectOwnership).challenge}</span>.
                 </div>
               </div>
             )}
@@ -1618,10 +1667,10 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
                   : [];
               return organizationalChangeArray.length > 0 && (
                 <div className="border-l-4 border-gray-600 pl-4">
-                  <div className="text-white font-medium">Förändringsanalys</div>
+                  <div className="text-[#fffefa] font-medium">Förändringsanalys</div>
                   <div className="text-gray-300">
                     Projektet medför <span className={`font-semibold ${getChangeComplexity().color}`}>{getChangeComplexity().level.toLowerCase()}</span>{' '}
-                    med <span className="text-white font-semibold">{organizationalChangeArray.length}</span> identifierade förändringsområden.
+                    med <span className="text-[#fffefa] font-semibold">{organizationalChangeArray.length}</span> identifierade förändringsområden.
                     {leadershipData.changeManagementEfforts ? 
                       ' Förändringsledning är aktivt adresserat.' : 
                       ' Förändringsledning kan behöva stärkas.'}
@@ -1632,7 +1681,7 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
 
             {leadershipData.staffInvolvement && (
               <div className="border-l-4 border-gray-600 pl-4">
-                <div className="text-white font-medium">Medarbetarengagemangsanalys</div>
+                <div className="text-[#fffefa] font-medium">Medarbetarengagemangsanalys</div>
                 <div className="text-gray-300">
                   {leadershipData.staffInvolvement === 'early' ? (
                     <>Optimal strategi med <span className="text-green-400 font-semibold">tidig medarbetarinvolvering</span>{' '}
@@ -1650,9 +1699,9 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
 
             {leadershipData.sdgAlignment?.length > 0 && !leadershipData.sdgAlignment.includes('Vet ej') && (
               <div className="border-l-4 border-gray-600 pl-4">
-                <div className="text-white font-medium">Hållbarhetsanalys</div>
+                <div className="text-[#fffefa] font-medium">Hållbarhetsanalys</div>
                 <div className="text-gray-300">
-                  Projektet stödjer <span className="text-white font-semibold">{leadershipData.sdgAlignment.filter((goal: string) => goal !== 'Vet ej').length}</span> av 
+                  Projektet stödjer <span className="text-[#fffefa] font-semibold">{leadershipData.sdgAlignment.filter((goal: string) => goal !== 'Vet ej').length}</span> av 
                   Agenda 2030:s mål, vilket visar på <span className={`font-semibold ${getSDGImpact().color}`}>{getSDGImpact().level.toLowerCase()}</span>{' '}
                   på samhällsutvecklingen och strategisk medvetenhet.
                 </div>
@@ -1663,34 +1712,34 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
 
         {/* Detailed Leadership Information */}
         <div>
-          <h3 className="text-lg font-semibold text-white mb-4">Detaljerad organisationsinformation</h3>
+          <h3 className="text-lg font-semibold text-[#fffefa] mb-4">Detaljerad organisationsinformation</h3>
           <div className="overflow-x-auto">
             <table className="w-full text-sm border-collapse">
               <thead>
                 <tr className="border-b border-gray-600">
-                  <th className="text-left py-3 text-[#FECB00] font-medium">Aspekt</th>
-                  <th className="text-left py-3 text-[#FECB00] font-medium">Status</th>
-                  <th className="text-left py-3 text-[#FECB00] font-medium">Analys</th>
+                  <th className="text-left py-3 text-[#fecb00] font-medium">Aspekt</th>
+                  <th className="text-left py-3 text-[#fecb00] font-medium">Status</th>
+                  <th className="text-left py-3 text-[#fecb00] font-medium">Analys</th>
                 </tr>
               </thead>
               <tbody>
                 {leadershipData.projectOwnership && (
                   <tr className="border-b border-gray-700">
-                    <td className="py-3 text-white font-medium">Projektägarskap</td>
+                    <td className="py-3 text-[#fffefa] font-medium">Projektägarskap</td>
                     <td className="py-3 text-gray-300">{getOwnershipInsight(leadershipData.projectOwnership).label}</td>
                     <td className="py-3 text-gray-300">{getOwnershipInsight(leadershipData.projectOwnership).risk} risk</td>
                   </tr>
                 )}
                 {leadershipData.organizationalChange?.length > 0 && (
                   <tr className="border-b border-gray-700">
-                    <td className="py-3 text-white font-medium">Organisationsförändringar</td>
+                    <td className="py-3 text-[#fffefa] font-medium">Organisationsförändringar</td>
                     <td className="py-3 text-gray-300">{leadershipData.organizationalChange.length} områden</td>
                     <td className={`py-3 ${getChangeComplexity().color}`}>{getChangeComplexity().level}</td>
                   </tr>
                 )}
                 {leadershipData.staffInvolvement && (
                   <tr className="border-b border-gray-700">
-                    <td className="py-3 text-white font-medium">Medarbetarinvolvering</td>
+                    <td className="py-3 text-[#fffefa] font-medium">Medarbetarinvolvering</td>
                     <td className="py-3 text-gray-300">
                       {leadershipData.staffInvolvement === 'early' ? 'Från start' :
                        leadershipData.staffInvolvement === 'later' ? 'Senare fas' : 'Ingen involvering'}
@@ -1706,14 +1755,14 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
                 )}
                 {leadershipData.changeManagementEfforts && (
                   <tr className="border-b border-gray-700">
-                    <td className="py-3 text-white font-medium">Förändringsledning</td>
+                    <td className="py-3 text-[#fffefa] font-medium">Förändringsledning</td>
                     <td className="py-3 text-gray-300">Aktivt arbete</td>
                     <td className="py-3 text-green-400">Dokumenterat</td>
                   </tr>
                 )}
                 {leadershipData.sdgAlignment?.length > 0 && (
                   <tr className="border-b border-gray-700">
-                    <td className="py-3 text-white font-medium">SDG-koppling</td>
+                    <td className="py-3 text-[#fffefa] font-medium">SDG-koppling</td>
                     <td className="py-3 text-gray-300">{leadershipData.sdgAlignment.filter((goal: string) => goal !== 'Vet ej').length} mål</td>
                     <td className={`py-3 ${getSDGImpact().color}`}>{getSDGImpact().level}</td>
                   </tr>
@@ -1726,7 +1775,7 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
         {/* Strategic Direction & Sustainability */}
         {(leadershipData.sdgAlignment?.length > 0 || leadershipData.nextSteps || leadershipData.lessonsLearned) && (
           <div>
-            <h3 className="text-lg font-semibold text-white mb-4">Strategisk riktning & Hållbarhet</h3>
+            <h3 className="text-lg font-semibold text-[#fffefa] mb-4">Strategisk riktning & Hållbarhet</h3>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               
               {/* SDG Goals and Description */}
@@ -1756,7 +1805,7 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
         {/* Change Management & Lessons */}
         {(leadershipData.changeManagementEfforts || leadershipData.lessonsLearned) && (
           <div>
-            <h3 className="text-lg font-semibold text-white mb-4">Förändringsledning & Lärdomar</h3>
+            <h3 className="text-lg font-semibold text-[#fffefa] mb-4">Förändringsledning & Lärdomar</h3>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               
               {/* Change Management */}
@@ -1781,11 +1830,11 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
         {/* Organizational Changes Detail */}
         {leadershipData.organizationalChange?.length > 0 && !leadershipData.organizationalChange.includes('Inga större förändringar') && (
           <div>
-            <h3 className="text-lg font-semibold text-white mb-4">Organisationsförändringar</h3>
+            <h3 className="text-lg font-semibold text-[#fffefa] mb-4">Organisationsförändringar</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {leadershipData.organizationalChange.map((change: string, index: number) => (
                 <div key={index} className="border border-gray-600 p-4 rounded-lg">
-                  <div className="text-white font-medium text-sm mb-1">{change}</div>
+                  <div className="text-[#fffefa] font-medium text-sm mb-1">{change}</div>
                   <div className="text-gray-400 text-xs">
                     {change.includes('roller') ? 'Påverkar ansvarsfördelning' :
                      change.includes('rutiner') ? 'Förändrar arbetssätt' :
@@ -1834,9 +1883,7 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
       // AI Regulation Compliance scoring
       if (legalData.high_risk_ai === 'Nej') aiRegulationCompliance = 90;
       else if (legalData.high_risk_ai === 'Ja') {
-        if (legalData.ce_marked === 'Ja') aiRegulationCompliance += 40;
         if (legalData.fundamental_rights_assessment === 'Ja') aiRegulationCompliance += 40;
-        if (legalData.ce_marked === 'Ej tillämpligt') aiRegulationCompliance += 20;
       } else {
         aiRegulationCompliance = 40; // 'Vet ej' - needs risk assessment
       }
@@ -1880,8 +1927,8 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
 
     const getAIRiskLevel = () => {
       if (legalData.high_risk_ai === 'Nej') return { level: 'Låg AI-risk', color: 'text-green-400' };
-      if (legalData.high_risk_ai === 'Ja' && legalData.ce_marked === 'Ja') return { level: 'Kontrollerad risk', color: 'text-yellow-400' };
-      if (legalData.high_risk_ai === 'Ja' && legalData.ce_marked !== 'Ja') return { level: 'Hög AI-risk', color: 'text-red-400' };
+      if (legalData.high_risk_ai === 'Ja' && legalData.fundamental_rights_assessment === 'Ja') return { level: 'Kontrollerad risk', color: 'text-yellow-400' };
+      if (legalData.high_risk_ai === 'Ja' && legalData.fundamental_rights_assessment !== 'Ja') return { level: 'Hög AI-risk', color: 'text-red-400' };
       return { level: 'Okänd AI-risk', color: 'text-gray-400' };
     };
 
@@ -1905,10 +1952,10 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
       <div className="space-y-8">
         {/* Legal Compliance Cards */}
         <div>
-          <h3 className="text-lg font-semibold text-white mb-4">Juridisk compliance & riskanalys</h3>
+          <h3 className="text-lg font-semibold text-[#fffefa] mb-4">Juridisk compliance & riskanalys</h3>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
             <div className="border border-gray-600 p-4 rounded-lg text-center">
-              <div className="text-2xl font-bold text-[#FECB00] mb-1">
+              <div className="text-2xl font-bold text-[#fecb00] mb-1">
                 {metrics.gdprCompliance}%
               </div>
               <div className="text-gray-400 text-sm">GDPR-compliance</div>
@@ -1933,7 +1980,7 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
             </div>
             
             <div className="border border-gray-600 p-4 rounded-lg text-center">
-              <div className="text-2xl font-bold text-[#FECB00] mb-1">
+              <div className="text-2xl font-bold text-[#fecb00] mb-1">
                 {metrics.procurementMaturity}%
               </div>
               <div className="text-gray-400 text-sm">Upphandlings&shy;mognad</div>
@@ -1945,7 +1992,7 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
             </div>
             
             <div className="border border-gray-600 p-4 rounded-lg text-center">
-              <div className="text-2xl font-bold text-[#FECB00] mb-1">
+              <div className="text-2xl font-bold text-[#fecb00] mb-1">
                 {metrics.securityLevel}%
               </div>
               <div className="text-gray-400 text-sm">Säkerhetsnivå</div>
@@ -1960,11 +2007,11 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
 
         {/* Key Legal Insights */}
         <div>
-          <h3 className="text-lg font-semibold text-white mb-4">Juridiska insikter</h3>
+          <h3 className="text-lg font-semibold text-[#fffefa] mb-4">Juridiska insikter</h3>
           <div className="space-y-3">
             {legalData.processes_personal_data && (
               <div className="border-l-4 border-gray-600 pl-4">
-                <div className="text-white font-medium">GDPR-riskbedömning</div>
+                <div className="text-[#fffefa] font-medium">GDPR-riskbedömning</div>
                 <div className="text-gray-300">
                   Projektet {legalData.processes_personal_data === 'Ja' ? 'hanterar personuppgifter' : 
                            legalData.processes_personal_data === 'Nej' ? 'hanterar inte personuppgifter' : 
@@ -1979,11 +2026,11 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
 
             {legalData.high_risk_ai && (
               <div className="border-l-4 border-gray-600 pl-4">
-                <div className="text-white font-medium">AI-förordningsanalys</div>
+                <div className="text-[#fffefa] font-medium">AI-förordningsanalys</div>
                 <div className="text-gray-300">
                   Lösningen klassificeras som <span className={`font-semibold ${getAIRiskLevel().color}`}>
                   {getAIRiskLevel().level.toLowerCase()}</span> enligt AI-förordningen.
-                  {legalData.high_risk_ai === 'Ja' && legalData.ce_marked !== 'Ja' && 
+                  {legalData.high_risk_ai === 'Ja' && legalData.fundamental_rights_assessment !== 'Ja' && 
                    ' CE-märkning och konformitetsbedömning krävs för högrisk-AI.'}
                   {legalData.high_risk_ai === 'Nej' && ' Begränsade regulatoriska krav gäller.'}
                 </div>
@@ -1992,7 +2039,7 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
 
             {legalData.procurement_type?.length > 0 && (
               <div className="border-l-4 border-gray-600 pl-4">
-                <div className="text-white font-medium">Upphandlingsanalys</div>
+                <div className="text-[#fffefa] font-medium">Upphandlingsanalys</div>
                 <div className="text-gray-300">
                   <span className={`font-semibold ${getProcurementInsight().color}`}>{getProcurementInsight().status}</span> upphandling - {getProcurementInsight().insight}.
                   {legalData.reusable_contract === 'Ja' && ' Avropsmöjlighet för andra kommuner skapar skalfördelar.'}
@@ -2003,12 +2050,12 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
 
             {legalData.is_open_source && (
               <div className="border-l-4 border-gray-600 pl-4">
-                <div className="text-white font-medium">Öppen källkod-analys</div>
+                <div className="text-[#fffefa] font-medium">Öppen källkod-analys</div>
                 <div className="text-gray-300">
                   {legalData.is_open_source === 'Ja' ? 'Öppen källkod används' : 
                    legalData.is_open_source === 'Nej' ? 'Proprietär lösning används' : 'Oklart om öppen källkod används'}.
-                  Fördelar: <span className="text-white font-semibold">{getOpenSourceInsight().benefit}</span>, 
-                  Överväganden: <span className="text-white font-semibold">{getOpenSourceInsight().risk}</span>.
+                  Fördelar: <span className="text-[#fffefa] font-semibold">{getOpenSourceInsight().benefit}</span>, 
+                  Överväganden: <span className="text-[#fffefa] font-semibold">{getOpenSourceInsight().risk}</span>.
                 </div>
               </div>
             )}
@@ -2017,41 +2064,41 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
 
         {/* Detailed Legal Information */}
         <div>
-          <h3 className="text-lg font-semibold text-white mb-4">Detaljerad juridisk information</h3>
+          <h3 className="text-lg font-semibold text-[#fffefa] mb-4">Detaljerad juridisk information</h3>
           <div className="overflow-x-auto">
             <table className="w-full text-sm border-collapse">
               <thead>
                 <tr className="border-b border-gray-600">
-                  <th className="text-left py-3 text-[#FECB00] font-medium">Juridisk aspekt</th>
-                  <th className="text-left py-3 text-[#FECB00] font-medium">Status</th>
-                  <th className="text-left py-3 text-[#FECB00] font-medium">Compliance</th>
+                  <th className="text-left py-3 text-[#fecb00] font-medium">Juridisk aspekt</th>
+                  <th className="text-left py-3 text-[#fecb00] font-medium">Status</th>
+                  <th className="text-left py-3 text-[#fecb00] font-medium">Compliance</th>
                 </tr>
               </thead>
               <tbody>
                 {legalData.processes_personal_data && (
                   <tr className="border-b border-gray-700">
-                    <td className="py-3 text-white font-medium">Personuppgiftsbehandling</td>
+                    <td className="py-3 text-[#fffefa] font-medium">Personuppgiftsbehandling</td>
                     <td className="py-3 text-gray-300">{legalData.processes_personal_data}</td>
                     <td className={`py-3 ${getGDPRRiskLevel().color}`}>{getGDPRRiskLevel().level}</td>
                   </tr>
                 )}
                 {legalData.legal_basis && (
                   <tr className="border-b border-gray-700">
-                    <td className="py-3 text-white font-medium">Rättslig grund</td>
+                    <td className="py-3 text-[#fffefa] font-medium">Rättslig grund</td>
                     <td className="py-3 text-gray-300">{legalData.legal_basis}</td>
                     <td className="py-3 text-green-400">Dokumenterad</td>
                   </tr>
                 )}
                 {legalData.high_risk_ai && (
                   <tr className="border-b border-gray-700">
-                    <td className="py-3 text-white font-medium">AI-riskklassificering</td>
+                    <td className="py-3 text-[#fffefa] font-medium">AI-riskklassificering</td>
                     <td className="py-3 text-gray-300">{legalData.high_risk_ai} risk</td>
                     <td className={`py-3 ${getAIRiskLevel().color}`}>{getAIRiskLevel().level}</td>
                   </tr>
                 )}
                 {legalData.procurement_type?.length > 0 && (
                   <tr className="border-b border-gray-700">
-                    <td className="py-3 text-white font-medium">Upphandlingsform</td>
+                    <td className="py-3 text-[#fffefa] font-medium">Upphandlingsform</td>
                     <td className="py-3 text-gray-300">{legalData.procurement_type.join(', ')}</td>
                     <td className={`py-3 ${getProcurementInsight().color}`}>{getProcurementInsight().status}</td>
                   </tr>
@@ -2064,7 +2111,7 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
         {/* GDPR Compliance Details */}
         {legalData.processes_personal_data === 'Ja' && (
           <div>
-            <h3 className="text-lg font-semibold text-white mb-4">GDPR-compliance detaljer</h3>
+            <h3 className="text-lg font-semibold text-[#fffefa] mb-4">GDPR-compliance detaljer</h3>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               
               {/* Data Categories */}
@@ -2087,10 +2134,10 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
                 <h4 className="text-green-400 font-medium mb-2">Behandlingsgrunder</h4>
                 <div className="space-y-1 text-sm">
                   {legalData.legal_basis && (
-                    <div className="text-gray-300">Rättslig grund: <span className="text-white">{legalData.legal_basis}</span></div>
+                    <div className="text-gray-300">Rättslig grund: <span className="text-[#fffefa]">{legalData.legal_basis}</span></div>
                   )}
                   {legalData.data_controller && (
-                    <div className="text-gray-300">Ansvarig: <span className="text-white">{legalData.data_controller}</span></div>
+                    <div className="text-gray-300">Ansvarig: <span className="text-[#fffefa]">{legalData.data_controller}</span></div>
                   )}
                   {legalData.dpia_done && (
                     <div className="text-gray-300">DPIA: <span className={`${legalData.dpia_done === 'Ja' ? 'text-green-400' : 'text-red-400'}`}>
@@ -2106,7 +2153,7 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
         {/* Security and Access */}
         {(legalData.security_measures || legalData.data_access_rights) && (
           <div>
-            <h3 className="text-lg font-semibold text-white mb-4">Säkerhet & åtkomst</h3>
+            <h3 className="text-lg font-semibold text-[#fffefa] mb-4">Säkerhet & åtkomst</h3>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               
               {/* Security Measures */}
@@ -2131,21 +2178,21 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
         {/* Procurement and Contract Details */}
         {(legalData.supplier_contract_clauses || legalData.open_source_link) && (
           <div>
-            <h3 className="text-lg font-semibold text-white mb-4">Avtal & leverantörsvillkor</h3>
+            <h3 className="text-lg font-semibold text-[#fffefa] mb-4">Avtal & leverantörsvillkor</h3>
             <div className="space-y-4">
               
               {legalData.supplier_contract_clauses && (
                 <div className="border-l-4 border-gray-600 pl-4">
-                  <div className="text-white font-medium">Avtalsvillkor & klausuler</div>
+                  <div className="text-[#fffefa] font-medium">Avtalsvillkor & klausuler</div>
                   <div className="text-gray-300">{legalData.supplier_contract_clauses}</div>
                 </div>
               )}
 
               {legalData.open_source_link && (
                 <div className="border-l-4 border-gray-600 pl-4">
-                  <div className="text-white font-medium">Öppen källkod-referens</div>
+                  <div className="text-[#fffefa] font-medium">Öppen källkod-referens</div>
                   <div className="text-gray-300">
-                    <a href={legalData.open_source_link} target="_blank" rel="noopener noreferrer" className="text-[#FECB00] underline">
+                    <a href={legalData.open_source_link} target="_blank" rel="noopener noreferrer" className="text-[#fecb00] underline">
                       {legalData.open_source_link}
                     </a>
                   </div>
@@ -2261,10 +2308,10 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
       <div className="space-y-8">
         {/* Technical Summary Cards */}
         <div>
-          <h3 className="text-lg font-semibold text-white mb-4">Teknisk sammanfattning</h3>
+          <h3 className="text-lg font-semibold text-[#fffefa] mb-4">Teknisk sammanfattning</h3>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
             <div className="border border-gray-600 p-4 rounded-lg text-center">
-              <div className="text-2xl font-bold text-[#FECB00] mb-1">
+              <div className="text-2xl font-bold text-[#fecb00] mb-1">
                 {metrics.maturity}%
               </div>
               <div className="text-gray-400 text-sm">Teknikmognad</div>
@@ -2292,7 +2339,7 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
             </div>
             
             <div className="border border-gray-600 p-4 rounded-lg text-center">
-              <div className="text-2xl font-bold text-[#FECB00] mb-1">
+              <div className="text-2xl font-bold text-[#fecb00] mb-1">
                 {metrics.complexity}%
               </div>
               <div className="text-gray-400 text-sm">Komplexitet</div>
@@ -2304,7 +2351,7 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
             </div>
             
             <div className="border border-gray-600 p-4 rounded-lg text-center">
-              <div className="text-2xl font-bold text-[#FECB00] mb-1">
+              <div className="text-2xl font-bold text-[#fecb00] mb-1">
                 {techData.integration_capabilities?.length || 0}
               </div>
               <div className="text-gray-400 text-sm">Integrationer</div>
@@ -2319,26 +2366,26 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
 
         {/* Key Technical Insights */}
         <div>
-          <h3 className="text-lg font-semibold text-white mb-4">Tekniska insikter</h3>
+          <h3 className="text-lg font-semibold text-[#fffefa] mb-4">Tekniska insikter</h3>
           <div className="space-y-3">
             {techData.deployment_environment && (
               <div className="border-l-4 border-gray-600 pl-4">
-                <div className="text-white font-medium">Arkitekturanalys</div>
+                <div className="text-[#fffefa] font-medium">Arkitekturanalys</div>
                 <div className="text-gray-300">
                   <span className="font-semibold">{techData.deployment_environment}</span> ger {getDeploymentInsight(techData.deployment_environment).insight.toLowerCase()}.
-                  Kostnadsprofil: <span className="text-white">{getDeploymentInsight(techData.deployment_environment).cost}</span>, 
-                  Komplexitet: <span className="text-white">{getDeploymentInsight(techData.deployment_environment).complexity}</span>.
+                  Kostnadsprofil: <span className="text-[#fffefa]">{getDeploymentInsight(techData.deployment_environment).cost}</span>, 
+                  Komplexitet: <span className="text-[#fffefa]">{getDeploymentInsight(techData.deployment_environment).complexity}</span>.
                 </div>
               </div>
             )}
 
             {techData.ai_methodology && (
               <div className="border-l-4 border-gray-600 pl-4">
-                <div className="text-white font-medium">AI-teknologianalys</div>
+                <div className="text-[#fffefa] font-medium">AI-teknologianalys</div>
                 <div className="text-gray-300">
-                  Systemet använder <span className="text-white font-semibold">{techData.ai_methodology}</span> för sina AI-funktioner.
+                  Systemet använder <span className="text-[#fffefa] font-semibold">{techData.ai_methodology}</span> för sina AI-funktioner.
                   {techData.data_types?.length > 0 && (
-                    <> Hanterar <span className="text-white font-semibold">{techData.data_types.length}</span> olika datatyper 
+                    <> Hanterar <span className="text-[#fffefa] font-semibold">{techData.data_types.length}</span> olika datatyper 
                     ({techData.data_types.join(', ')}).</>
                   )}
                 </div>
@@ -2347,7 +2394,7 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
 
             {techData.data_sensitivity_level && (
               <div className="border-l-4 border-gray-600 pl-4">
-                <div className="text-white font-medium">Säkerhetsriskanalys</div>
+                <div className="text-[#fffefa] font-medium">Säkerhetsriskanalys</div>
                 <div className="text-gray-300">
                   Data klassificeras som <span className={`font-semibold ${getSensitivityInsight(techData.data_sensitivity_level).color}`}>
                   {getSensitivityInsight(techData.data_sensitivity_level).risk} risk</span>. 
@@ -2358,7 +2405,7 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
 
             {(techData.technical_obstacles || techData.technical_solutions) && (
               <div className="border-l-4 border-gray-600 pl-4">
-                <div className="text-white font-medium">Implementeringsanalys</div>
+                <div className="text-[#fffefa] font-medium">Implementeringsanalys</div>
                 <div className="text-gray-300">
                   {techData.technical_obstacles && techData.technical_solutions ? (
                     <>Identifierade tekniska utmaningar har adresserats med konkreta lösningsstrategier, 
@@ -2376,48 +2423,48 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
 
         {/* Detailed Technical Information */}
         <div>
-          <h3 className="text-lg font-semibold text-white mb-4">Detaljerad teknisk information</h3>
+          <h3 className="text-lg font-semibold text-[#fffefa] mb-4">Detaljerad teknisk information</h3>
           <div className="overflow-x-auto">
             <table className="w-full text-sm border-collapse">
               <thead>
                 <tr className="border-b border-gray-600">
-                  <th className="text-left py-3 text-[#FECB00] font-medium">Kategori</th>
-                  <th className="text-left py-3 text-[#FECB00] font-medium">Specifikation</th>
-                  <th className="text-left py-3 text-[#FECB00] font-medium">Detaljer</th>
+                  <th className="text-left py-3 text-[#fecb00] font-medium">Kategori</th>
+                  <th className="text-left py-3 text-[#fecb00] font-medium">Specifikation</th>
+                  <th className="text-left py-3 text-[#fecb00] font-medium">Detaljer</th>
                 </tr>
               </thead>
               <tbody>
                 {techData.system_name && (
                   <tr className="border-b border-gray-700">
-                    <td className="py-3 text-white font-medium">AI-System</td>
+                    <td className="py-3 text-[#fffefa] font-medium">AI-System</td>
                     <td className="py-3 text-gray-300">{techData.system_name}</td>
                     <td className="py-3 text-gray-300">{techData.ai_methodology || '—'}</td>
                   </tr>
                 )}
                 {techData.deployment_environment && (
                   <tr className="border-b border-gray-700">
-                    <td className="py-3 text-white font-medium">Driftmiljö</td>
+                    <td className="py-3 text-[#fffefa] font-medium">Driftmiljö</td>
                     <td className="py-3 text-gray-300">{techData.deployment_environment}</td>
                     <td className="py-3 text-gray-300">{getDeploymentInsight(techData.deployment_environment).cost}</td>
                   </tr>
                 )}
                 {techData.data_types?.length > 0 && (
                   <tr className="border-b border-gray-700">
-                    <td className="py-3 text-white font-medium">Datatyper</td>
+                    <td className="py-3 text-[#fffefa] font-medium">Datatyper</td>
                     <td className="py-3 text-gray-300">{techData.data_types.length} typer</td>
                     <td className="py-3 text-gray-300">{techData.data_types.join(', ')}</td>
                   </tr>
                 )}
                 {techData.data_sources?.length > 0 && (
                   <tr className="border-b border-gray-700">
-                    <td className="py-3 text-white font-medium">Datakällor</td>
+                    <td className="py-3 text-[#fffefa] font-medium">Datakällor</td>
                     <td className="py-3 text-gray-300">{techData.data_sources.length} källor</td>
                     <td className="py-3 text-gray-300">{techData.data_sources.join(', ')}</td>
                   </tr>
                 )}
                 {techData.data_sensitivity_level && (
                   <tr className="border-b border-gray-700">
-                    <td className="py-3 text-white font-medium">Säkerhetsnivå</td>
+                    <td className="py-3 text-[#fffefa] font-medium">Säkerhetsnivå</td>
                     <td className="py-3 text-gray-300">{techData.data_sensitivity_level}</td>
                     <td className={`py-3 ${getSensitivityInsight(techData.data_sensitivity_level).color}`}>
                       {getSensitivityInsight(techData.data_sensitivity_level).risk} risk
@@ -2426,14 +2473,14 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
                 )}
                 {techData.data_quality && (
                   <tr className="border-b border-gray-700">
-                    <td className="py-3 text-white font-medium">Datakvalitet</td>
+                    <td className="py-3 text-[#fffefa] font-medium">Datakvalitet</td>
                     <td className="py-3 text-gray-300">{techData.data_quality}</td>
                     <td className="py-3 text-gray-300">{techData.data_freshness || 'Ej specificerad'}</td>
                   </tr>
                 )}
                 {techData.integration_capabilities?.length > 0 && (
                   <tr className="border-b border-gray-700">
-                    <td className="py-3 text-white font-medium">Integrationer</td>
+                    <td className="py-3 text-[#fffefa] font-medium">Integrationer</td>
                     <td className="py-3 text-gray-300">{techData.integration_capabilities.length} metoder</td>
                     <td className="py-3 text-gray-300">{techData.integration_capabilities.join(', ')}</td>
                   </tr>
@@ -2446,7 +2493,7 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
         {/* Implementation Challenges & Solutions */}
         {(techData.technical_obstacles || techData.technical_solutions) && (
           <div>
-            <h3 className="text-lg font-semibold text-white mb-4">Implementation & Lösningar</h3>
+            <h3 className="text-lg font-semibold text-[#fffefa] mb-4">Implementation & Lösningar</h3>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {techData.technical_obstacles && (
                 <div className="border-l-4 border-red-500 pl-4">
@@ -2467,19 +2514,19 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
         {/* Additional Technical Details */}
         {(techData.data_description_free || techData.data_license_link || techData.data_type_other || techData.data_source_other) && (
           <div>
-            <h3 className="text-lg font-semibold text-white mb-4">Övrig teknisk information</h3>
+            <h3 className="text-lg font-semibold text-[#fffefa] mb-4">Övrig teknisk information</h3>
             <div className="space-y-4">
               {techData.data_description_free && (
                 <div className="border-l-4 border-gray-600 pl-4">
-                  <div className="text-white font-medium">Databeskrivning</div>
+                  <div className="text-[#fffefa] font-medium">Databeskrivning</div>
                   <div className="text-gray-300">{techData.data_description_free}</div>
                 </div>
               )}
               {techData.data_license_link && (
                 <div className="border-l-4 border-gray-600 pl-4">
-                  <div className="text-white font-medium">Licensinformation</div>
+                  <div className="text-[#fffefa] font-medium">Licensinformation</div>
                   <div className="text-gray-300">
-                    <a href={techData.data_license_link} target="_blank" rel="noopener noreferrer" className="text-[#FECB00] underline">
+                    <a href={techData.data_license_link} target="_blank" rel="noopener noreferrer" className="text-[#fecb00] underline">
                       {techData.data_license_link}
                     </a>
                   </div>
@@ -2489,13 +2536,13 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                   {techData.data_type_other && (
                     <div className="border-l-4 border-gray-600 pl-4">
-                      <div className="text-white font-medium">Övriga datatyper</div>
+                      <div className="text-[#fffefa] font-medium">Övriga datatyper</div>
                       <div className="text-gray-300">{techData.data_type_other}</div>
                     </div>
                   )}
                   {techData.data_source_other && (
                     <div className="border-l-4 border-gray-600 pl-4">
-                      <div className="text-white font-medium">Övriga datakällor</div>
+                      <div className="text-[#fffefa] font-medium">Övriga datakällor</div>
                       <div className="text-gray-300">{techData.data_source_other}</div>
                     </div>
                   )}
@@ -2510,7 +2557,7 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#0D1B2A] text-white">
+      <div className="min-h-screen bg-[#121f2b] text-[#fffefa]">
         <Header />
         <div className="max-w-7xl mx-auto p-8">
           <div className="animate-pulse">
@@ -2529,7 +2576,7 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
 
   if (error || !project) {
     return (
-      <div className="min-h-screen bg-[#0D1B2A] text-white">
+      <div className="min-h-screen bg-[#121f2b] text-[#fffefa]">
         <Header />
         <div className="max-w-7xl mx-auto p-8">
           <div className="text-center py-12">
@@ -2538,7 +2585,7 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
             </h1>
             <button
               onClick={() => router.push('/projects')}
-              className="px-6 py-3 bg-[#FECB00] text-[#0D1B2A] font-semibold rounded-lg hover:bg-[#e0b400] transition-colors"
+              className="px-6 py-3 bg-[#fecb00] text-[#121f2b] font-semibold rounded-lg hover:bg-[#fecb00] transition-colors"
             >
               Tillbaka till projektlistan
             </button>
@@ -2551,7 +2598,7 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
   const score = calculateProjectScore(project);
 
   return (
-    <div className="min-h-screen bg-[#0D1B2A] text-white">
+    <div className="min-h-screen bg-[#121f2b] text-[#fffefa]">
       <Header />
       
       <div className="max-w-7xl mx-auto p-8">
@@ -2562,7 +2609,7 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
           <div className="flex items-center gap-4 mb-4">
             <button
               onClick={() => router.push('/projects')}
-              className="flex items-center text-[#FECB00] hover:text-[#e0b400] transition-colors"
+              className="flex items-center text-[#fecb00] hover:text-[#e0b400] transition-colors"
             >
               <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M9.707 14.707a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414l4-4a1 1 0 011.414 1.414L7.414 9H15a1 1 0 110 2H7.414l2.293 2.293a1 1 0 010 1.414z" clipRule="evenodd" />
@@ -2573,8 +2620,8 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
 
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-4">
-              <h1 className="text-4xl font-extrabold text-[#FECB00]">{project.title}</h1>
-              <span className={`px-3 py-1 rounded-full text-sm font-medium text-white ${getPhaseColor(project.phase)}`}>
+              <h1 className="text-4xl font-extrabold text-[#fecb00]">{project.title}</h1>
+              <span className={`px-3 py-1 rounded-full text-sm font-medium text-[#fffefa] ${getPhaseColor(project.phase)}`}>
                 {getPhaseLabel(project.phase)}
               </span>
             </div>
@@ -2582,7 +2629,7 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
             <div className="relative" ref={exportMenuRef}>
               <button
                 onClick={() => setShowExportMenu(!showExportMenu)}
-                className="flex items-center gap-2 px-3 py-2 text-gray-400 hover:text-white border border-gray-600 hover:border-gray-400 rounded-lg text-sm transition-colors"
+                className="flex items-center gap-2 px-3 py-2 text-gray-400 hover:text-[#fffefa] border border-gray-600 hover:border-gray-400 rounded-lg text-sm transition-colors"
                 title="Exportera projekt"
               >
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -2604,9 +2651,9 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
                         exportToMyAI();
                         setShowExportMenu(false);
                       }}
-                      className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-[#2a3441] rounded-md transition-colors flex items-center gap-3"
+                      className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:text-[#fffefa] hover:bg-[#2a3441] rounded-md transition-colors flex items-center gap-3"
                     >
-                      <div className="w-8 h-8 bg-[#FECB00] rounded-lg flex items-center justify-center text-[#0D1B2A] text-xs font-bold">
+                      <div className="w-8 h-8 bg-[#fecb00] rounded-lg flex items-center justify-center text-[#121f2b] text-xs font-bold">
                         AI
                       </div>
                       <div>
@@ -2623,9 +2670,9 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
                             setShowExportMenu(false);
                           }}
                           disabled={loading}
-                          className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-[#2a3441] rounded-md transition-colors flex items-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:text-[#fffefa] hover:bg-[#2a3441] rounded-md transition-colors flex items-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
-                          <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white text-xs font-bold">
+                          <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-[#fffefa] text-xs font-bold">
                             {loading ? (
                               <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
                                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
@@ -2643,33 +2690,7 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
                       )}
                     </AIOnePagerPDF>
                     
-                    <PowerPointOnePager project={project}>
-                      {({ loading, generatePowerPoint }) => (
-                        <button
-                          onClick={() => {
-                            generatePowerPoint();
-                            setShowExportMenu(false);
-                          }}
-                          disabled={loading}
-                          className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:text-white hover:bg-[#2a3441] rounded-md transition-colors flex items-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          <div className="w-8 h-8 bg-orange-600 rounded-lg flex items-center justify-center text-white text-xs font-bold">
-                            {loading ? (
-                              <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
-                              </svg>
-                            ) : (
-                              'PPT'
-                            )}
-                          </div>
-                          <div>
-                            <div className="font-medium">PowerPoint OnePager</div>
-                            <div className="text-xs text-gray-500">Presentation-ready PowerPoint slide</div>
-                          </div>
-                        </button>
-                      )}
-                    </PowerPointOnePager>
+
                     
 
                   </div>
@@ -2699,7 +2720,7 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
           {/* Project Profile */}
           <div className="mb-8">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold text-white">Projektprofil</h2>
+              <h2 className="text-xl font-bold text-[#fffefa]">Projektprofil</h2>
             </div>
             
             {/* Progress bar */}
@@ -2730,93 +2751,44 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
               </div>
 
               <div>
-                <div className="text-2xl font-bold text-[#FECB00] mb-1">
-                  {(() => {
-                    try {
-                      const { calculateROI } = require('@/lib/roiCalculator');
-                      const costEntries = project.cost_data?.actualCostDetails?.costEntries || [];
-                      const effectEntries = project.effects_data?.effectDetails || [];
-                      
-                      // Check if project actually has measurable effects
-                      const hasActualEffects = effectEntries.some((effect: any) => {
-                        const hasQuantitative = (effect.hasQuantitative === true || effect.hasQuantitative === 'true') && 
-                                                effect.quantitativeDetails && 
-                                                (effect.quantitativeDetails.financialDetails || effect.quantitativeDetails.redistributionDetails);
-                        
-                        const hasQualitative = (effect.hasQualitative === true || effect.hasQualitative === 'true') && 
-                                               effect.qualitativeDetails && 
-                                               effect.qualitativeDetails.factor;
-                        
-                        return hasQuantitative || hasQualitative;
-                      });
-                      
-                      if (costEntries.length > 0 && effectEntries.length > 0 && hasActualEffects) {
-                        const totalInvestment = costEntries.reduce((total: number, entry: any) => {
-                          let entryTotal = 0;
-                          switch (entry?.costUnit) {
-                            case 'hours':
-                              entryTotal = (Number(entry.hoursDetails?.hours) || 0) * (Number(entry.hoursDetails?.hourlyRate) || 0);
-                              break;
-                            case 'fixed':
-                              entryTotal = Number(entry.fixedDetails?.fixedAmount) || 0;
-                              break;
-                            case 'monthly':
-                              entryTotal = (Number(entry.monthlyDetails?.monthlyAmount) || 0) * (Number(entry.monthlyDetails?.monthlyDuration) || 1);
-                              break;
-                            case 'yearly':
-                              entryTotal = (Number(entry.yearlyDetails?.yearlyAmount) || 0) * (Number(entry.yearlyDetails?.yearlyDuration) || 1);
-                              break;
-                          }
-                          return total + entryTotal;
-                        }, 0);
-                        
-                        if (totalInvestment > 0) {
-                          const roiMetrics = calculateROI({ effectEntries, totalProjectInvestment: totalInvestment });
-                          return `${roiMetrics.combinedROI.toFixed(1)}%`;
-                        }
-                      }
-                      return '—';
-                    } catch (error) {
-                      return '—';
-                    }
-                  })()}
+                <div className="text-2xl font-bold text-[#fecb00] mb-1">
+                  {project.calculatedMetrics?.roi !== undefined && project.calculatedMetrics?.roi !== null
+                    ? `${project.calculatedMetrics.roi.toFixed(1)}%`
+                    : '—'}
                 </div>
                 <div className="text-gray-400 text-sm">Total ROI</div>
               </div>
 
               <div>
-                <div className="text-2xl font-bold text-[#FECB00] mb-1">
-                  {(() => {
-                    const effectEntries = project.effects_data?.effectDetails || [];
-                    let totalQuantitativeValue = 0;
-                    
-                    effectEntries.forEach((effect: any) => {
-                      if (effect.hasQuantitative && effect.quantitativeDetails) {
-                        const financialData = parseFinancialDetails(effect.quantitativeDetails.financialDetails);
-                        const redistributionData = parseRedistributionDetails(effect.quantitativeDetails.redistributionDetails);
-                        if (financialData) totalQuantitativeValue += financialData.value;
-                        if (redistributionData) totalQuantitativeValue += redistributionData.value;
-                      }
-                    });
-                    
-                    return totalQuantitativeValue > 0 ? formatCurrency(totalQuantitativeValue) : '—';
-                  })()}
+                <div className="text-2xl font-bold text-[#fecb00] mb-1">
+                  {project.calculatedMetrics?.totalMonetaryValue !== undefined && project.calculatedMetrics?.totalMonetaryValue !== null
+                    ? formatCurrency(project.calculatedMetrics.totalMonetaryValue)
+                    : '—'}
                 </div>
                 <div className="text-gray-400 text-sm">Total nytta</div>
               </div>
 
               <div>
-                <div className="text-2xl font-bold text-[#FECB00] mb-1">
+                <div className="text-2xl font-bold text-[#fecb00] mb-1">
                   {(() => {
                     const isCountyProject = project.overview_details?.location_type === 'county';
                     const countyCodes = project.overview_details?.county_codes || [];
                     const municipalityCount = project.project_municipalities?.length || 0;
+                    const hasLocation = isCountyProject ? countyCodes.length > 0 : municipalityCount > 0;
                     
-                    return isCountyProject ? countyCodes.length : municipalityCount;
+                    return hasLocation ? (isCountyProject ? countyCodes.length : municipalityCount) : 0;
                   })()}
                 </div>
                 <div className="text-gray-400 text-sm">
-                  {project.overview_details?.location_type === 'county' ? 'Län' : 'Kommuner'}
+                  {(() => {
+                    const isCountyProject = project.overview_details?.location_type === 'county';
+                    const countyCodes = project.overview_details?.county_codes || [];
+                    const municipalityCount = project.project_municipalities?.length || 0;
+                    const hasLocation = isCountyProject ? countyCodes.length > 0 : municipalityCount > 0;
+                    
+                    if (!hasLocation) return 'Ingen plats';
+                    return isCountyProject ? 'Län' : 'Kommuner';
+                  })()}
                 </div>
               </div>
             </div>
@@ -2828,13 +2800,13 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
                 {project.problem && (
                   <div>
-                    <h3 className="text-lg font-semibold text-[#FECB00] mb-3">Problem & Utmaning</h3>
+                    <h3 className="text-lg font-semibold text-[#fecb00] mb-3">Problem & Utmaning</h3>
                     <p className="text-gray-300 leading-relaxed">{project.problem}</p>
                   </div>
                 )}
                 {project.opportunity && (
                   <div>
-                    <h3 className="text-lg font-semibold text-[#FECB00] mb-3">Möjlighet & Potential</h3>
+                    <h3 className="text-lg font-semibold text-[#fecb00] mb-3">Möjlighet & Potential</h3>
                     <p className="text-gray-300 leading-relaxed">{project.opportunity}</p>
                   </div>
                 )}
@@ -2847,7 +2819,9 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
             {(() => {
               const isCountyProject = project.overview_details?.location_type === 'county';
               const countyCodes = project.overview_details?.county_codes || [];
-              const hasLocation = isCountyProject ? countyCodes.length > 0 : (project.project_municipalities?.length || 0) > 0;
+              const hasMunicipalities = project.project_municipalities && project.project_municipalities.length > 0;
+              const hasAreas = (project.project_areas && project.project_areas.length > 0) || (project.areas && project.areas.length > 0);
+              const hasValueDimensions = (project.project_value_dimensions && project.project_value_dimensions.length > 0) || (project.value_dimensions && project.value_dimensions.length > 0);
               
               // County lookup function
               const getCountyName = (code: string) => {
@@ -2861,65 +2835,87 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
                 return counties[code] || code;
               };
               
-              return hasLocation && (
-                <div>
-                  <h4 className="font-semibold text-[#FECB00] mb-3">
-                    {isCountyProject 
-                      ? `Län (${countyCodes.length})`
-                      : `Kommuner (${project.project_municipalities?.length})`
-                    }
-                  </h4>
-                  <div className="space-y-2">
-                    {isCountyProject 
-                      ? countyCodes.map((code: string, index: number) => (
-                          <div key={index} className="text-white">
-                            <span className="font-medium">{getCountyName(code)}</span>
-                            <span className="text-gray-400 ml-2 text-sm">({code})</span>
-                          </div>
-                        ))
-                      : project.project_municipalities?.map((pm, index) => (
-                          <div key={index} className="text-white">
-                            <span className="font-medium">{pm.municipalities.name}</span>
-                            <span className="text-gray-400 ml-2 text-sm">({pm.municipalities.county})</span>
-                          </div>
-                        ))
-                    }
-                  </div>
-                </div>
+              return (
+                <>
+                  {/* Location Section */}
+                  {(isCountyProject && countyCodes.length > 0) || hasMunicipalities ? (
+                    <div>
+                      <h4 className="font-semibold text-[#fecb00] mb-3">
+                        {isCountyProject 
+                          ? `Län (${countyCodes.length})`
+                          : `Kommuner (${project.project_municipalities?.length || 0})`
+                        }
+                      </h4>
+                      <div className="space-y-2">
+                        {isCountyProject 
+                          ? countyCodes.map((code: string, index: number) => (
+                              <div key={index} className="text-[#fffefa]">
+                                <span className="font-medium">{getCountyName(code)}</span>
+                                <span className="text-gray-400 ml-2 text-sm">({code})</span>
+                              </div>
+                            ))
+                          : project.project_municipalities?.map((pm, index) => (
+                              <div key={index} className="text-[#fffefa]">
+                                <span className="font-medium">{pm.municipalities.name}</span>
+                                <span className="text-gray-400 ml-2 text-sm">({pm.municipalities.county})</span>
+                              </div>
+                            ))
+                        }
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <h4 className="font-semibold text-[#fecb00] mb-3">Plats</h4>
+                      <div className="text-[#fffefa] text-sm">Ingen plats angiven</div>
+                    </div>
+                  )}
+
+                  {/* Areas Section */}
+                  {hasAreas ? (
+                    <div>
+                      <h4 className="font-semibold text-[#fecb00] mb-3">Verksamhetsområden</h4>
+                      <div className="space-y-1">
+                        {(project.project_areas?.length || 0) > 0 
+                          ? project.project_areas?.map((pa, index) => (
+                              <div key={index} className="text-[#fffefa]">{pa.areas.name}</div>
+                            ))
+                          : project.areas?.map((area, index) => (
+                              <div key={index} className="text-[#fffefa]">{area}</div>
+                            ))
+                        }
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <h4 className="font-semibold text-[#fecb00] mb-3">Verksamhetsområden</h4>
+                      <div className="text-[#fffefa] text-sm">Inga områden angivna</div>
+                    </div>
+                  )}
+
+                  {/* Value Dimensions Section */}
+                  {hasValueDimensions ? (
+                    <div>
+                      <h4 className="font-semibold text-[#fecb00] mb-3">Värdedimensioner</h4>
+                      <div className="space-y-1">
+                        {(project.project_value_dimensions?.length || 0) > 0
+                          ? project.project_value_dimensions?.map((pvd, index) => (
+                              <div key={index} className="text-[#fffefa]">{pvd.value_dimensions.name}</div>
+                            ))
+                          : project.value_dimensions?.map((dimension, index) => (
+                              <div key={index} className="text-[#fffefa]">{dimension}</div>
+                            ))
+                        }
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <h4 className="font-semibold text-[#fecb00] mb-3">Värdedimensioner</h4>
+                      <div className="text-[#fffefa] text-sm">Inga dimensioner angivna</div>
+                    </div>
+                  )}
+                </>
               );
             })()}
-
-            {((project.project_areas?.length || 0) > 0 || (project.areas?.length || 0) > 0) && (
-              <div>
-                <h4 className="font-semibold text-[#FECB00] mb-3">Verksamhetsområden</h4>
-                <div className="space-y-1">
-                  {(project.project_areas?.length || 0) > 0 
-                    ? project.project_areas?.map((pa, index) => (
-                        <div key={index} className="text-white">{pa.areas.name}</div>
-                      ))
-                    : project.areas?.map((area, index) => (
-                        <div key={index} className="text-white">{area}</div>
-                      ))
-                  }
-                </div>
-              </div>
-            )}
-
-            {((project.project_value_dimensions?.length || 0) > 0 || (project.value_dimensions?.length || 0) > 0) && (
-              <div>
-                <h4 className="font-semibold text-[#FECB00] mb-3">Värdedimensioner</h4>
-                <div className="space-y-1">
-                  {(project.project_value_dimensions?.length || 0) > 0
-                    ? project.project_value_dimensions?.map((pvd, index) => (
-                        <div key={index} className="text-white">{pvd.value_dimensions.name}</div>
-                      ))
-                    : project.value_dimensions?.map((dimension, index) => (
-                        <div key={index} className="text-white">{dimension}</div>
-                      ))
-                  }
-                </div>
-              </div>
-            )}
           </div>
         </div>
 
@@ -2935,6 +2931,8 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
           <CollapsibleSection title="Effektanalys" defaultOpen={false}>
             {renderEffectsData(project!.effects_data, project!.cost_data)}
           </CollapsibleSection>
+
+
 
           {/* Technical Information Section */}
           <CollapsibleSection title="Teknisk information" defaultOpen={false}>
@@ -2961,13 +2959,13 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
           <div className="flex flex-wrap gap-3">
             <button
               onClick={() => router.push('/map')}
-              className="px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded transition-colors"
+              className="px-4 py-2 bg-gray-600 hover:bg-gray-500 text-[#fffefa] rounded transition-colors"
             >
               Visa på kartan
             </button>
             <button
               onClick={() => router.push(`/projects/new?edit=${project.id}`)}
-              className="px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded transition-colors"
+              className="px-4 py-2 bg-gray-600 hover:bg-gray-500 text-[#fffefa] rounded transition-colors"
             >
               Redigera projekt
             </button>
@@ -2977,12 +2975,15 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
             <button
               onClick={deleteProject}
               disabled={isDeleting}
-              className="px-4 py-2 bg-gray-600 hover:bg-gray-500 disabled:bg-gray-400 disabled:cursor-not-allowed text-white rounded transition-colors"
+              className="px-4 py-2 bg-gray-600 hover:bg-gray-500 disabled:bg-gray-400 disabled:cursor-not-allowed text-[#fffefa] rounded transition-colors"
             >
               {isDeleting ? 'Tar bort...' : 'Ta bort projekt'}
             </button>
           </div>
         </div>
+
+        {/* ROI Info Modal */}
+        <ROIInfoModal isOpen={showROIInfo} onClose={() => setShowROIInfo(false)} />
       </div>
     </div>
   );

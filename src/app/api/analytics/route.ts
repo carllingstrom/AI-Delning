@@ -1013,7 +1013,7 @@ function calculateROI(project: any): number | null {
       totalProjectInvestment: totalInvestment 
     });
     
-    return roiMetrics.economicROI; // roiCalculator already returns percentage values
+    return roiMetrics.economicROI; // Only use economic ROI, not combined
   } catch (err) {
     console.error('Error calculating ROI:', err);
     return null;

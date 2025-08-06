@@ -115,7 +115,7 @@ export default function EditProjectModal({ project, onClose, onUpdate }: EditPro
               type="text"
               value={formData.title}
               onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#FECB00]"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#fecb00]"
               required
             />
           </div>
@@ -127,7 +127,7 @@ export default function EditProjectModal({ project, onClose, onUpdate }: EditPro
             <textarea
               value={formData.intro}
               onChange={(e) => setFormData(prev => ({ ...prev, intro: e.target.value }))}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#FECB00]"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#fecb00]"
               rows={3}
             />
           </div>
@@ -139,7 +139,7 @@ export default function EditProjectModal({ project, onClose, onUpdate }: EditPro
             <select
               value={formData.phase}
               onChange={(e) => setFormData(prev => ({ ...prev, phase: e.target.value as any }))}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#FECB00]"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#fecb00]"
             >
               {PHASES.map(phase => (
                 <option key={phase} value={phase}>
@@ -163,7 +163,7 @@ export default function EditProjectModal({ project, onClose, onUpdate }: EditPro
                     type="checkbox"
                     checked={formData.areas.includes(area)}
                     onChange={() => handleAreaChange(area)}
-                    className="rounded border-gray-300 text-[#FECB00] focus:ring-[#FECB00]"
+                    className="rounded border-gray-300 text-[#fecb00] focus:ring-[#fecb00]"
                   />
                   <span className="text-sm text-gray-700">{area}</span>
                 </label>
@@ -182,7 +182,7 @@ export default function EditProjectModal({ project, onClose, onUpdate }: EditPro
                     type="checkbox"
                     checked={formData.value_dimensions.includes(dimension)}
                     onChange={() => handleValueDimensionChange(dimension)}
-                    className="rounded border-gray-300 text-[#FECB00] focus:ring-[#FECB00]"
+                    className="rounded border-gray-300 text-[#fecb00] focus:ring-[#fecb00]"
                   />
                   <span className="text-sm text-gray-700">{dimension}</span>
                 </label>
@@ -205,7 +205,7 @@ export default function EditProjectModal({ project, onClose, onUpdate }: EditPro
             <button
               type="submit"
               disabled={loading}
-              className="px-4 py-2 bg-[#004D66] text-white rounded-md hover:bg-[#003A52] disabled:opacity-50"
+              className="px-4 py-2 bg-[#004D66] text-[#fffefa] rounded-md hover:bg-[#003A52] disabled:opacity-50"
             >
               {loading ? 'Sparar...' : 'Spara'}
             </button>

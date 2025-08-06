@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import PptxGenJS from 'pptxgenjs';
-import { generateSimplePieChart } from '@/lib/pieChartGenerator';
 
 interface PowerPointOnePagerProps {
   project: any;
@@ -16,21 +15,7 @@ const PowerPointOnePager: React.FC<PowerPointOnePagerProps> = ({ project, aiSumm
 
   const [loading, setLoading] = useState(false);
 
-  // Use calculated values from the controller
-  const totalBenefit = project.totalBenefit || 0;
-  const totalCost = project.totalCost || project.budget || 0;
-  const roi = project.roi || 0;
-  const paybackPeriod = project.paybackPeriod || 0;
-  const sharingScore = project.sharingScore || 0;
-  
-  // Localization: count actual locations
-  const locationCount = project.location && project.location !== 'Ej specificerat' ? 
-    project.location.split(',').length : 0;
-  
-  // Use AI summary or fallback to project description
-  const summaryText = aiSummary || project.intro || project.description || 'Ingen sammanfattning tillgänglig för detta projekt.';
-
-  // Define formatCurrency function
+  // Helper functions
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('sv-SE', {
       style: 'currency',
@@ -40,310 +25,550 @@ const PowerPointOnePager: React.FC<PowerPointOnePagerProps> = ({ project, aiSumm
     }).format(amount);
   };
 
-  // Prepare cost data for pie chart
-  const costData: Array<{x: string, y: number, label: string}> = [];
-  if (project.cost_data && project.cost_data.actualCostDetails && project.cost_data.actualCostDetails.costEntries && project.cost_data.actualCostDetails.costEntries.length > 0) {
-    project.cost_data.actualCostDetails.costEntries.forEach((entry: any, index: number) => {
-      if (!entry) return;
-      
-      let entryTotal = 0;
-      let entryLabel = '';
-      
-      try {
-        switch (entry?.costUnit) {
-          case 'hours':
-            const hours = Number(entry.hoursDetails?.hours) || 0;
-            const hourlyRate = Number(entry.hoursDetails?.hourlyRate) || 0;
-            entryTotal = hours * hourlyRate;
-            entryLabel = entry.costLabel || entry.description || entry.hoursDetails?.description || 'Timmar';
-            break;
-          case 'fixed':
-            entryTotal = Number(entry.fixedDetails?.fixedAmount) || 0;
-            entryLabel = entry.costLabel || entry.description || entry.fixedDetails?.description || 'Fast kostnad';
-            break;
-          case 'monthly':
-            const monthlyAmount = Number(entry.monthlyDetails?.monthlyAmount) || 0;
-            const monthlyDuration = Number(entry.monthlyDetails?.monthlyDuration) || 1;
-            entryTotal = monthlyAmount * monthlyDuration;
-            entryLabel = entry.costLabel || entry.description || entry.monthlyDetails?.description || 'Månadsvis kostnad';
-            break;
-          case 'yearly':
-            const yearlyAmount = Number(entry.yearlyDetails?.yearlyAmount) || 0;
-            const yearlyDuration = Number(entry.yearlyDetails?.yearlyDuration) || 1;
-            entryTotal = yearlyAmount * yearlyDuration;
-            entryLabel = entry.costLabel || entry.description || entry.yearlyDetails?.description || 'Årlig kostnad';
-            break;
+  // Calculate project metrics
+  const calculateProjectMetrics = () => {
+    const costData = project.cost_data || {};
+    const effectsData = project.effects_data || {};
+    
+    let totalCost = 0;
+    let totalEffects = 0;
+    
+    // Calculate total costs
+    if (costData.actualCostDetails?.costEntries) {
+      costData.actualCostDetails.costEntries.forEach((entry: any) => {
+        if (entry?.costUnit === 'fixed') {
+          totalCost += Number(entry.fixedDetails?.fixedAmount) || 0;
+        } else if (entry?.costUnit === 'hours') {
+          const hours = Number(entry.hoursDetails?.hours) || 0;
+          const rate = Number(entry.hoursDetails?.hourlyRate) || 0;
+          totalCost += hours * rate;
+        } else if (entry?.costUnit === 'monthly') {
+          const amount = Number(entry.monthlyDetails?.monthlyAmount) || 0;
+          const duration = Number(entry.monthlyDetails?.monthlyDuration) || 1;
+          totalCost += amount * duration;
+        } else if (entry?.costUnit === 'yearly') {
+          const amount = Number(entry.yearlyDetails?.yearlyAmount) || 0;
+          const duration = Number(entry.yearlyDetails?.yearlyDuration) || 1;
+          totalCost += amount * duration;
         }
-      } catch (error) {
-        console.warn('Error calculating cost entry for chart:', error);
-        return;
-      }
-      
-      if (entryTotal > 0) {
-        costData.push({
-          x: entryLabel,
-          y: entryTotal,
-          label: `${formatCurrency(entryTotal)}`
-        });
-      }
-    });
-  }
-  
-  // If no cost data, create a simple placeholder
-  if (costData.length === 0) {
-    costData.push({
-      x: 'Ingen kostnadsdata',
-      y: 1,
-      label: 'N/A'
-    });
-  }
+      });
+    }
+    
+    // Calculate total effects value
+    if (effectsData.effectDetails) {
+      effectsData.effectDetails.forEach((effect: any) => {
+        if (effect?.quantifiableValue) {
+          totalEffects += Number(effect.quantifiableValue) || 0;
+        }
+      });
+    }
+    
+    const roi = totalCost > 0 ? ((totalEffects - totalCost) / totalCost) * 100 : 0;
+    
+    return {
+      totalCost,
+      totalEffects,
+      roi,
+      hasQuantifiableData: totalEffects > 0,
+      hasQualitativeData: effectsData.effectDetails?.some((e: any) => e?.qualitativeDescription) || false
+    };
+  };
 
-  // Chart colors
-  const chartColors = ['#ffd700', '#ff6b6b', '#4ecdc4', '#45b7d1', '#96ceb4', '#feca57', '#ff9ff3', '#54a0ff'];
+  const determineFocusArea = () => {
+    // Logic to determine the main focus area based on project data
+    const technicalData = project.technical_data || {};
+    const leadershipData = project.leadership_data || {};
+    const legalData = project.legal_data || {};
+    
+    // Check for technical challenges
+    if (technicalData.technical_obstacles || technicalData.technical_solutions) {
+      return { area: 'Teknik', type: 'utmaning', color: '#ff153b' };
+    }
+    
+    // Check for leadership/organizational focus
+    if (leadershipData.projectOwnership || leadershipData.organizationalChange) {
+      return { area: 'Organisation & ledarskap', type: 'möjliggörare', color: '#34af8f' };
+    }
+    
+    // Check for legal/prerequisites
+    if (legalData.gdpr_assessment || legalData.legal_review) {
+      return { area: 'Juridik och etik', type: 'förutsättning', color: '#fecb00' };
+    }
+    
+    // Default to technical challenge
+    return { area: 'Teknik', type: 'utmaning', color: '#ff153b' };
+  };
 
   const generatePowerPoint = async () => {
     setLoading(true);
     try {
       const pptx = new PptxGenJS();
-    
-    // Set slide size to 16:9 aspect ratio
-    pptx.layout = 'LAYOUT_16x9';
-    
-    // Add a slide
-    const slide = pptx.addSlide();
-    
-    // Set background color to match PDF theme
-    slide.background = { color: '#1a1a2e' };
-    
-    // Header section
-    slide.addText(project.title || 'Ej namngivet projekt', {
-      x: 0.5,
-      y: 0.3,
-      w: 9,
-      h: 0.8,
-      fontSize: 24,
-      fontFace: 'Arial',
-      bold: true,
-      color: '#ffffff',
-      align: 'left',
-    });
-    
-    // Project info (location and status)
-    const locationText = `${project.location || 'Ej specificerat'} | Status: ${project.phase || 'Ej specificerat'}`;
-    slide.addText(locationText, {
-      x: 0.5,
-      y: 1.1,
-      w: 9,
-      h: 0.3,
-      fontSize: 12,
-      fontFace: 'Arial',
-      color: '#cccccc',
-      align: 'left',
-    });
-    
-    // Summary section
-    slide.addText('SAMMANFATTNING', {
-      x: 0.5,
-      y: 1.6,
-      w: 9,
-      h: 0.3,
-      fontSize: 14,
-      fontFace: 'Arial',
-      bold: true,
-      color: '#ffffff',
-      align: 'left',
-    });
-    
-    slide.addText(summaryText, {
-      x: 0.5,
-      y: 1.9,
-      w: 9,
-      h: 1.2,
-      fontSize: 11,
-      fontFace: 'Arial',
-      color: '#ffffff',
-      align: 'left',
-      valign: 'top',
-      wrap: true,
-    });
-    
-    // ROI Section
-    slide.addText(`${roi >= 0 ? '+' : ''}${roi.toFixed(1)}%`, {
-      x: 0.5,
-      y: 3.3,
-      w: 2,
-      h: 0.8,
-      fontSize: 32,
-      fontFace: 'Arial',
-      bold: true,
-      color: '#ffd700',
-      align: 'center',
-      valign: 'middle',
-    });
-    
-    slide.addText('Return on Investment', {
-      x: 0.5,
-      y: 4.1,
-      w: 2,
-      h: 0.3,
-      fontSize: 12,
-      fontFace: 'Arial',
-      color: '#ffffff',
-      align: 'center',
-    });
-    
-    // Key figures grid
-    const metrics = [
-      { label: 'TOTAL NYTTA', value: `${(totalBenefit / 1000000).toFixed(1)} Mkr` },
-      { label: 'TOTAL KOSTNAD', value: `${(totalCost / 1000000).toFixed(1)} Mkr` },
-      { label: 'ÅTERBETALNINGSTID', value: `${paybackPeriod > 0 ? paybackPeriod.toFixed(1) : '0.0'} år` },
-      { label: 'LOKALISERING', value: locationCount.toString() },
-      { label: 'DELNINGSPOÄNG', value: `${sharingScore}%` },
-    ];
-    
-    metrics.forEach((metric, index) => {
-      const x = 3 + (index * 1.4);
-      slide.addText(metric.value, {
-        x,
-        y: 3.3,
-        w: 1.2,
+      pptx.layout = 'LAYOUT_16x9';
+      
+      const metrics = calculateProjectMetrics();
+      const focusArea = determineFocusArea();
+      
+      // Slide 1: Project Overview with Focus Areas (exact copy from image 1)
+      const slide1 = pptx.addSlide();
+      slide1.background = { color: '#121f2b' };
+      
+      // AI Sweden logo (top right)
+      slide1.addText('AI', {
+        x: 13.5,
+        y: 0.2,
+        w: 1.5,
         h: 0.4,
+        fontSize: 24,
+        fontFace: 'Arial',
+        bold: true,
+        color: '#fecb00',
+        align: 'center',
+      });
+      
+      slide1.addText('SWEDEN', {
+        x: 13.5,
+        y: 0.6,
+        w: 1.5,
+        h: 0.2,
+        fontSize: 10,
+        fontFace: 'Arial',
+        color: '#fffefa',
+        align: 'center',
+      });
+      
+      // Main title (exact text from image)
+      slide1.addText('Här beskrivs möjliggörare och viktigaste (avgörande) detaljerna. Tex. Datakrav/tillgänglighet, juridiska utmaningar eller ledarskap.', {
+        x: 0.5,
+        y: 0.5,
+        w: 12.5,
+        h: 0.8,
         fontSize: 16,
         fontFace: 'Arial',
         bold: true,
-        color: '#ffffff',
-        align: 'center',
-        valign: 'middle',
+        color: '#fffefa',
+        align: 'left',
       });
       
-      slide.addText(metric.label, {
-        x,
-        y: 3.7,
-        w: 1.2,
-        h: 0.3,
-        fontSize: 9,
+      // Subtitle (exact text from image)
+      slide1.addText('Här kan man prioritera mellan att highlighta en eller två av boxarna i någon av dimensionerna förutsättning, utmaning eller möjliggörare (tex. En bra ledning gjorde projektet betydligt mycket enklare.', {
+        x: 0.5,
+        y: 1.3,
+        w: 12.5,
+        h: 0.4,
+        fontSize: 12,
         fontFace: 'Arial',
-        color: '#ffffff',
-        align: 'center',
-      });
-    });
-    
-    // Progress bar for sharing score
-    slide.addText('DELNINGSPOÄNG PROGRESS', {
-      x: 0.5,
-      y: 4.6,
-      w: 9,
-      h: 0.3,
-      fontSize: 10,
-      fontFace: 'Arial',
-      color: '#ffffff',
-      align: 'center',
-    });
-    
-    // Progress bar background
-    slide.addShape('rect', {
-      x: 0.5,
-      y: 4.9,
-      w: 9,
-      h: 0.2,
-      fill: { color: '#666666' },
-      line: { color: '#666666' },
-    });
-    
-    // Progress bar fill
-    slide.addShape('rect', {
-      x: 0.5,
-      y: 4.9,
-      w: (sharingScore / 100) * 9,
-      h: 0.2,
-      fill: { color: '#ffffff' },
-      line: { color: '#ffffff' },
-    });
-    
-    // Cost distribution section (right side)
-    slide.addText('KOSTNADSFÖRDELNING', {
-      x: 10.5,
-      y: 1.6,
-      w: 3.5,
-      h: 0.3,
-      fontSize: 12,
-      fontFace: 'Arial',
-      bold: true,
-      color: '#ffffff',
-      align: 'center',
-    });
-    
-    // Add pie chart image
-    try {
-      const pieChartImage = generateSimplePieChart(costData);
-      slide.addImage({
-        data: pieChartImage,
-        x: 10.5,
-        y: 2,
-        w: 1.5,
-        h: 1.5,
+        color: '#fffefa',
+        align: 'left',
       });
       
-      // Legend
-      costData.forEach((item, index) => {
-        const color = chartColors[index % chartColors.length];
-        const y = 2 + (index * 0.25);
-        
-        // Color dot
-        slide.addShape('ellipse', {
-          x: 12.2,
-          y: y + 0.05,
-          w: 0.1,
-          h: 0.1,
-          fill: { color },
-          line: { color },
+      // Three focus area boxes (exact layout from image)
+      const boxes = [
+        {
+          title: 'Organisation & ledarskap',
+          content: project.leadership_data?.projectOwnership || 'IT-ledd implementation - Teknisk fokus med risk för begränsad användaracceptans. Styrka: Teknisk expertis, men kan innebära framtida risker för verksamhetsförankring.',
+          borderColor: focusArea.area === 'Organisation & ledarskap' ? focusArea.color : '#224556',
+          x: 0.5
+        },
+        {
+          title: 'Juridik och etik',
+          content: project.legal_data?.gdpr_assessment || 'Högrisk-AI enligt AI-förordningen - kräver konformitetsbedömning. Upphandlingsmognad låg - pågående process under provisoriskt innovationsstöd förutsättning för genomförande.',
+          borderColor: focusArea.area === 'Juridik och etik' ? focusArea.color : '#224556',
+          x: 5.2
+        },
+        {
+          title: 'Teknik',
+          content: project.technical_data?.technical_obstacles || 'Ingen teknisk data tillgänglig',
+          borderColor: focusArea.area === 'Teknik' ? focusArea.color : '#224556',
+          x: 9.9
+        }
+      ];
+      
+      boxes.forEach((box) => {
+        // Box background
+        slide1.addShape('rect', {
+          x: box.x,
+          y: 2,
+          w: 4.2,
+          h: 4.5,
+          fill: { color: '#224556' },
+          line: { color: box.borderColor, width: 3 },
         });
         
-        // Label
-        slide.addText(item.x, {
-          x: 12.4,
-          y,
-          w: 1.5,
-          h: 0.2,
-          fontSize: 9,
-          fontFace: 'Arial',
-          color: '#ffffff',
-          align: 'left',
-          valign: 'middle',
-        });
-        
-        // Value
-        slide.addText(formatCurrency(item.y), {
-          x: 12.4,
-          y: y + 0.2,
-          w: 1.5,
-          h: 0.15,
-          fontSize: 8,
+        // Box title
+        slide1.addText(box.title, {
+          x: box.x + 0.2,
+          y: 2.2,
+          w: 3.8,
+          h: 0.4,
+          fontSize: 14,
           fontFace: 'Arial',
           bold: true,
-          color: '#ffd700',
+          color: '#fffefa',
+          align: 'center',
+        });
+        
+        // Box content
+        slide1.addText(box.content, {
+          x: box.x + 0.2,
+          y: 2.7,
+          w: 3.8,
+          h: 3.6,
+          fontSize: 11,
+          fontFace: 'Arial',
+          color: '#fffefa',
           align: 'left',
+          valign: 'top',
+          wrap: true,
         });
       });
-    } catch (error) {
-      console.warn('Error adding pie chart to PowerPoint:', error);
-    }
-    
-    // Footer
-    slide.addText(`AI Sweden - Kommunkartan MVP | Genererad ${new Date().toLocaleDateString('sv-SE')}`, {
-      x: 0.5,
-      y: 6.8,
-      w: 9,
-      h: 0.3,
-      fontSize: 10,
-      fontFace: 'Arial',
-      color: '#888888',
-      align: 'center',
-    });
-    
-    // Save the presentation
-    const filename = `${project.title || 'projekt'}_onepager.pptx`;
-    await pptx.writeFile({ fileName: filename });
+      
+      // Slide 2: Effects and Costs (exact copy from image 2)
+      const slide2 = pptx.addSlide();
+      slide2.background = { color: '#121f2b' };
+      
+      // AI Sweden logo
+      slide2.addText('AI', {
+        x: 13.5,
+        y: 0.2,
+        w: 1.5,
+        h: 0.4,
+        fontSize: 24,
+        fontFace: 'Arial',
+        bold: true,
+        color: '#fecb00',
+        align: 'center',
+      });
+      
+      slide2.addText('SWEDEN', {
+        x: 13.5,
+        y: 0.6,
+        w: 1.5,
+        h: 0.2,
+        fontSize: 10,
+        fontFace: 'Arial',
+        color: '#fffefa',
+        align: 'center',
+      });
+      
+      // Main title (exact from image)
+      slide2.addText('Effekter och kostnader + kvalitativa', {
+        x: 0.5,
+        y: 0.5,
+        w: 12.5,
+        h: 0.4,
+        fontSize: 18,
+        fontFace: 'Arial',
+        bold: true,
+        color: '#fffefa',
+        align: 'left',
+      });
+      
+      if (metrics.hasQuantifiableData) {
+        // Left section: Quantified effects (exact from image)
+        slide2.addShape('rect', {
+          x: 0.5,
+          y: 1.2,
+          w: 6.5,
+          h: 0.4,
+          fill: { color: '#224556' },
+        });
+        
+        slide2.addText('Kvantifierade effekter', {
+          x: 0.7,
+          y: 1.3,
+          w: 6.1,
+          h: 0.2,
+          fontSize: 14,
+          fontFace: 'Arial',
+          bold: true,
+          color: '#fffefa',
+          align: 'left',
+        });
+        
+        // Bar chart (exact from image)
+        const maxValue = Math.max(metrics.totalEffects, metrics.totalCost);
+        const effectsBarHeight = (metrics.totalEffects / maxValue) * 2;
+        const costsBarHeight = (metrics.totalCost / maxValue) * 2;
+        
+        // Effects bar (light beige)
+        slide2.addShape('rect', {
+          x: 1,
+          y: 2.5,
+          w: 1.5,
+          h: effectsBarHeight,
+          fill: { color: '#f4f2e6' },
+        });
+        
+        slide2.addText(formatCurrency(metrics.totalEffects), {
+          x: 1,
+          y: 2.5 + effectsBarHeight + 0.1,
+          w: 1.5,
+          h: 0.3,
+          fontSize: 12,
+          fontFace: 'Arial',
+          bold: true,
+          color: '#fffefa',
+          align: 'center',
+        });
+        
+        slide2.addText('Effekter', {
+          x: 1,
+          y: 2.5 + effectsBarHeight + 0.4,
+          w: 1.5,
+          h: 0.2,
+          fontSize: 10,
+          fontFace: 'Arial',
+          color: '#fffefa',
+          align: 'center',
+        });
+        
+        // Costs bars (dark blue, stacked)
+        slide2.addShape('rect', {
+          x: 3,
+          y: 2.5,
+          w: 1.5,
+          h: costsBarHeight,
+          fill: { color: '#224556' },
+        });
+        
+        slide2.addText(formatCurrency(metrics.totalCost), {
+          x: 3,
+          y: 2.5 + costsBarHeight + 0.1,
+          w: 1.5,
+          h: 0.3,
+          fontSize: 12,
+          fontFace: 'Arial',
+          bold: true,
+          color: '#fffefa',
+          align: 'center',
+        });
+        
+        slide2.addText('Kostnader', {
+          x: 3,
+          y: 2.5 + costsBarHeight + 0.4,
+          w: 1.5,
+          h: 0.2,
+          fontSize: 10,
+          fontFace: 'Arial',
+          color: '#fffefa',
+          align: 'center',
+        });
+        
+        // ROI line and percentage (exact from image)
+        slide2.addShape('line', {
+          x: 1.75,
+          y: 2.5 + effectsBarHeight,
+          w: 1.25,
+          h: 0,
+          line: { color: '#fecb00', width: 2 },
+        });
+        
+        slide2.addText(`${metrics.roi >= 0 ? '+' : ''}${metrics.roi.toFixed(1)}% Projektavkastning`, {
+          x: 1.75,
+          y: 2.5 + effectsBarHeight - 0.3,
+          w: 1.25,
+          h: 0.2,
+          fontSize: 10,
+          fontFace: 'Arial',
+          bold: true,
+          color: '#fecb00',
+          align: 'center',
+        });
+        
+        // Detailed breakdown (exact from image)
+        slide2.addText('Detaljerad uppdelning:', {
+          x: 0.7,
+          y: 4.5,
+          w: 6.1,
+          h: 0.3,
+          fontSize: 12,
+          fontFace: 'Arial',
+          bold: true,
+          color: '#fffefa',
+          align: 'left',
+        });
+        
+        // Effects details
+        if (project.effects_data?.effectDetails) {
+          project.effects_data.effectDetails.forEach((effect: any, index: number) => {
+            if (effect?.quantifiableValue) {
+              slide2.addText(`${effect.effectTitle || 'Handläggare och chefer'}: ${formatCurrency(effect.quantifiableValue)}`, {
+                x: 0.7,
+                y: 4.8 + (index * 0.3),
+                w: 6.1,
+                h: 0.2,
+                fontSize: 10,
+                fontFace: 'Arial',
+                color: '#fffefa',
+                align: 'left',
+              });
+            }
+          });
+        }
+        
+        // Costs details
+        if (project.cost_data?.actualCostDetails?.costEntries) {
+          project.cost_data.actualCostDetails.costEntries.forEach((cost: any, index: number) => {
+            let costValue = 0;
+            if (cost?.costUnit === 'fixed') {
+              costValue = Number(cost.fixedDetails?.fixedAmount) || 0;
+            }
+            if (costValue > 0) {
+              slide2.addText(`${cost.costLabel || 'Interna resurser IT och projektledning'}: ${formatCurrency(costValue)}`, {
+                x: 0.7,
+                y: 5.5 + (index * 0.3),
+                w: 6.1,
+                h: 0.2,
+                fontSize: 10,
+                fontFace: 'Arial',
+                color: '#fffefa',
+                align: 'left',
+              });
+            }
+          });
+        }
+      } else {
+        // Qualitative effects section (when no quantified data)
+        slide2.addShape('rect', {
+          x: 0.5,
+          y: 1.2,
+          w: 6.5,
+          h: 0.4,
+          fill: { color: '#224556' },
+        });
+        
+        slide2.addText('Kvalitativa effekter', {
+          x: 0.7,
+          y: 1.3,
+          w: 6.1,
+          h: 0.2,
+          fontSize: 14,
+          fontFace: 'Arial',
+          bold: true,
+          color: '#fffefa',
+          align: 'left',
+        });
+        
+        // Add qualitative content
+        let yPos = 2;
+        if (project.effects_data?.effectDetails) {
+          project.effects_data.effectDetails.forEach((effect: any, index: number) => {
+            if (effect?.qualitativeDescription) {
+              slide2.addText(effect.effectTitle || 'Kvalitativ effekt', {
+                x: 0.7,
+                y: yPos,
+                w: 6.1,
+                h: 0.3,
+                fontSize: 12,
+                fontFace: 'Arial',
+                bold: true,
+                color: '#fffefa',
+                align: 'left',
+              });
+              
+              slide2.addText(effect.qualitativeDescription, {
+                x: 0.7,
+                y: yPos + 0.3,
+                w: 6.1,
+                h: 0.6,
+                fontSize: 10,
+                fontFace: 'Arial',
+                color: '#fffefa',
+                align: 'left',
+                wrap: true,
+              });
+              
+              yPos += 1.2;
+            }
+          });
+        }
+        
+        if (yPos === 2) {
+          slide2.addText('Inga kvalitativa effekter dokumenterade', {
+            x: 0.7,
+            y: 2,
+            w: 6.1,
+            h: 0.4,
+            fontSize: 11,
+            fontFace: 'Arial',
+            color: '#fffefa',
+            align: 'left',
+          });
+        }
+      }
+      
+      // Right side - Qualitative effects (exact from image)
+      slide2.addShape('rect', {
+        x: 7.5,
+        y: 1.2,
+        w: 6.5,
+        h: 0.4,
+        fill: { color: '#224556' },
+      });
+      
+      slide2.addText('Kvalitativa effekter', {
+        x: 7.7,
+        y: 1.3,
+        w: 6.1,
+        h: 0.2,
+        fontSize: 14,
+        fontFace: 'Arial',
+        bold: true,
+        color: '#fffefa',
+        align: 'left',
+      });
+      
+      // Add qualitative effects content (exact from image)
+      let rightYPos = 2;
+      if (project.effects_data?.effectDetails) {
+        project.effects_data.effectDetails.forEach((effect: any) => {
+          if (effect?.qualitativeDescription && rightYPos < 6) {
+            slide2.addText(effect.effectTitle || 'Kvalitativ effekt', {
+              x: 7.7,
+              y: rightYPos,
+              w: 6.1,
+              h: 0.3,
+              fontSize: 12,
+              fontFace: 'Arial',
+              bold: true,
+              color: '#fffefa',
+              align: 'left',
+            });
+            
+            slide2.addText(effect.qualitativeDescription.substring(0, 150) + '...', {
+              x: 7.7,
+              y: rightYPos + 0.3,
+              w: 6.1,
+              h: 0.4,
+              fontSize: 10,
+              fontFace: 'Arial',
+              color: '#fffefa',
+              align: 'left',
+              wrap: true,
+            });
+            
+            rightYPos += 0.8;
+          }
+        });
+      }
+      
+      if (rightYPos === 2) {
+        slide2.addText('Inga kvalitativa effekter dokumenterade', {
+          x: 7.7,
+          y: 2,
+          w: 6.1,
+          h: 0.4,
+          fontSize: 11,
+          fontFace: 'Arial',
+          color: '#fffefa',
+          align: 'left',
+        });
+      }
+      
+      // Save as PDF
+      const filename = `${project.title || 'projekt'}_presentation.pdf`;
+      await pptx.writeFile({ fileName: filename, outputType: 'PDF' });
+      
     } catch (error) {
       console.error('Error generating PowerPoint:', error);
     } finally {
@@ -363,8 +588,8 @@ const PowerPointOnePager: React.FC<PowerPointOnePagerProps> = ({ project, aiSumm
       disabled={loading}
       style={{
         padding: '10px 20px',
-        backgroundColor: '#ffd700',
-        color: '#1a1a2e',
+        backgroundColor: '#fecb00',
+        color: '#121f2b',
         border: 'none',
         borderRadius: '5px',
         fontSize: '14px',
@@ -374,7 +599,7 @@ const PowerPointOnePager: React.FC<PowerPointOnePagerProps> = ({ project, aiSumm
         opacity: loading ? 0.6 : 1,
       }}
     >
-      {loading ? 'Genererar...' : '📊 Exportera som PowerPoint'}
+      {loading ? 'Genererar...' : '📊 Exportera som PDF'}
     </button>
   );
 };

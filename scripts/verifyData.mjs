@@ -16,7 +16,6 @@ if (!supabaseUrl || !supabaseKey) {
 const supabase = createClient(supabaseUrl, supabaseKey);
 
 async function verifyData() {
-  console.log('Verifying data in database...\n');
 
   // 1. Check municipalities table
   console.log('Checking municipalities table:');
@@ -73,7 +72,6 @@ async function verifyData() {
 
 async function verifyProjectData() {
   try {
-    console.log('Verifying project data structure...');
     
     // Get a sample project with all data
     const { data: projects, error } = await supabase
@@ -94,7 +92,6 @@ async function verifyProjectData() {
     console.log(`\nFound ${projects.length} projects to analyze`);
     
     if (projects.length === 0) {
-      console.log('No projects found. Add some projects first to see analytics.');
       return;
     }
 

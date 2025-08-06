@@ -12,6 +12,9 @@ export type Question = {
     id: string;
     value: any;
     op?: 'contains' | 'equals';
+  } | {
+    type: 'custom';
+    evaluate: (formData: any) => boolean;
   };
   repeatFor?: string;
   questions?: Question[];
@@ -84,7 +87,7 @@ function RepeatField({
             <button
               type="button"
               onClick={() => remove(index)}
-              className="absolute top-2 right-2 w-6 h-6 flex items-center justify-center text-white hover:text-gray-300 transition-colors"
+              className="absolute top-2 right-2 w-6 h-6 flex items-center justify-center text-[#fffefa] hover:text-gray-300 transition-colors"
               aria-label="Remove item"
             >
               ×
@@ -122,13 +125,6 @@ function RepeatField({
         const hasRequiredEffectFields = (firstEntry.hasQualitative === true || firstEntry.hasQualitative === 'true' || 
                                         firstEntry.hasQuantitative === true || firstEntry.hasQuantitative === 'true');
         
-        // Debug: log the first effect entry to see what fields are actually present
-        console.log('First effect entry data:', firstEntry);
-        console.log('Effect field ID:', fieldId);
-        console.log('Has required effect fields:', hasRequiredEffectFields);
-        console.log('valueDimension:', firstEntry.valueDimension);
-        console.log('hasQualitative:', firstEntry.hasQualitative);
-        console.log('hasQuantitative:', firstEntry.hasQuantitative);
         
         // Show add button if either cost or effect requirements are met
         const canAddMore = hasRequiredFields || hasRequiredEffectFields;
@@ -139,7 +135,7 @@ function RepeatField({
           <button
             type="button"
             onClick={() => append({})}
-            className="px-4 py-2 mt-2 bg-gray-700 hover:bg-gray-600 text-white rounded font-bold"
+            className="px-4 py-2 mt-2 bg-gray-700 hover:bg-gray-600 text-[#fffefa] rounded font-bold"
           >
             {question.addLabel || 'Add'}
           </button>
@@ -161,25 +157,81 @@ export default function DynamicFormSection({ schema, register, watch, setValue, 
   // Check if this section contains effectEntries (for ROI summary)
   const effectEntries = watch('effectEntries') || [];
   const costEntries = watch('actualCostDetails.costEntries') || [];
+  
+  // For idea projects, get budget from form data
+  const budgetAmount = watch('budgetDetails.budgetAmount') || watch('cost_data.budgetDetails.budgetAmount');
+  const budgetEntries = budgetAmount ? [{ costUnit: budgetAmount.toString() }] : [];
+  
+  // Use cost entries if available, otherwise use budget for idea projects
+  const roiCostEntries = costEntries.length > 0 ? costEntries : budgetEntries;
+  
+  // Check if this section has effectEntries field (for ROI summary)
   const hasEffectEntries = schema.questions?.some(q => q.id === 'effectEntries');
   
-  console.log('DynamicFormSection - hasEffectEntries:', hasEffectEntries);
-  console.log('DynamicFormSection - effectEntries:', effectEntries);
-  console.log('DynamicFormSection - costEntries:', costEntries);
-  console.log('DynamicFormSection - schema.title:', schema.title);
+  // Check if we have effect entries and if they have the required fields
+  const hasEffectData = effectEntries && effectEntries.length > 0;
+  
+  // Check if effect entries have actual data (not just empty objects)
+  const hasEffectDataContent = effectEntries.some((entry: any) => {
+    return entry && (
+      entry.valueDimension ||
+      entry.hasQualitative ||
+      entry.hasQuantitative ||
+      entry.qualitativeDetails ||
+      entry.quantitativeDetails ||
+      entry.comment
+    );
+  });
+
+  const firstEntry = hasEffectData ? effectEntries[0] : null;
+  const hasRequiredEffectFields = firstEntry && 
+    (firstEntry.valueDimension || 
+     firstEntry.hasQualitative || 
+     firstEntry.hasQuantitative);
+  
+
+
+  // Check if we have cost entries
+  const hasCostEntries = costEntries && costEntries.length > 0;
+
+  // Determine if we should show this section
+  const shouldShow = schema.title === 'Effekter' ? hasEffectData :
+                    schema.title === 'Kostnader' ? hasCostEntries :
+                    true;
+
+  // Check if we should show ROI summary (only for effects section with effectEntries field)
+  const shouldShowROISummary = (schema.title === 'Effekter & ROI-uppskattning' || schema.title === 'Effekter') && hasEffectEntries;
+
+  if (!shouldShow) {
+    return null;
+  }
+
+  const handleInfoClick = () => {
+    window.dispatchEvent(new CustomEvent('openROIInfo'));
+  };
 
   function renderQuestion(q: Question, parentPath = ''): React.ReactNode {
     // 1. Handle conditional rendering
     if (q.condition) {
-      const condPath = q.condition.id.includes('.') ? q.condition.id : `${parentPath}${q.condition.id}`;
-      const operator = q.condition.op || 'equals';
-      const watchValue = watch(condPath);
-
       let isVisible = false;
-      if (operator === 'equals') {
-        isVisible = String(watchValue) === String(q.condition.value);
-      } else if (operator === 'contains') {
-        isVisible = Array.isArray(watchValue) && watchValue.includes(q.condition.value);
+      
+      if ('type' in q.condition && q.condition.type === 'custom') {
+        // Custom condition evaluation
+        console.log('🔍 Evaluating custom condition for question:', q.id);
+        const formData = watch();
+        isVisible = q.condition.evaluate(formData);
+        console.log('🔍 Custom condition result:', isVisible);
+      } else if ('id' in q.condition) {
+        // Standard condition evaluation
+        const condPath = q.condition.id.includes('.') ? q.condition.id : `${parentPath}${q.condition.id}`;
+        const operator = q.condition.op || 'equals';
+        const watchValue = watch(condPath);
+
+        if (operator === 'equals') {
+          isVisible = String(watchValue) === String(q.condition.value);
+        } else if (operator === 'contains') {
+          isVisible = Array.isArray(watchValue) && watchValue.includes(q.condition.value);
+        }
       }
       
       if (!isVisible) return null;
@@ -211,7 +263,7 @@ export default function DynamicFormSection({ schema, register, watch, setValue, 
             const itemLabel = typeof item === 'string' ? item : item?.[q.itemLabelField || 'label'];
             return (
               <div key={itemLabel || idx} className="bg-[#121F2B] rounded p-4 border border-gray-700">
-                {itemLabel && <h3 className="text-lg font-semibold text-[#FFD600] mb-3">{itemLabel}</h3>}
+                {itemLabel && <h3 className="text-lg font-semibold text-[#fecb00] mb-3">{itemLabel}</h3>}
                 <div className="space-y-4">
                   {q.questions?.map(subQ => (
                     <React.Fragment key={subQ.id}>
@@ -230,7 +282,7 @@ export default function DynamicFormSection({ schema, register, watch, setValue, 
       const groupPath = `${parentPath}${q.id}.`;
       return (
         <div className="p-4 border border-gray-700 rounded-lg space-y-4">
-          <h4 className="font-bold text-white">{q.label}</h4>
+          <h4 className="font-bold text-[#fffefa]">{q.label}</h4>
           {q.questions?.map(subQ => (
             <React.Fragment key={subQ.id}>
               {renderQuestion(subQ, groupPath)}
@@ -252,7 +304,7 @@ export default function DynamicFormSection({ schema, register, watch, setValue, 
               const optionLabel = typeof opt === 'object' ? opt.label : opt;
               return (
                 <label key={String(optionValue)} className="flex items-center gap-2">
-                  <input type="radio" value={optionValue} {...register(fieldId)} className="accent-[#FFD600]" />
+                  <input type="radio" value={optionValue} {...register(fieldId)} className="accent-[#fecb00]" />
                   {optionLabel}
                 </label>
               );
@@ -267,7 +319,7 @@ export default function DynamicFormSection({ schema, register, watch, setValue, 
               const optionLabel = typeof opt === 'object' ? opt.label : opt;
               return (
                 <label key={String(optionValue)} className="flex items-center gap-2">
-                  <input type="checkbox" value={optionValue} {...register(fieldId)} className="accent-[#FFD600]" />
+                  <input type="checkbox" value={optionValue} {...register(fieldId)} className="accent-[#fecb00]" />
                   {optionLabel}
                 </label>
               );
@@ -289,7 +341,7 @@ export default function DynamicFormSection({ schema, register, watch, setValue, 
                   type="button"
                   className={`flex items-center gap-2 px-3 py-2 rounded text-left transition-colors ${
                     isSelected 
-                      ? 'bg-[#FFD600] text-[#121F2B] font-medium' 
+                      ? 'bg-[#fecb00] text-[#121F2B] font-medium' 
                       : 'bg-[#121F2B] text-gray-300 hover:bg-gray-600 border border-gray-600'
                   }`}
                   onClick={() => {
@@ -302,7 +354,7 @@ export default function DynamicFormSection({ schema, register, watch, setValue, 
                   <span className={`w-4 h-4 border-2 rounded flex items-center justify-center ${
                     isSelected ? 'border-[#121F2B] bg-[#121F2B]' : 'border-gray-400'
                   }`}>
-                    {isSelected && <span className="text-[#FFD600] text-xs">✓</span>}
+                    {isSelected && <span className="text-[#fecb00] text-xs">✓</span>}
                   </span>
                   {optionLabel}
                 </button>
@@ -357,19 +409,17 @@ export default function DynamicFormSection({ schema, register, watch, setValue, 
   return (
     <div className="bg-[#121F2B] rounded-lg p-6 space-y-6 shadow mt-8">
       <div className="flex justify-between items-center mb-2">
-        <h2 className="text-xl font-bold text-[#FFD600]">{schema.title}</h2>
-        {hasEffectEntries && (
+        <h2 className="text-xl font-bold text-[#fecb00]">{schema.title}</h2>
+        {shouldShowROISummary && (
           <button
             type="button"
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
-              console.log('Info button clicked, dispatching openROIInfo event');
-              // This will be handled by the ROISummary component
-              const event = new CustomEvent('openROIInfo');
-              window.dispatchEvent(event);
+              // Dispatch custom event to open ROI info modal
+              window.dispatchEvent(new CustomEvent('openROIInfo'));
             }}
-            className="text-[#FFD600] hover:text-yellow-300 text-sm font-medium underline"
+            className="text-[#fecb00] hover:text-yellow-300 text-sm font-medium underline"
           >
             Förklaring av beräkningar
           </button>
@@ -377,8 +427,8 @@ export default function DynamicFormSection({ schema, register, watch, setValue, 
       </div>
       {schema.questions?.map(q => <React.Fragment key={q.id}>{renderQuestion(q)}</React.Fragment>)}
       {/* ROI-sammanfattning för effekter */}
-      {hasEffectEntries && (
-        <ROISummary effectEntries={effectEntries} costEntries={costEntries} />
+      {shouldShowROISummary && (
+        <ROISummary effectEntries={effectEntries} costEntries={roiCostEntries} />
       )}
     </div>
   );

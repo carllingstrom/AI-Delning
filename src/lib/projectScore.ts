@@ -212,6 +212,29 @@ export function calculateProjectScore(project: any): ProjectScore {
     missingHighValue.push('Legal compliance information');
   }
 
+  // === BONUS POINTS FOR COMPLETENESS (10 points max) ===
+  // Add bonus points for projects that are very complete
+  let bonusPoints = 0;
+  
+  // Bonus for having all basic info filled
+  if (breakdown.basic.score >= breakdown.basic.max * 0.8) bonusPoints += 2;
+  
+  // Bonus for having detailed financial data
+  if (breakdown.financial.score >= breakdown.financial.max * 0.8) bonusPoints += 2;
+  
+  // Bonus for having comprehensive effects analysis
+  if (breakdown.effects.score >= breakdown.effects.max * 0.8) bonusPoints += 2;
+  
+  // Bonus for having technical details
+  if (breakdown.technical.score >= breakdown.technical.max * 0.8) bonusPoints += 2;
+  
+  // Bonus for having governance info
+  if (breakdown.governance.score >= breakdown.governance.max * 0.8) bonusPoints += 2;
+  
+  // Update bonus category
+  breakdown.bonus.max = 10;
+  breakdown.bonus.score = Math.min(10, bonusPoints);
+
   // Ensure all categories are within their max limits
   breakdown.basic.score = Math.min(breakdown.basic.max, breakdown.basic.score);
   breakdown.financial.score = Math.min(breakdown.financial.max, breakdown.financial.score);

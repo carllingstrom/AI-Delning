@@ -19,10 +19,21 @@ export const legalSections = [
           'Hälsouppgifter',
           'Etnicitet eller religion',
           'Positioneringsdata',
+          'Inkomstuppgifter',
+          'Civilstånd',
+          'Fackmedlemskap',
+          'Lagöverträdelser',
           'Annat',
           'Vet ej'
         ],
         condition: { id: 'processes_personal_data', value: 'Ja' }
+      },
+      {
+        id: 'data_categories_other',
+        type: 'text',
+        label: 'Beskriv annan typ av personuppgift',
+        placeholder: 't.ex. "Betalningsinformation", "Sjukdomshistorik"',
+        condition: { id: 'data_categories', value: 'Annat' }
       },
       {
         id: 'legal_basis',
@@ -93,13 +104,6 @@ export const legalSections = [
         type: 'radio',
         label: 'Är lösningen en högrisk enligt AI-förordningen?',
         options: ['Ja', 'Nej', 'Vet ej']
-      },
-      {
-        id: 'ce_marked',
-        type: 'radio',
-        label: 'Är systemet CE-märkt?',
-        options: ['Ja', 'Nej', 'Ej tillämpligt'],
-        condition: { id: 'high_risk_ai', value: 'Ja' }
       },
       {
         id: 'fundamental_rights_assessment',

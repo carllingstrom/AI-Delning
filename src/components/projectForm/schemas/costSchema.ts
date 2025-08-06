@@ -46,6 +46,13 @@ export const costSectionSchema: SectionSchema = {
           optional: true,
           placeholder: 'T.ex. finansieringskällor, osäkerheter eller budgetmetod',
         },
+        {
+          id: 'budgetOtherComment',
+          type: 'text',
+          label: 'Beskriv annan budgetpost',
+          placeholder: 't.ex. "Materialkostnader", "Resekostnader"',
+          condition: { id: 'budgetBreakdown', value: 'Annat' },
+        },
       ],
     },
     {
@@ -79,6 +86,13 @@ export const costSectionSchema: SectionSchema = {
               type: 'text',
               label: 'Roll, aktivitet eller benämning',
               placeholder: 't.ex. "Senior utvecklare", "Azure-licens", "Workshop"',
+            },
+            {
+              id: 'costTypeOther',
+              type: 'text',
+              label: 'Beskriv annan kostnadstyp',
+              placeholder: 't.ex. "Materialkostnader", "Resekostnader"',
+              condition: { id: 'costType', value: 'Annat' },
             },
             {
               id: 'costUnit',

@@ -5,7 +5,6 @@ export async function POST(request: Request) {
   try {
     const { intro, problem, opportunity } = await request.json();
     
-    console.log('Testing AI summary with:', { intro, problem, opportunity });
     
     const summary = await generateAISummary(intro, problem, opportunity);
     
