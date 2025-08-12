@@ -839,17 +839,38 @@ export async function GET(req: NextRequest) {
         mostInnovative: getMostInnovativeProjects(filteredProjects, 5),
       },
 
-      projects: filteredProjects.map(project => ({
-        ...project,
-        calculatedMetrics: {
-          budget: extractBudgetAmount(project),
-          actualCost: calculateActualCost(project),
-          roi: calculateROI(project),
-          affectedGroups: extractAffectedGroups(project),
-          technologies: extractTechnologies(project),
-          effects: extractEffectsSummary(project),
+      projects: filteredProjects.map(project => {
+        // Calculate sharing score for each project
+        let sharingScore = 0;
+        try {
+          const { calculateProjectScore } = require('@/lib/projectScore');
+          const projectScore = calculateProjectScore(project);
+          sharingScore = projectScore.percentage;
+        } catch (err) {
+          console.error('Error calculating sharing score for project:', project.id, err);
+          sharingScore = 0;
         }
-      })),
+
+        const budgetAmount = extractBudgetAmount(project) || 0;
+        const actualCostOnly = calculateActualCost(project) || 0;
+        const actualCost = actualCostOnly > 0 ? actualCostOnly : budgetAmount; // fallback to budget when no costs
+        const roi = calculateROI(project);
+        const totalMonetaryValue = calculateProjectMonetaryValue(project);
+        
+        return {
+          ...project,
+          calculatedMetrics: {
+            budget: budgetAmount,
+            actualCost,
+            roi,
+            totalMonetaryValue,
+            affectedGroups: extractAffectedGroups(project),
+            technologies: extractTechnologies(project),
+            effects: extractEffectsSummary(project),
+            sharingScore: sharingScore
+          }
+        };
+      }),
       budgetSankeyData: {
         nodes,
         links
@@ -954,7 +975,13 @@ function calculateROI(project: any): number | null {
     // Use the new comprehensive ROI calculator
     const { calculateROI: newCalculateROI } = require('@/lib/roiCalculator');
     
-    const effectEntries = project.effects_data?.effectDetails || [];
+    const rawEffectEntries = project.effects_data?.effectDetails || [];
+    // Normalize boolean-like flags from forms ("true"/"false" -> boolean)
+    const effectEntries = rawEffectEntries.map((e: any) => ({
+      ...e,
+      hasQualitative: e?.hasQualitative === true || e?.hasQualitative === 'true',
+      hasQuantitative: e?.hasQuantitative === true || e?.hasQuantitative === 'true',
+    }));
     const costEntries = project.cost_data?.actualCostDetails?.costEntries || [];
     
     if (effectEntries.length === 0) return null;
@@ -962,11 +989,11 @@ function calculateROI(project: any): number | null {
     // Check if project actually has measurable effects (not just said "no" to everything)
     const hasActualEffects = effectEntries.some((effect: any) => {
       // Check if the effect has either quantitative or qualitative data that's actually usable
-      const hasQuantitative = (effect.hasQuantitative === true || effect.hasQuantitative === 'true') && 
+      const hasQuantitative = effect.hasQuantitative && 
                               effect.quantitativeDetails && 
                               (effect.quantitativeDetails.financialDetails || effect.quantitativeDetails.redistributionDetails);
       
-      const hasQualitative = (effect.hasQualitative === true || effect.hasQualitative === 'true') && 
+      const hasQualitative = effect.hasQualitative && 
                              effect.qualitativeDetails && 
                              effect.qualitativeDetails.factor;
       
@@ -976,37 +1003,47 @@ function calculateROI(project: any): number | null {
     // If no actual effects, return null (project said "no" to effects)
     if (!hasActualEffects) return null;
     
-    // Calculate total investment from cost entries
-    const totalInvestment = costEntries.reduce((total: number, entry: any) => {
-      if (!entry) return total;
-      
-      let entryTotal = 0;
-      
-      switch (entry.costUnit) {
-        case 'hours':
-          const hours = Number(entry.hoursDetails?.hours) || 0;
-          const rate = Number(entry.hoursDetails?.hourlyRate) || 0;
-          entryTotal = hours * rate;
-          break;
-        case 'fixed':
-          entryTotal = Number(entry.fixedDetails?.fixedAmount) || 0;
-          break;
-        case 'monthly':
-          const monthlyAmount = Number(entry.monthlyDetails?.monthlyAmount) || 0;
-          const monthlyDuration = Number(entry.monthlyDetails?.monthlyDuration) || 1;
-          entryTotal = monthlyAmount * monthlyDuration;
-          break;
-        case 'yearly':
-          const yearlyAmount = Number(entry.yearlyDetails?.yearlyAmount) || 0;
-          const yearlyDuration = Number(entry.yearlyDetails?.yearlyDuration) || 1;
-          entryTotal = yearlyAmount * yearlyDuration;
-          break;
-        default:
-          entryTotal = 0;
+    // Calculate total investment from cost entries with fallback to budget
+    let totalInvestment = 0;
+    if (Array.isArray(costEntries) && costEntries.length > 0) {
+      totalInvestment = costEntries.reduce((total: number, entry: any) => {
+        if (!entry) return total;
+        
+        let entryTotal = 0;
+        
+        switch (entry.costUnit) {
+          case 'hours':
+            const hours = Number(entry.hoursDetails?.hours) || 0;
+            const rate = Number(entry.hoursDetails?.hourlyRate) || 0;
+            entryTotal = hours * rate;
+            break;
+          case 'fixed':
+            entryTotal = Number(entry.fixedDetails?.fixedAmount) || 0;
+            break;
+          case 'monthly':
+            const monthlyAmount = Number(entry.monthlyDetails?.monthlyAmount) || 0;
+            const monthlyDuration = Number(entry.monthlyDetails?.monthlyDuration) || 1;
+            entryTotal = monthlyAmount * monthlyDuration;
+            break;
+          case 'yearly':
+            const yearlyAmount = Number(entry.yearlyDetails?.yearlyAmount) || 0;
+            const yearlyDuration = Number(entry.yearlyDetails?.yearlyDuration) || 1;
+            entryTotal = yearlyAmount * yearlyDuration;
+            break;
+          default:
+            entryTotal = 0;
+        }
+        
+        return total + entryTotal;
+      }, 0);
+    } else {
+      // Budget fallback (especially for idea phase projects)
+      const budgetAmount = project.cost_data?.budgetDetails?.budgetAmount;
+      if (budgetAmount !== undefined && budgetAmount !== null && budgetAmount !== '') {
+        const n = typeof budgetAmount === 'string' ? parseFloat(budgetAmount) : Number(budgetAmount);
+        totalInvestment = isNaN(n) ? 0 : n;
       }
-      
-      return total + entryTotal;
-    }, 0);
+    }
     
     const roiMetrics = newCalculateROI({ 
       effectEntries, 
@@ -1025,7 +1062,12 @@ function calculateProjectMonetaryValue(project: any): number {
     // Use the new comprehensive ROI calculator to get total monetary value
     const { calculateROI: newCalculateROI } = require('@/lib/roiCalculator');
     
-    const effectEntries = project.effects_data?.effectDetails || [];
+    const rawEffectEntries = project.effects_data?.effectDetails || [];
+    const effectEntries = rawEffectEntries.map((e: any) => ({
+      ...e,
+      hasQualitative: e?.hasQualitative === true || e?.hasQualitative === 'true',
+      hasQuantitative: e?.hasQuantitative === true || e?.hasQuantitative === 'true',
+    }));
     const costEntries = project.cost_data?.actualCostDetails?.costEntries || [];
     
     if (effectEntries.length === 0) return 0;
@@ -1072,25 +1114,25 @@ function calculateProjectMonetaryValue(project: any): number {
     console.error('Error calculating project monetary value:', err);
     
     // Fallback to old calculation method
-  try {
-    const effectsData = project?.effects_data || {};
-    const effectDetails = effectsData.effectDetails || [];
-    
-    let totalValue = 0;
-    
-    effectDetails.forEach((effect: any) => {
-      const measurements = effect?.impactMeasurement?.measurements || [];
-      measurements.forEach((measurement: any) => {
-        if (measurement?.monetaryEstimate) {
-          totalValue += parseFloat(measurement.monetaryEstimate) || 0;
-        }
+    try {
+      const effectsData = project?.effects_data || {};
+      const effectDetails = effectsData.effectDetails || [];
+      
+      let totalValue = 0;
+      
+      effectDetails.forEach((effect: any) => {
+        const measurements = effect?.impactMeasurement?.measurements || [];
+        measurements.forEach((measurement: any) => {
+          if (measurement?.monetaryEstimate) {
+            totalValue += parseFloat(measurement.monetaryEstimate) || 0;
+          }
+        });
       });
-    });
-    
-    return totalValue;
+      
+      return totalValue;
     } catch (fallbackErr) {
       console.error('Error in fallback monetary value calculation:', fallbackErr);
-    return 0;
+      return 0;
     }
   }
 }
@@ -1310,10 +1352,17 @@ function analyzeByValueDimension(projects: any[]) {
   try {
     const dimensionCounts: Record<string, number> = {};
     projects.forEach(project => {
+      // Collect from relation table if present
       (project.project_value_dimensions || []).forEach((pvd: any) => {
         const dimension = pvd.value_dimensions?.name;
         if (dimension) {
           dimensionCounts[dimension] = (dimensionCounts[dimension] || 0) + 1;
+        }
+      });
+      // Fallback to flat array on project
+      (project.value_dimensions || []).forEach((dim: string) => {
+        if (dim) {
+          dimensionCounts[dim] = (dimensionCounts[dim] || 0) + 1;
         }
       });
     });
@@ -1680,12 +1729,27 @@ function analyzeTechnicalChallenges(projects: any[]) {
     
     projects.forEach(project => {
       const techData = project.technical_data || {};
-      if (techData.challenges) {
-        challenges.push(...(Array.isArray(techData.challenges) ? techData.challenges : [techData.challenges]));
-      }
-      if (techData.solutions) {
-        solutions.push(...(Array.isArray(techData.solutions) ? techData.solutions : [techData.solutions]));
-      }
+      // Support both new keys and legacy keys
+      const challengeCandidates = [
+        techData.challenges,
+        techData.technical_obstacles,
+      ];
+      const solutionCandidates = [
+        techData.solutions,
+        techData.technical_solutions,
+      ];
+
+      challengeCandidates.forEach((c: any) => {
+        if (!c) return;
+        if (Array.isArray(c)) challenges.push(...c);
+        else if (typeof c === 'string') challenges.push(c);
+      });
+
+      solutionCandidates.forEach((s: any) => {
+        if (!s) return;
+        if (Array.isArray(s)) solutions.push(...s);
+        else if (typeof s === 'string') solutions.push(s);
+      });
     });
     
     return {

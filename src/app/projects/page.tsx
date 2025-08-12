@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Header from '@/components/Header';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import ProjectScoreBar from '@/components/ProjectScoreBar';
 import { calculateProjectScore } from '@/lib/projectScore';
 import { formatCurrency, formatPercentage } from '@/lib/utils';
@@ -112,6 +113,7 @@ interface Project {
 }
 
 export default function ProjectsPage() {
+  const router = useRouter();
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
@@ -128,6 +130,99 @@ export default function ProjectsPage() {
     search: '',
     scoreLevel: ''
   });
+  // Automatically refetch when filters change
+  useEffect(() => {
+    fetchData(filters);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filters]);
+
+  // Lightweight chart helpers (matching analytics theme)
+  const createBarChart = (data: Record<string, number>, title: string, color: string = '#fecb00') => {
+    const values = Object.values(data);
+    if (!values.length) return null;
+    const maxValue = Math.max(...values);
+    return (
+      <div className="p-6 rounded-lg border border-gray-700 bg-transparent">
+        <h3 className="text-xl font-bold text-[#fecb00] mb-4">{title}</h3>
+        <div className="space-y-3">
+          {Object.entries(data).map(([key, value]) => (
+            <div key={key} className="flex items-center space-x-3">
+              <div className="w-32 text-sm text-gray-300 truncate">{key}</div>
+              <div className="flex-1 bg-gray-800 rounded-full h-4">
+                <div 
+                  className="h-4 rounded-full transition-all duration-500"
+                  style={{ 
+                    width: `${maxValue > 0 ? (value / maxValue) * 100 : 0}%`,
+                    backgroundColor: color
+                  }}
+                />
+              </div>
+              <div className="w-20 text-right text-sm font-semibold text-[#fecb00]">
+                {Number.isFinite(value) ? value.toFixed(1) : value}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  const createPieChart = (data: Record<string, number>, title: string) => {
+    const entries = Object.entries(data);
+    if (!entries.length) return null;
+    const sorted = entries.sort((a, b) => (Number(b[1]) || 0) - (Number(a[1]) || 0));
+    const total = sorted.reduce((sum, [, val]) => sum + (Number(val) || 0), 0);
+    if (total <= 0) return null;
+    const colors = [
+      '#fecb00','#007399','#004d66','#34af8f','#ff153b','#224556','#f4f2e6','#fffefa',
+      '#fecb00','#007399','#004d66','#34af8f','#ff153b','#224556','#f4f2e6','#fffefa'
+    ];
+    return (
+      <div className="p-6 rounded-lg border border-gray-700 bg-transparent">
+        <h3 className="text-xl font-bold text-[#fecb00] mb-4">{title}</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="relative w-48 h-48 mx-auto">
+            <svg className="w-full h-full" viewBox="0 0 100 100">
+              {sorted.map(([key, value], index) => {
+                const portion = (Number(value) || 0) / total;
+                const startAngle = index === 0 ? 0 : sorted.slice(0, index).reduce((sum, [, v]) => sum + ((Number(v) || 0) / total) * 360, 0);
+                const endAngle = startAngle + portion * 360;
+                const x1 = 50 + 40 * Math.cos(startAngle * Math.PI / 180);
+                const y1 = 50 + 40 * Math.sin(startAngle * Math.PI / 180);
+                const x2 = 50 + 40 * Math.cos(endAngle * Math.PI / 180);
+                const y2 = 50 + 40 * Math.sin(endAngle * Math.PI / 180);
+                const largeArcFlag = portion > 0.5 ? 1 : 0;
+                return (
+                  <path
+                    key={key}
+                    d={`M 50 50 L ${x1} ${y1} A 40 40 0 ${largeArcFlag} 1 ${x2} ${y2} Z`}
+                    fill={colors[index % colors.length]}
+                    className="hover:opacity-80 transition-opacity"
+                  />
+                );
+              })}
+            </svg>
+          </div>
+          <div className="space-y-2">
+            {sorted.map(([key, value], index) => (
+              <div key={key} className="flex items-center justify-between">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span
+                    className="inline-block w-3 h-3 rounded"
+                    style={{ backgroundColor: colors[index % colors.length] }}
+                  />
+                  <span className="text-sm text-[#fffefa] truncate">{key}</span>
+                </div>
+                <div className="text-sm text-[#fecb00] font-semibold ml-3 whitespace-nowrap">
+                  {Number(value)} ({((Number(value) / total) * 100).toFixed(1)}%)
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   // Generic text normalization (no hardcoded terms)
   const normalizeText = (text: string): string => {
@@ -619,7 +714,7 @@ export default function ProjectsPage() {
           });
         }
         
-        // Sort projects by sharing score (higher score first)
+        // Default sorting: sharing score (higher first)
         filteredProjects.sort((a: Project, b: Project) => {
           const scoreA = calculateProjectScore(a);
           const scoreB = calculateProjectScore(b);
@@ -688,54 +783,56 @@ export default function ProjectsPage() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header Section */}
         <div className="mb-8">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
             <div>
-              <h1 className="text-3xl font-bold text-[#fecb00] mb-2">Kommunkartan</h1>
-              <p className="text-gray-300">Översikt och analys av kommunala AI-projekt</p>
+              <h1 className="text-3xl font-bold text-[#fecb00] mb-2">Projektportalen</h1>
+              <p className="text-gray-300">Översikt och analys av AI-projekt</p>
             </div>
-            <Link 
-              href="/projects/new" 
-              className="mt-4 md:mt-0 px-6 py-3 rounded-lg bg-[#fecb00] text-[#121F2B] font-semibold hover:bg-[#fecb00] transition-colors"
-            >
-              + Lägg till projekt
-            </Link>
-          </div>
-
-          {/* Tab Navigation */}
-          <div className="flex space-x-1 bg-[#224556] rounded-lg p-1 mt-6">
-            {[
-              { key: 'overview', label: 'Översikt', icon: 'chart' },
-              { key: 'projects', label: 'Projekt', icon: 'folder' },
-              { key: 'insights', label: 'Analys', icon: 'search' }
-            ].map((tab) => (
+            <div className="flex gap-2">
               <button
-                key={tab.key}
-                onClick={() => setActiveTab(tab.key as any)}
-                className={`flex items-center space-x-2 px-4 py-2 rounded-md font-medium transition-colors ${
-                  activeTab === tab.key
-                    ? 'bg-[#fecb00] text-[#121F2B]'
-                    : 'text-gray-300 hover:text-[#fffefa] hover:bg-[#224556]'
-                }`}
+                onClick={() => router.push('/projects/new')}
+                className="px-4 py-2 rounded bg-[#fecb00] text-[#121F2B] font-semibold hover:bg-[#fecb00]"
               >
-                {tab.icon === 'chart' && (
-                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                    <path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z" />
-                  </svg>
-                )}
-                {tab.icon === 'folder' && (
-                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                    <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
-                  </svg>
-                )}
-                {tab.icon === 'search' && (
-                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
-                  </svg>
-                )}
-                <span>{tab.label}</span>
+                + Lägg till projekt
               </button>
-            ))}
+            </div>
           </div>
+        </div>
+
+        {/* Tab Navigation */}
+        <div className="flex w-full space-x-1 bg-[#0e1722] border border-gray-700 rounded-lg p-1 mt-6 overflow-hidden">
+          {[
+            { key: 'overview', label: 'Översikt', icon: 'chart' },
+            { key: 'projects', label: 'Projekt', icon: 'folder' },
+            { key: 'insights', label: 'Analys', icon: 'search' }
+          ].map((tab) => (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key as any)}
+              className={`flex items-center justify-center space-x-2 px-4 py-2 rounded-md font-medium transition-all duration-300 ${
+                activeTab === tab.key
+                  ? 'bg-[#fecb00] text-[#121F2B]'
+                  : 'text-gray-300 hover:text-[#fffefa] hover:bg-[#1a2a36]'
+              } ${activeTab === tab.key ? 'basis-1/2' : 'basis-1/4'}`}
+            >
+              {tab.icon === 'chart' && (
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z" />
+                </svg>
+              )}
+              {tab.icon === 'folder' && (
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" />
+                </svg>
+              )}
+              {tab.icon === 'search' && (
+                <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
+                </svg>
+              )}
+              <span>{tab.label}</span>
+            </button>
+          ))}
         </div>
 
         {/* Content based on active tab */}
@@ -744,19 +841,19 @@ export default function ProjectsPage() {
             {analytics ? (
               <>
                 {/* Key Metrics Section */}
-                <div className="bg-[#121F2B] p-8 rounded-lg shadow">
+                <div className="p-8 rounded-lg border border-gray-700">
                   <h2 className="text-2xl font-bold text-[#fecb00] mb-6">Översikt</h2>
                   
                   {/* Primary metrics */}
                   <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-                    <div className="border border-gray-600 p-4 rounded-lg text-center bg-[#224556]">
+                    <div className="border border-gray-700 p-4 rounded-lg text-center bg-transparent">
                       <div className="text-2xl font-bold text-[#fecb00] mb-1">
                         {Number(analytics?.summary?.totalProjects) || 0}
                       </div>
                       <div className="text-gray-400 text-sm">Totalt projekt</div>
                     </div>
                     
-                    <div className="border border-gray-600 p-4 rounded-lg text-center bg-[#224556]">
+                    <div className="border border-gray-700 p-4 rounded-lg text-center bg-transparent">
                       <div className="text-2xl font-bold mb-1" style={{
                         color: (() => {
                           const score = Number(analytics?.summary?.averageSharingScore) || 0;
@@ -771,14 +868,14 @@ export default function ProjectsPage() {
                       <div className="text-gray-400 text-sm">Ø Delningspoäng</div>
                     </div>
                     
-                    <div className="border border-gray-600 p-4 rounded-lg text-center bg-[#224556]">
+                    <div className="border border-gray-700 p-4 rounded-lg text-center bg-transparent">
                       <div className="text-2xl font-bold text-[#fecb00] mb-1">
                         {formatPercentage(Number(analytics?.summary?.averageROI) || 0)}
                       </div>
                       <div className="text-gray-400 text-sm">Ø ROI</div>
                     </div>
 
-                    <div className="border border-gray-600 p-4 rounded-lg text-center bg-[#224556]">
+                    <div className="border border-gray-700 p-4 rounded-lg text-center bg-transparent">
                       <div className="text-2xl font-bold text-[#fecb00] mb-1">
                         {formatCurrency(Number(analytics?.summary?.totalMonetaryValue) || 0)}
                       </div>
@@ -788,23 +885,23 @@ export default function ProjectsPage() {
 
                   {/* Budget & Cost metrics */}
                   <div className="mb-8">
-                    <h3 className="text-xl font-bold text-[#fecb00] mb-4">Budget & Kostnader</h3>
+                    <h3 className="text-xl font-bold text-[#fffefa] mb-4">Budget & Kostnader</h3>
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                      <div className="border border-gray-600 p-4 rounded-lg text-center bg-[#224556]">
+                      <div className="border border-gray-700 p-4 rounded-lg text-center bg-transparent">
                         <div className="text-xl font-bold text-[#fecb00] mb-1">
                           {formatCurrency(Number(analytics?.summary?.averageBudget) || 0)}
                         </div>
                         <div className="text-gray-400 text-sm">Ø Budget/projekt</div>
                       </div>
 
-                      <div className="border border-gray-600 p-4 rounded-lg text-center bg-[#224556]">
+                      <div className="border border-gray-700 p-4 rounded-lg text-center bg-transparent">
                         <div className="text-xl font-bold text-[#fecb00] mb-1">
                           {formatCurrency(Number(analytics?.summary?.averageActualCost) || 0)}
                         </div>
                         <div className="text-gray-400 text-sm">Ø Faktisk kostnad</div>
                       </div>
 
-                      <div className="border border-gray-600 p-4 rounded-lg text-center bg-[#224556]">
+                      <div className="border border-gray-700 p-4 rounded-lg text-center bg-transparent">
                         <div className="text-xl font-bold mb-1" style={{
                           color: (() => {
                             const usage = Number(analytics?.summary?.averageBudgetUsage) || 0;
@@ -818,7 +915,7 @@ export default function ProjectsPage() {
                         <div className="text-gray-400 text-sm">Ø Budgetanvändning</div>
                       </div>
 
-                      <div className="border border-gray-600 p-4 rounded-lg text-center bg-[#224556]">
+                      <div className="border border-gray-700 p-4 rounded-lg text-center bg-transparent">
                         <div className="text-xl font-bold text-[#fecb00] mb-1">
                           {analytics?.summary?.projectsWithCostData?.count || 0} / {analytics?.summary?.totalProjects || 0}
                         </div>
@@ -832,23 +929,23 @@ export default function ProjectsPage() {
 
                   {/* Effects & Value metrics */}
                   <div className="mb-8">
-                    <h3 className="text-xl font-bold text-[#fecb00] mb-4">Effekter & Värde</h3>
+                    <h3 className="text-xl font-bold text-[#fffefa] mb-4">Effekter & Värde</h3>
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-                      <div className="border border-gray-600 p-4 rounded-lg text-center bg-[#224556]">
+                      <div className="border border-gray-700 p-4 rounded-lg text-center bg-transparent">
                         <div className="text-xl font-bold text-[#fecb00] mb-1">
                           {Number(analytics?.summary?.averageEffectsCount).toFixed(1) || 0}
                         </div>
                         <div className="text-gray-400 text-sm">Ø Effekter/projekt</div>
                       </div>
 
-                      <div className="border border-gray-600 p-4 rounded-lg text-center bg-[#224556]">
+                      <div className="border border-gray-700 p-4 rounded-lg text-center bg-transparent">
                         <div className="text-xl font-bold text-[#fecb00] mb-1">
                           {formatCurrency(Number(analytics?.summary?.averageEffectsValue) || 0)}
                         </div>
                         <div className="text-gray-400 text-sm">Ø Effektvärde/projekt</div>
                       </div>
 
-                      <div className="border border-gray-600 p-4 rounded-lg text-center bg-[#224556]">
+                      <div className="border border-gray-700 p-4 rounded-lg text-center bg-transparent">
                         <div className="text-xl font-bold text-[#fecb00] mb-1">
                           {analytics?.summary?.projectsWithQuantifiableEffects?.count || 0} / {analytics?.summary?.totalProjects || 0}
                         </div>
@@ -858,7 +955,7 @@ export default function ProjectsPage() {
                         </div>
                       </div>
 
-                      <div className="border border-gray-600 p-4 rounded-lg text-center bg-[#224556]">
+                      <div className="border border-gray-700 p-4 rounded-lg text-center bg-transparent">
                         <div className="text-xl font-bold text-[#fecb00] mb-1">
                           {analytics?.summary?.projectsWithEffectData?.count || 0} / {analytics?.summary?.totalProjects || 0}
                         </div>
@@ -872,23 +969,23 @@ export default function ProjectsPage() {
 
                   {/* Technology & Impact metrics */}
                   <div>
-                    <h3 className="text-xl font-bold text-[#fecb00] mb-4">Teknologi & Påverkan</h3>
+                    <h3 className="text-xl font-bold text-[#fffefa] mb-4">Teknologi & Påverkan</h3>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                      <div className="border border-gray-600 p-4 rounded-lg text-center bg-[#224556]">
+                      <div className="border border-gray-700 p-4 rounded-lg text-center bg-transparent">
                         <div className="text-xl font-bold text-[#fecb00] mb-1">
                           {Number(analytics?.summary?.averageTechnologies).toFixed(1) || 0}
                         </div>
                         <div className="text-gray-400 text-sm">Ø Tekniker/projekt</div>
                       </div>
 
-                      <div className="border border-gray-600 p-4 rounded-lg text-center bg-[#224556]">
+                      <div className="border border-gray-700 p-4 rounded-lg text-center bg-transparent">
                         <div className="text-xl font-bold text-[#fecb00] mb-1">
                           {Number(analytics?.summary?.averageAffectedGroups).toFixed(1) || 0}
                         </div>
                         <div className="text-gray-400 text-sm">Ø Målgrupper/projekt</div>
                       </div>
 
-                      <div className="border border-gray-600 p-4 rounded-lg text-center bg-[#224556]">
+                      <div className="border border-gray-700 p-4 rounded-lg text-center bg-transparent">
                         <div className="text-xl font-bold text-[#fecb00] mb-1">
                           {formatCurrency(Number(analytics?.summary?.totalBudget) || 0)}
                         </div>
@@ -898,13 +995,349 @@ export default function ProjectsPage() {
                   </div>
                 </div>
 
-                {/* Cost Analysis Section */}
-                <div className="bg-[#121F2B] p-8 rounded-lg shadow">
+                {/* Note about detailed analysis moved */}
+                <div className="p-6 rounded-lg border border-gray-700 text-sm text-gray-300">
+                  För djupare insikter om kostnader, effekter, teknologier och fördelning – öppna fliken <span className="text-[#fecb00] font-semibold">Analys</span>.
+                </div>
+              </>
+            ) : (
+              <div className="p-8 rounded-lg border border-gray-700 text-center">
+                <h3 className="text-xl font-bold text-[#fecb00] mb-4">Laddar översiktsdata...</h3>
+                <p className="text-gray-300 mb-6">Samlar projektstatistik och analysdata</p>
+                <div className="animate-pulse">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {[...Array(3)].map((_, i) => (
+                      <div key={i} className="bg-gray-800 h-24 rounded"></div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'projects' && (
+          <div className="space-y-6">
+            {/* Filters Section - Only show in projects tab */}
+            <div className="p-6 rounded-lg shadow">
+              <h2 className="text-xl font-bold text-[#fecb00] mb-4">Filter & Sök</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                <div className="md:col-span-2 lg:col-span-1">
+                  <label className="block text-sm font-medium mb-2">Sök projekt</label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={filters.search}
+                      onChange={(e) => {
+                        setFilters({...filters, search: e.target.value});
+                        // Auto-search after 500ms delay
+                        clearTimeout((window as any).searchTimeout);
+                        (window as any).searchTimeout = setTimeout(() => {
+                          if (e.target.value.trim()) {
+                            handleSearch();
+                          }
+                        }, 500);
+                      }}
+                      className="w-full p-2 pr-10 bg-[#0e1722] border border-gray-700 rounded text-[#fffefa]"
+                      placeholder="Sök på titel, beskrivning, kommun..."
+                      onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                    />
+                    <button
+                      onClick={handleSearch}
+                      className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-[#fecb00]"
+                    >
+                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium mb-2">Projektfas</label>
+                  <select
+                    value={filters.phase}
+                    onChange={(e) => {
+                      setFilters({...filters, phase: e.target.value});
+                      // Auto-search when filter changes
+                      setTimeout(() => handleSearch(), 100);
+                    }}
+                    className="w-full p-2 bg-[#0e1722] border border-gray-700 rounded text-[#fffefa]"
+                  >
+                    <option value="">Alla faser</option>
+                    <option value="idea">Idé</option>
+                    <option value="pilot">Pilot</option>
+                    <option value="implemented">Implementerat</option>
+                  </select>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium mb-2">Område</label>
+                  <select
+                    value={filters.area}
+                    onChange={(e) => {
+                      setFilters({...filters, area: e.target.value});
+                      // Auto-search when filter changes
+                      setTimeout(() => handleSearch(), 100);
+                    }}
+                    className="w-full p-2 bg-[#0e1722] border border-gray-700 rounded text-[#fffefa]"
+                  >
+                    <option value="">Alla områden</option>
+                    <option value="Utbildning och skola">Utbildning och skola</option>
+                    <option value="Primärvård & e-hälsa">Primärvård & e-hälsa</option>
+                    <option value="Miljö & klimat">Miljö & klimat</option>
+                    <option value="Transport & infrastruktur">Transport & infrastruktur</option>
+                    <option value="Socialtjänst">Socialtjänst</option>
+                    <option value="Äldre- & funktionsstöd">Äldre- & funktionsstöd</option>
+                    <option value="Kultur & fritid">Kultur & fritid</option>
+                    <option value="Samhällsbyggnad & stadsplanering">Samhällsbyggnad & stadsplanering</option>
+                    <option value="Säkerhet & krisberedskap">Säkerhet & krisberedskap</option>
+                    <option value="Ledning och styrning">Ledning och styrning</option>
+                    <option value="Intern administration">Intern administration</option>
+                    <option value="Medborgarservice & kommunikation">Medborgarservice & kommunikation</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2">Värdedimension</label>
+                  <select
+                    value={filters.valueDimension}
+                    onChange={(e) => {
+                      setFilters({...filters, valueDimension: e.target.value});
+                      // Auto-search when filter changes
+                      setTimeout(() => handleSearch(), 100);
+                    }}
+                    className="w-full p-2 bg-[#0e1722] border border-gray-700 rounded text-[#fffefa]"
+                  >
+                    <option value="">Alla värdedimensioner</option>
+                    <option value="Innovation (nya tjänster)">Innovation (nya tjänster)</option>
+                    <option value="Etik, hållbarhet & ansvarsfull AI">Etik, hållbarhet & ansvarsfull AI</option>
+                    <option value="Kostnadsbesparing">Kostnadsbesparing</option>
+                    <option value="Tidsbesparing">Tidsbesparing</option>
+                    <option value="Kvalitet / noggrannhet">Kvalitet / noggrannhet</option>
+                    <option value="Medborgarnytta, upplevelse & service">Medborgarnytta, upplevelse & service</option>
+                    <option value="Kompetens & lärande">Kompetens & lärande</option>
+                    <option value="Riskreduktion & säkerhet">Riskreduktion & säkerhet</option>
+                    <option value="Ökade intäkter">Ökade intäkter</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2">Delningspoäng</label>
+                  <select
+                    value={filters.scoreLevel}
+                    onChange={(e) => {
+                      setFilters({...filters, scoreLevel: e.target.value});
+                      // Auto-search when filter changes
+                      setTimeout(() => handleSearch(), 100);
+                    }}
+                    className="w-full p-2 bg-[#0e1722] border border-gray-700 rounded text-[#fffefa]"
+                  >
+                    <option value="">Alla nivåer</option>
+                    <option value="Exemplarisk">95%+ (Exemplarisk)</option>
+                    <option value="Komplett">85-94% (Komplett)</option>
+                    <option value="Avancerad">70-84% (Avancerad)</option>
+                    <option value="Utvecklad">50-69% (Utvecklad)</option>
+                    <option value="Grundläggande">&lt;50% (Grundläggande)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2">Minsta budget (SEK)</label>
+                  <input
+                    type="number"
+                    value={filters.minBudget}
+                    onChange={(e) => {
+                      setFilters({...filters, minBudget: e.target.value});
+                      // Auto-search when filter changes
+                      setTimeout(() => handleSearch(), 100);
+                    }}
+                    className="w-full p-2 bg-[#0e1722] border border-gray-700 rounded text-[#fffefa]"
+                    placeholder="0"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2">Största budget (SEK)</label>
+                  <input
+                    type="number"
+                    value={filters.maxBudget}
+                    onChange={(e) => {
+                      setFilters({...filters, maxBudget: e.target.value});
+                      // Auto-search when filter changes
+                      setTimeout(() => handleSearch(), 100);
+                    }}
+                    className="w-full p-2 bg-[#0e1722] border border-gray-700 rounded text-[#fffefa]"
+                    placeholder="∞"
+                  />
+                </div>
+
+
+
+                <div className="flex items-end">
+                  <label className="flex items-center">
+                    <input
+                      type="checkbox"
+                      checked={filters.hasROI === 'true'}
+                      onChange={(e) => {
+                        const newHasROI = e.target.checked ? 'true' : '';
+                        setFilters({...filters, hasROI: newHasROI});
+                        // Auto-search when filter changes
+                        setTimeout(() => {
+                          fetchData({...filters, hasROI: newHasROI});
+                        }, 100);
+                      }}
+                      className="mr-2"
+                    />
+                    Endast projekt med positiv ROI
+                  </label>
+                </div>
+              </div>
+
+              {/* Search and Clear buttons */}
+              <div className="flex flex-col sm:flex-row gap-4">
+                <button
+                  onClick={handleSearch}
+                  disabled={searching}
+                  className="px-6 py-2 bg-[#fecb00] text-[#121F2B] font-bold rounded hover:bg-[#fecb00] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                >
+                  {searching ? 'Söker...' : (
+                    <>
+                      <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
+                      </svg>
+                      <span className="font-bold">Sök projekt</span>
+                    </>
+                  )}
+                </button>
+                
+                <button
+                  onClick={handleClearFilters}
+                  className="px-4 py-2 bg-[#0e1722] text-[#fffefa] rounded border border-gray-700 hover:bg-[#1a2a36] transition-colors"
+                >
+                  Rensa filter
+                </button>
+              </div>
+            </div>
+
+            <div className="flex justify-between items-center">
+              <h2 className="text-2xl font-bold text-[#fecb00]">
+                Projekt ({projects.length})
+                {searching && <span className="text-sm font-normal text-gray-400 ml-2">Söker...</span>}
+              </h2>
+            </div>
+            
+            {searching ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {[...Array(6)].map((_, i) => (
+                  <div key={i} className="bg-[#121F2B] border border-gray-600 p-6 rounded-lg animate-pulse shadow">
+                  <div className="h-6 bg-[#1a2a36] rounded mb-3"></div>
+                  <div className="h-4 bg-[#1a2a36] rounded mb-2"></div>
+                  <div className="h-4 bg-[#1a2a36] rounded mb-4 w-3/4"></div>
+                    <div className="space-y-2">
+                      <div className="h-3 bg-[#1a2a36] rounded w-1/2"></div>
+                      <div className="h-3 bg-[#1a2a36] rounded w-2/3"></div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+                  {projects.map((project) => (
+                      <div key={project.id} className="bg-[#121F2B] border border-gray-700 p-4 md:p-6 rounded-lg hover:bg-[#1a2a36] transition-colors cursor-pointer group shadow"
+                         onClick={() => window.location.href = `/projects/${project.id}`}>
+                      <div className="flex justify-between items-start mb-3">
+                        <h3 className="text-base md:text-lg font-semibold text-[#fffefa] truncate pr-4 group-hover:text-[#fecb00] transition-colors">{project.title}</h3>
+                        <span className={`px-2 py-1 rounded text-xs font-medium text-[#fffefa] flex-shrink-0 ${getPhaseColor(project.phase)}`}>
+                          {getPhaseLabel(project.phase)}
+                        </span>
+                      </div>
+                      
+                      <p className="text-gray-300 text-sm mb-4 line-clamp-3">{project.intro}</p>
+                      
+                      <div className="space-y-2 text-sm">
+                        {project.project_municipalities?.length > 0 && (
+                          <div className="flex flex-wrap items-center gap-1">
+                            <span className="text-[#fecb00] font-medium text-xs">Organisation: </span>
+                            <span className="text-gray-300 text-xs">
+                              {project.project_municipalities.map(pm => pm.municipalities.name).join(', ')}
+                            </span>
+                          </div>
+                        )}
+                        
+                        {project.areas?.length > 0 && (
+                          <div className="flex flex-wrap items-center gap-1">
+                            <span className="text-[#fecb00] font-medium text-xs">Områden: </span>
+                            <span className="text-gray-300 text-xs">{project.areas.slice(0, 2).join(', ')}</span>
+                            {project.areas.length > 2 && <span className="text-gray-400 text-xs"> +{project.areas.length - 2}</span>}
+                          </div>
+                        )}
+                        
+                        {project.calculatedMetrics?.budget && (
+                          <div className="flex flex-wrap items-center gap-1">
+                            <span className="text-[#fecb00] font-medium text-xs">Budget: </span>
+                            <span className="text-gray-300 text-xs">{formatCurrency(Number(project.calculatedMetrics.budget))}</span>
+                          </div>
+                        )}
+                        
+                        {project.calculatedMetrics?.roi && (
+                          <div className="flex flex-wrap items-center gap-1">
+                            <span className="text-[#fecb00] font-medium text-xs">ROI: </span>
+                            <span className={`font-semibold text-xs ${project.calculatedMetrics.roi > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                              {formatPercentage(project.calculatedMetrics.roi)}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                      
+                      <ProjectScoreBar project={project} />
+                      
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mt-4 gap-2">
+                        <span className="text-[#fecb00] hover:text-[#ffe066] font-medium text-sm group-hover:text-[#ffe066] transition-colors">
+                          Se detaljer →
+                        </span>
+                          <button 
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              window.location.href = `/map?project=${project.id}`;
+                            }}
+                            className="text-gray-400 hover:text-[#fecb00] text-sm transition-colors"
+                          >
+                            Visa på karta
+                          </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                
+                {projects.length === 0 && !searching && (
+                  <div className="text-center py-12">
+                    <p className="text-gray-400 text-lg">Inga projekt matchar dina filter</p>
+                    <button
+                      onClick={handleClearFilters}
+                      className="mt-4 text-[#fecb00] hover:text-[#ffe066] font-medium"
+                    >
+                      Rensa alla filter
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'insights' && (
+          <div className="space-y-8">
+            {analytics ? (
+              <>
+                {/* Cost Analysis Section (moved from Översikt) */}
+                <div className="p-8 rounded-lg border border-gray-700">
                   <h2 className="text-2xl font-bold text-[#fecb00] mb-6">Kostnadsanalys</h2>
                   <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                     <div>
                       <h3 className="text-xl font-bold text-[#fecb00] mb-4">Kostnadstyper (genomsnitt/projekt)</h3>
-                      <div className="space-y-3">
+                    <div className="space-y-3">
                         {analytics?.costAnalysis?.byCostType && Object.entries(analytics.costAnalysis.byCostType).map(([type, data]) => {
                           const avgCostPerProject = data.count > 0 ? data.totalCost / data.count : 0;
                           return (
@@ -912,21 +1345,21 @@ export default function ProjectsPage() {
                               <div className="flex justify-between items-center">
                                 <span className="text-sm truncate mr-2">{type}</span>
                                 <span className="text-[#fecb00] font-semibold">{formatCurrency(avgCostPerProject)}</span>
-                              </div>
+                          </div>
                               <div className="text-xs text-gray-400">
                                 {Number(data.count)} projekt • {formatCurrency(Number(data.totalCost))} totalt
-                              </div>
+                        </div>
                             </div>
                           );
                         }) || (
                           <div className="text-gray-400 text-sm">Ingen kostnadsdata tillgänglig</div>
                         )}
-                      </div>
                     </div>
+                  </div>
 
                     <div>
                       <h3 className="text-xl font-bold text-[#fecb00] mb-4">Kostnad per timme</h3>
-                      <div className="space-y-3">
+                    <div className="space-y-3">
                         {analytics?.costAnalysis?.costPerHour ? (
                           <>
                             <div className="flex justify-between">
@@ -934,25 +1367,25 @@ export default function ProjectsPage() {
                               <span className="text-[#fecb00] font-semibold">
                                 {formatCurrency(Number(analytics.costAnalysis.costPerHour.average) || 0)}
                               </span>
-                            </div>
+                          </div>
                             <div className="flex justify-between">
                               <span>Median:</span>
                               <span className="text-[#fecb00] font-semibold">
                                 {formatCurrency(Number(analytics.costAnalysis.costPerHour.median) || 0)}
                               </span>
-                            </div>
+                        </div>
                             <div className="flex justify-between">
                               <span>Min:</span>
                               <span className="text-gray-300">
                                 {formatCurrency(Number(analytics.costAnalysis.costPerHour.min) || 0)}
                               </span>
-                            </div>
+                    </div>
                             <div className="flex justify-between">
                               <span>Max:</span>
                               <span className="text-gray-300">
                                 {formatCurrency(Number(analytics.costAnalysis.costPerHour.max) || 0)}
                               </span>
-                            </div>
+                  </div>
                           </>
                         ) : (
                           <div className="text-gray-400 text-sm">Ingen timkostnadsdata tillgänglig</div>
@@ -995,8 +1428,8 @@ export default function ProjectsPage() {
                   </div>
                 </div>
 
-                {/* Effects Analysis Section */}
-                <div className="bg-[#121F2B] p-8 rounded-lg shadow">
+                {/* Effects Analysis Section (moved from Översikt) */}
+                <div className="p-8 rounded-lg border border-gray-700">
                   <h2 className="text-2xl font-bold text-[#fecb00] mb-6">Effektanalys</h2>
                   <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
                     <div>
@@ -1047,7 +1480,7 @@ export default function ProjectsPage() {
                       </div>
                     </div>
 
-                    <div className="bg-[#121F2B] p-6 rounded-lg border border-gray-600">
+                    <div className="p-6 rounded-lg border border-gray-700">
                       <h3 className="text-xl font-bold text-[#fecb00] mb-4">Effekt/värdedimension</h3>
                       <div className="space-y-3">
                         {analytics?.effectsAnalysis?.roiByValueDimension && Object.entries(analytics.effectsAnalysis.roiByValueDimension).slice(0, 5).map(([dimension, data]) => (
@@ -1064,7 +1497,7 @@ export default function ProjectsPage() {
                       </div>
                     </div>
 
-                    <div className="bg-[#121F2B] p-6 rounded-lg border border-gray-600">
+                    <div className="p-6 rounded-lg border border-gray-700">
                       <h3 className="text-xl font-bold text-[#fecb00] mb-4">Top 5 effekt-projekt</h3>
                       <div className="space-y-3">
                         {analytics?.topPerformers?.highestROI?.slice(0, 5).map((project: any, index: number) => (
@@ -1083,8 +1516,101 @@ export default function ProjectsPage() {
                   </div>
                 </div>
 
-                {/* Technology Insights Section */}
-                <div className="bg-[#121F2B] p-8 rounded-lg shadow">
+                {/* ROI per värdedimension (visual) */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                  {createBarChart(
+                    Object.fromEntries(
+                      Object.entries(analytics?.effectsAnalysis?.roiByValueDimension || {}).map(([key, value]) => [
+                        key,
+                        Number(value?.averageROI) || 0
+                      ])
+                    ),
+                    'Genomsnittlig ROI per värdedimension'
+                  )}
+
+                  {createPieChart(
+                    analytics?.technologyInsights?.deploymentEnvironments || {},
+                    'Deployment-miljöer'
+                  )}
+                </div>
+
+                {/* Best per value dimension */}
+                <div className="p-6 rounded-lg border border-gray-700 shadow">
+                  <h3 className="text-xl font-bold text-[#fecb00] mb-4">Bäst per värdedimension</h3>
+                  {(() => {
+                    const dims = Object.keys(analytics?.breakdowns?.byValueDimension || {});
+                    const list = (analytics?.projects || []) as any[];
+                    if (!dims.length || !list.length) return <div className="text-gray-400 text-sm">Ingen data</div>;
+
+                    const getROI = (p: any) => {
+                      const v = Number(p?.calculatedMetrics?.roi);
+                      return isFinite(v) ? v : NaN;
+                    };
+                    const getDims = (p: any): string[] => {
+                      const vd = (p?.project_value_dimensions || []).map((x: any) => x?.value_dimensions?.name).filter(Boolean);
+                      const vd2 = Array.isArray(p?.value_dimensions) ? p.value_dimensions : [];
+                      return Array.from(new Set([...(vd || []), ...(vd2 || [])]));
+                    };
+
+                    const rows = dims.map(dim => {
+                      const candidates = list.filter(p => getDims(p).includes(dim) && getROI(p) > 0);
+                      if (!candidates.length) return null;
+                      const best = candidates.reduce((a, b) => (getROI(a) > getROI(b) ? a : b));
+                      return (
+                        <div key={dim} className="flex justify-between items-center border-b border-gray-700 py-2">
+                          <div className="text-[#fffefa] text-sm truncate pr-2">{dim}</div>
+                          <button
+                            className="text-right text-sm"
+                            onClick={() => (window.location.href = `/projects/${best.id}`)}
+                          >
+                            <span className="text-[#fffefa] truncate inline-block max-w-[260px] align-middle mr-2">{best.title}</span>
+                            <span className="text-[#fecb00] font-semibold align-middle">{formatPercentage(getROI(best))}</span>
+                          </button>
+                        </div>
+                      );
+                    }).filter(Boolean);
+
+                    return rows.length ? rows : <div className="text-gray-400 text-sm">Ingen data</div>;
+                  })()}
+                </div>
+
+                {/* Best per phase */}
+                <div className="p-6 rounded-lg border border-gray-700 shadow">
+                  <h3 className="text-xl font-bold text-[#fecb00] mb-4">Bäst per fas</h3>
+                  {(() => {
+                    const list = (analytics?.projects || []) as any[];
+                    if (!list.length) return <div className="text-gray-400 text-sm">Ingen data</div>;
+                    const phases = ['idea', 'pilot', 'implemented'];
+                    const label = (ph: string) => ph === 'idea' ? 'Idé' : ph === 'pilot' ? 'Pilot' : ph === 'implemented' ? 'Implementerat' : ph;
+                    const getROI = (p: any) => {
+                      const v = Number(p?.calculatedMetrics?.roi);
+                      return isFinite(v) ? v : NaN;
+                    };
+
+                    const rows = phases.map(ph => {
+                      const candidates = list.filter(p => (p?.phase === ph) && getROI(p) > 0);
+                      if (!candidates.length) return null;
+                      const best = candidates.reduce((a, b) => (getROI(a) > getROI(b) ? a : b));
+                      return (
+                        <div key={ph} className="flex justify-between items-center border-b border-gray-700 py-2">
+                          <div className="text-[#fffefa] text-sm truncate pr-2">{label(ph)}</div>
+                          <button
+                            className="text-right text-sm"
+                            onClick={() => (window.location.href = `/projects/${best.id}`)}
+                          >
+                            <span className="text-[#fffefa] truncate inline-block max-w-[260px] align-middle mr-2">{best.title}</span>
+                            <span className="text-[#fecb00] font-semibold align-middle">{formatPercentage(getROI(best))}</span>
+                          </button>
+                        </div>
+                      );
+                    }).filter(Boolean);
+
+                    return rows.length ? rows : <div className="text-gray-400 text-sm">Ingen data</div>;
+                  })()}
+                </div>
+
+                {/* Technology Insights Section (moved from Översikt) */}
+                <div className="p-8 rounded-lg border border-gray-700 shadow">
                   <h2 className="text-2xl font-bold text-[#fecb00] mb-6">Teknologi-insikter</h2>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     <div>
@@ -1131,415 +1657,155 @@ export default function ProjectsPage() {
                   </div>
                 </div>
 
-                {/* Project Distribution Overview */}
+                {/* Project Distribution Overview (moved from Översikt) */}
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                  <div className="bg-[#121F2B] p-6 rounded-lg border border-gray-600">
-                    <h3 className="text-xl font-bold text-[#fecb00] mb-4">Projekt per fas</h3>
-                    <div className="space-y-3">
-                      {analytics?.breakdowns?.byPhase && Object.entries(analytics.breakdowns.byPhase).map(([phase, count]) => (
-                        <div key={phase} className="flex justify-between items-center">
-                          <span className="capitalize text-[#fffefa]">{getPhaseLabel(phase)}</span>
-                          <span className="text-[#fecb00] font-semibold">{Number(count)}</span>
-                        </div>
-                      )) || (
-                        <div className="text-gray-400 text-sm">Ingen fasdata tillgänglig</div>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="bg-[#121F2B] p-6 rounded-lg border border-gray-600">
-                    <h3 className="text-xl font-bold text-[#fecb00] mb-4">Projekt per område</h3>
-                    <div className="space-y-3">
-                      {analytics?.breakdowns?.byArea && Object.entries(analytics.breakdowns.byArea).map(([area, count]) => (
-                        <div key={area} className="flex justify-between items-center">
-                          <span className="text-[#fffefa] text-sm">{area}</span>
-                          <span className="text-[#fecb00] font-semibold">{Number(count)}</span>
-                        </div>
-                      )) || (
-                        <div className="text-gray-400 text-sm">Ingen områdesdata tillgänglig</div>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="bg-[#121F2B] p-6 rounded-lg border border-gray-600">
-                    <h3 className="text-xl font-bold text-[#fecb00] mb-4">Projekt per värdedimension</h3>
-                    <div className="space-y-3">
-                      {analytics?.breakdowns?.byValueDimension && Object.entries(analytics.breakdowns.byValueDimension).map(([dimension, count]) => (
-                        <div key={dimension} className="flex justify-between items-center">
-                          <span className="text-[#fffefa] text-sm">{dimension}</span>
-                          <span className="text-[#fecb00] font-semibold">{Number(count)}</span>
-                        </div>
-                      )) || (
-                        <div className="text-gray-400 text-sm">Ingen värdedimensionsdata tillgänglig</div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </>
-            ) : (
-              <div className="bg-[#121F2B] p-8 rounded-lg border border-gray-600 text-center">
-                <h3 className="text-xl font-bold text-[#fecb00] mb-4">Laddar översiktsdata...</h3>
-                <p className="text-gray-300 mb-6">Samlar projektstatistik och analysdata</p>
-                <div className="animate-pulse">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                    {[...Array(3)].map((_, i) => (
-                      <div key={i} className="bg-[#224556] h-24 rounded"></div>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {activeTab === 'projects' && (
-          <div className="space-y-6">
-            {/* Filters Section - Only show in projects tab */}
-            <div className="bg-[#121F2B] p-6 rounded-lg shadow">
-              <h2 className="text-xl font-bold text-[#fecb00] mb-4">Filter & Sök</h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-                <div className="md:col-span-2 lg:col-span-1">
-                  <label className="block text-sm font-medium mb-2">Sök projekt</label>
-                  <div className="relative">
-                    <input
-                      type="text"
-                      value={filters.search}
-                      onChange={(e) => {
-                        setFilters({...filters, search: e.target.value});
-                        // Auto-search after 500ms delay
-                        clearTimeout((window as any).searchTimeout);
-                        (window as any).searchTimeout = setTimeout(() => {
-                          if (e.target.value.trim()) {
-                            handleSearch();
-                          }
-                        }, 500);
-                      }}
-                      className="w-full p-2 pr-10 bg-[#224556] border border-gray-600 rounded text-[#fffefa]"
-                      placeholder="Sök på titel, beskrivning, kommun..."
-                      onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-                    />
-                    <button
-                      onClick={handleSearch}
-                      className="absolute right-2 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-[#fecb00]"
-                    >
-                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
-                      </svg>
-                    </button>
-                  </div>
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium mb-2">Projektfas</label>
-                  <select
-                    value={filters.phase}
-                    onChange={(e) => {
-                      setFilters({...filters, phase: e.target.value});
-                      // Auto-search when filter changes
-                      setTimeout(() => handleSearch(), 100);
-                    }}
-                    className="w-full p-2 bg-[#224556] border border-gray-600 rounded text-[#fffefa]"
-                  >
-                    <option value="">Alla faser</option>
-                    <option value="idea">Idé</option>
-                    <option value="pilot">Pilot</option>
-                    <option value="implemented">Implementerat</option>
-                  </select>
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-medium mb-2">Område</label>
-                  <select
-                    value={filters.area}
-                    onChange={(e) => {
-                      setFilters({...filters, area: e.target.value});
-                      // Auto-search when filter changes
-                      setTimeout(() => handleSearch(), 100);
-                    }}
-                    className="w-full p-2 bg-[#224556] border border-gray-600 rounded text-[#fffefa]"
-                  >
-                    <option value="">Alla områden</option>
-                    <option value="Utbildning och skola">Utbildning och skola</option>
-                    <option value="Primärvård & e-hälsa">Primärvård & e-hälsa</option>
-                    <option value="Miljö & klimat">Miljö & klimat</option>
-                    <option value="Transport & infrastruktur">Transport & infrastruktur</option>
-                    <option value="Socialtjänst">Socialtjänst</option>
-                    <option value="Äldre- & funktionsstöd">Äldre- & funktionsstöd</option>
-                    <option value="Kultur & fritid">Kultur & fritid</option>
-                    <option value="Samhällsbyggnad & stadsplanering">Samhällsbyggnad & stadsplanering</option>
-                    <option value="Säkerhet & krisberedskap">Säkerhet & krisberedskap</option>
-                    <option value="Ledning och styrning">Ledning och styrning</option>
-                    <option value="Intern administration">Intern administration</option>
-                    <option value="Medborgarservice & kommunikation">Medborgarservice & kommunikation</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium mb-2">Värdedimension</label>
-                  <select
-                    value={filters.valueDimension}
-                    onChange={(e) => {
-                      setFilters({...filters, valueDimension: e.target.value});
-                      // Auto-search when filter changes
-                      setTimeout(() => handleSearch(), 100);
-                    }}
-                    className="w-full p-2 bg-[#224556] border border-gray-600 rounded text-[#fffefa]"
-                  >
-                    <option value="">Alla värdedimensioner</option>
-                    <option value="Innovation (nya tjänster)">Innovation (nya tjänster)</option>
-                    <option value="Etik, hållbarhet & ansvarsfull AI">Etik, hållbarhet & ansvarsfull AI</option>
-                    <option value="Kostnadsbesparing">Kostnadsbesparing</option>
-                    <option value="Tidsbesparing">Tidsbesparing</option>
-                    <option value="Kvalitet / noggrannhet">Kvalitet / noggrannhet</option>
-                    <option value="Medborgarnytta, upplevelse & service">Medborgarnytta, upplevelse & service</option>
-                    <option value="Kompetens & lärande">Kompetens & lärande</option>
-                    <option value="Riskreduktion & säkerhet">Riskreduktion & säkerhet</option>
-                    <option value="Ökade intäkter">Ökade intäkter</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium mb-2">Delningspoäng</label>
-                  <select
-                    value={filters.scoreLevel}
-                    onChange={(e) => {
-                      setFilters({...filters, scoreLevel: e.target.value});
-                      // Auto-search when filter changes
-                      setTimeout(() => handleSearch(), 100);
-                    }}
-                    className="w-full p-2 bg-[#224556] border border-gray-600 rounded text-[#fffefa]"
-                  >
-                    <option value="">Alla nivåer</option>
-                    <option value="Exemplarisk">95%+ (Exemplarisk)</option>
-                    <option value="Komplett">85-94% (Komplett)</option>
-                    <option value="Avancerad">70-84% (Avancerad)</option>
-                    <option value="Utvecklad">50-69% (Utvecklad)</option>
-                    <option value="Grundläggande">&lt;50% (Grundläggande)</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium mb-2">Minsta budget (SEK)</label>
-                  <input
-                    type="number"
-                    value={filters.minBudget}
-                    onChange={(e) => {
-                      setFilters({...filters, minBudget: e.target.value});
-                      // Auto-search when filter changes
-                      setTimeout(() => handleSearch(), 100);
-                    }}
-                    className="w-full p-2 bg-[#224556] border border-gray-600 rounded text-[#fffefa]"
-                    placeholder="0"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium mb-2">Största budget (SEK)</label>
-                  <input
-                    type="number"
-                    value={filters.maxBudget}
-                    onChange={(e) => {
-                      setFilters({...filters, maxBudget: e.target.value});
-                      // Auto-search when filter changes
-                      setTimeout(() => handleSearch(), 100);
-                    }}
-                    className="w-full p-2 bg-[#224556] border border-gray-600 rounded text-[#fffefa]"
-                    placeholder="∞"
-                  />
-                </div>
-
-
-
-                <div className="flex items-end">
-                  <label className="flex items-center">
-                    <input
-                      type="checkbox"
-                      checked={filters.hasROI === 'true'}
-                      onChange={(e) => {
-                        const newHasROI = e.target.checked ? 'true' : '';
-                        setFilters({...filters, hasROI: newHasROI});
-                        // Auto-search when filter changes
-                        setTimeout(() => {
-                          fetchData({...filters, hasROI: newHasROI});
-                        }, 100);
-                      }}
-                      className="mr-2"
-                    />
-                    Endast projekt med positiv ROI
-                  </label>
-                </div>
-              </div>
-
-              {/* Search and Clear buttons */}
-              <div className="flex flex-col sm:flex-row gap-4">
-                <button
-                  onClick={handleSearch}
-                  disabled={searching}
-                  className="px-6 py-2 bg-[#fecb00] text-[#121F2B] font-bold rounded hover:bg-[#fecb00] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
-                >
-                  {searching ? 'Söker...' : (
-                    <>
-                      <svg className="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M8 4a4 4 0 100 8 4 4 0 000-8zM2 8a6 6 0 1110.89 3.476l4.817 4.817a1 1 0 01-1.414 1.414l-4.816-4.816A6 6 0 012 8z" clipRule="evenodd" />
-                      </svg>
-                      <span className="font-bold">Sök projekt</span>
-                    </>
+                  {createPieChart(
+                    analytics?.breakdowns?.byPhase || {},
+                    'Projekt per fas'
                   )}
-                </button>
-                
-                <button
-                  onClick={handleClearFilters}
-                  className="px-4 py-2 bg-[#224556] text-[#fffefa] rounded hover:bg-[#224556] transition-colors"
-                >
-                  Rensa filter
-                </button>
-              </div>
-            </div>
 
-            <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold text-[#fecb00]">
-                Projekt ({projects.length})
-                {searching && <span className="text-sm font-normal text-gray-400 ml-2">Söker...</span>}
-              </h2>
-            </div>
-            
-            {searching ? (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {[...Array(6)].map((_, i) => (
-                  <div key={i} className="bg-[#121F2B] border border-gray-600 p-6 rounded-lg animate-pulse shadow">
-                    <div className="h-6 bg-[#224556] rounded mb-3"></div>
-                    <div className="h-4 bg-[#224556] rounded mb-2"></div>
-                    <div className="h-4 bg-[#224556] rounded mb-4 w-3/4"></div>
-                    <div className="space-y-2">
-                      <div className="h-3 bg-[#224556] rounded w-1/2"></div>
-                      <div className="h-3 bg-[#224556] rounded w-2/3"></div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
-                  {projects.map((project) => (
-                    <div key={project.id} className="bg-[#121F2B] border border-gray-600 p-4 md:p-6 rounded-lg hover:bg-[#224556] transition-colors cursor-pointer group shadow"
-                         onClick={() => window.location.href = `/projects/${project.id}`}>
-                      <div className="flex justify-between items-start mb-3">
-                        <h3 className="text-base md:text-lg font-semibold text-[#fffefa] truncate pr-4 group-hover:text-[#fecb00] transition-colors">{project.title}</h3>
-                        <span className={`px-2 py-1 rounded text-xs font-medium text-[#fffefa] flex-shrink-0 ${getPhaseColor(project.phase)}`}>
-                          {getPhaseLabel(project.phase)}
-                        </span>
-                      </div>
-                      
-                      <p className="text-gray-300 text-sm mb-4 line-clamp-3">{project.intro}</p>
-                      
-                      <div className="space-y-2 text-sm">
-                        {project.project_municipalities?.length > 0 && (
-                          <div className="flex flex-wrap items-center gap-1">
-                            <span className="text-[#fecb00] font-medium text-xs">Kommun: </span>
-                            <span className="text-gray-300 text-xs">
-                              {project.project_municipalities.map(pm => pm.municipalities.name).join(', ')}
-                            </span>
-                          </div>
-                        )}
-                        
-                        {project.areas?.length > 0 && (
-                          <div className="flex flex-wrap items-center gap-1">
-                            <span className="text-[#fecb00] font-medium text-xs">Områden: </span>
-                            <span className="text-gray-300 text-xs">{project.areas.slice(0, 2).join(', ')}</span>
-                            {project.areas.length > 2 && <span className="text-gray-400 text-xs"> +{project.areas.length - 2}</span>}
-                          </div>
-                        )}
-                        
-                        {project.calculatedMetrics?.budget && (
-                          <div className="flex flex-wrap items-center gap-1">
-                            <span className="text-[#fecb00] font-medium text-xs">Budget: </span>
-                            <span className="text-gray-300 text-xs">{formatCurrency(Number(project.calculatedMetrics.budget))}</span>
-                          </div>
-                        )}
-                        
-                        {project.calculatedMetrics?.roi && (
-                          <div className="flex flex-wrap items-center gap-1">
-                            <span className="text-[#fecb00] font-medium text-xs">ROI: </span>
-                            <span className={`font-semibold text-xs ${project.calculatedMetrics.roi > 0 ? 'text-green-400' : 'text-red-400'}`}>
-                              {formatPercentage(project.calculatedMetrics.roi)}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                      
-                      <ProjectScoreBar project={project} />
-                      
-                                              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mt-4 gap-2">
-                          <span className="text-[#fecb00] hover:text-[#ffe066] font-medium text-sm group-hover:text-[#ffe066] transition-colors">
-                            Se detaljer →
-                          </span>
-                          <button 
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              window.location.href = `/map?project=${project.id}`;
-                            }}
-                            className="text-gray-400 hover:text-[#fecb00] text-sm transition-colors"
-                          >
-                            Visa på karta
-                          </button>
-                        </div>
-                    </div>
-                  ))}
+                  {createBarChart(
+                    analytics?.breakdowns?.byArea || {},
+                    'Projekt per område'
+                  )}
+
+                  {createPieChart(
+                    analytics?.breakdowns?.byValueDimension || {},
+                    'Projekt per värdedimension'
+                  )}
                 </div>
-                
-                {projects.length === 0 && !searching && (
-                  <div className="text-center py-12">
-                    <p className="text-gray-400 text-lg">Inga projekt matchar dina filter</p>
-                    <button
-                      onClick={handleClearFilters}
-                      className="mt-4 text-[#fecb00] hover:text-[#ffe066] font-medium"
-                    >
-                      Rensa alla filter
-                    </button>
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-        )}
+                {/* Best-in-class Highlights */}
+                <div className="p-6 rounded-lg border border-gray-700 shadow">
+                  <h3 className="text-2xl font-bold text-[#fecb00] mb-6">Bäst i klassen</h3>
+                  {(() => {
+                    const list = (analytics?.projects || []) as any[];
+                    const withMetric = (value: any) => value !== null && value !== undefined && !isNaN(value);
 
-        {activeTab === 'insights' && (
-          <div className="space-y-8">
-            {analytics ? (
-              <>
-                {/* Top Performers */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                  <div className="bg-[#121F2B] p-6 rounded-lg shadow">
-                    <h3 className="text-xl font-bold text-[#fecb00] mb-4">Högsta ROI</h3>
-                    <div className="space-y-3">
-                      {(analytics?.topPerformers?.highestROI || []).map((project) => (
-                        <div key={project.id} className="border-b border-gray-600 pb-2">
-                          <div className="font-semibold truncate">{project.title}</div>
-                          <div className="text-sm text-gray-400">
-                            ROI: <span className="text-[#fecb00]">{formatPercentage(Number(project.roi))}</span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
+                    const topBy = (selector: (p: any) => number, preferHigh = true) => {
+                      const items = list
+                        .map(p => ({ p, v: selector(p) }))
+                        .filter(item => withMetric(item.v));
+                      if (items.length === 0) return null;
+                      items.sort((a, b) => preferHigh ? (b.v - a.v) : (a.v - b.v));
+                      return items[0];
+                    };
 
-                  <div className="bg-[#121F2B] p-6 rounded-lg shadow">
-                    <h3 className="text-xl font-bold text-[#fecb00] mb-4">Största Budget</h3>
-                    <div className="space-y-3">
-                      {(analytics?.topPerformers?.largestBudget || []).map((project) => (
-                        <div key={project.id} className="border-b border-gray-600 pb-2">
-                          <div className="font-semibold truncate">{project.title}</div>
-                          <div className="text-sm text-gray-400">
-                            Budget: <span className="text-[#fecb00]">{formatCurrency(Number(project.budget))}</span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
+                    const topROI = topBy(p => Number(p?.calculatedMetrics?.roi) || 0, true);
+                    const topMonetary = topBy(p => Number(p?.calculatedMetrics?.totalMonetaryValue) || 0, true);
+                    const topSharing = topBy(p => Number(p?.calculatedMetrics?.sharingScore) || 0, true);
+                    const topValuePerSEK = topBy(p => {
+                      const v = Number(p?.calculatedMetrics?.totalMonetaryValue) || 0;
+                      const c = Number(p?.calculatedMetrics?.actualCost) || 0;
+                      return c > 0 ? v / c : NaN;
+                    }, true);
+                    const topTech = topBy(p => (p?.calculatedMetrics?.technologies?.length || 0), true);
+                    const bestBudgetPrecision = (() => {
+                      const items = list.map(p => {
+                        const b = Number(p?.calculatedMetrics?.budget) || 0;
+                        const a = Number(p?.calculatedMetrics?.actualCost) || 0;
+                        if (b <= 0 || a <= 0) return null;
+                        const usage = (a / b) * 100; // %
+                        const distance = Math.abs(100 - usage);
+                        return { p, v: distance, usage };
+                      }).filter(Boolean) as Array<{ p: any; v: number; usage: number }>;
+                      if (items.length === 0) return null;
+                      // Prefer within budget; if none, pick closest overall
+                      const within = items.filter(i => i.usage <= 100);
+                      const pool = within.length > 0 ? within : items;
+                      pool.sort((a, b) => a.v - b.v);
+                      return pool[0];
+                    })();
+
+                    const Card = ({ title, primary, secondary, onClick }: { title: string; primary: React.ReactNode; secondary?: React.ReactNode; onClick?: () => void }) => (
+                      <div className="p-4 bg-[#1E3A4A] rounded-lg border border-gray-700 hover:border-gray-500 transition-colors cursor-pointer" onClick={onClick}>
+                        <div className="text-sm text-gray-400 mb-1">{title}</div>
+                        <div className="text-lg font-semibold text-[#fffefa]">{primary}</div>
+                        {secondary && <div className="text-xs text-gray-400 mt-1">{secondary}</div>}
+                      </div>
+                    );
+
+                    const go = (id?: string) => id && (window.location.href = `/projects/${id}`);
+
+                    return (
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                        {topROI && (
+                          <Card
+                            title="Högsta ROI"
+                            primary={<>
+                              <span className="text-[#fecb00] mr-2">{formatPercentage(topROI.v)}</span>
+                              <span className="truncate inline-block align-middle max-w-[60%]">{topROI.p.title}</span>
+                            </>}
+                            secondary={`Investering: ${formatCurrency(Number(topROI.p?.calculatedMetrics?.actualCost) || 0)}`}
+                            onClick={() => go(topROI.p?.id)}
+                          />
+                        )}
+
+                        {topMonetary && (
+                          <Card
+                            title="Störst monetär nytta"
+                            primary={<>
+                              <span className="text-[#fecb00] mr-2">{formatCurrency(topMonetary.v)}</span>
+                              <span className="truncate inline-block align-middle max-w-[60%]">{topMonetary.p.title}</span>
+                            </>}
+                            secondary={`ROI: ${formatPercentage(Number(topMonetary.p?.calculatedMetrics?.roi) || 0)}`}
+                            onClick={() => go(topMonetary.p?.id)}
+                          />
+                        )}
+
+                        {topValuePerSEK && (
+                          <Card
+                            title="Mest kostnadseffektiv (värde/SEK)"
+                            primary={<>
+                              <span className="text-[#fecb00] mr-2">{(topValuePerSEK.v).toFixed(2)}x</span>
+                              <span className="truncate inline-block align-middle max-w-[60%]">{topValuePerSEK.p.title}</span>
+                            </>}
+                            secondary={`Nytta: ${formatCurrency(Number(topValuePerSEK.p?.calculatedMetrics?.totalMonetaryValue) || 0)} • Kostnad: ${formatCurrency(Number(topValuePerSEK.p?.calculatedMetrics?.actualCost) || 0)}`}
+                            onClick={() => go(topValuePerSEK.p?.id)}
+                          />
+                        )}
+
+                        {topSharing && (
+                          <Card
+                            title="Högst delningspoäng"
+                            primary={<>
+                              <span className="text-[#fecb00] mr-2">{Number(topSharing.v).toFixed(0)}%</span>
+                              <span className="truncate inline-block align-middle max-w-[60%]">{topSharing.p.title}</span>
+                            </>}
+                            secondary={`Fas: ${topSharing.p?.phase || ''}`}
+                            onClick={() => go(topSharing.p?.id)}
+                          />
+                        )}
+
+                        {topTech && (
+                          <Card
+                            title="Bredast teknikstack"
+                            primary={<>
+                              <span className="text-[#fecb00] mr-2">{Number(topTech.v)}</span>
+                              <span className="truncate inline-block align-middle max-w-[60%]">{topTech.p.title}</span>
+                            </>}
+                            secondary={(topTech.p?.calculatedMetrics?.technologies || []).join(', ').slice(0, 60)}
+                            onClick={() => go(topTech.p?.id)}
+                          />
+                        )}
+
+                        {bestBudgetPrecision && (
+                          <Card
+                            title="Bäst budgetprecision"
+                            primary={<>
+                              <span className="text-[#fecb00] mr-2">{(bestBudgetPrecision.usage).toFixed(1)}%</span>
+                              <span className="truncate inline-block align-middle max-w-[60%]">{bestBudgetPrecision.p.title}</span>
+                            </>}
+                            secondary={`Budget: ${formatCurrency(Number(bestBudgetPrecision.p?.calculatedMetrics?.budget) || 0)} • Utfall: ${formatCurrency(Number(bestBudgetPrecision.p?.calculatedMetrics?.actualCost) || 0)}`}
+                            onClick={() => go(bestBudgetPrecision.p?.id)}
+                          />
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
 
                 {/* Technical Insights */}
-                <div className="bg-[#121F2B] p-6 rounded-lg shadow">
+                <div className="p-6 rounded-lg border border-gray-700 shadow">
                   <h3 className="text-xl font-bold text-[#fecb00] mb-4">Tekniska Utmaningar & Lösningar</h3>
                   <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                     <div>
@@ -1572,7 +1838,7 @@ export default function ProjectsPage() {
                 </div>
               </>
             ) : (
-              <div className="bg-[#121F2B] p-8 rounded-lg text-center shadow">
+              <div className="p-8 rounded-lg text-center shadow">
                 <h3 className="text-xl font-bold text-[#fecb00] mb-4">Laddar analysdata...</h3>
                 <p className="text-gray-300 mb-6">Bearbetar kostnadsanalys, ROI-data och tekniska insikter</p>
                 <div className="animate-pulse">

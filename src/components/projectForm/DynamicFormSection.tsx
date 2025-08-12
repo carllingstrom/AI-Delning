@@ -201,6 +201,15 @@ export default function DynamicFormSection({ schema, register, watch, setValue, 
 
   // Check if we should show ROI summary (only for effects section with effectEntries field)
   const shouldShowROISummary = (schema.title === 'Effekter & ROI-uppskattning' || schema.title === 'Effekter') && hasEffectEntries;
+  
+  // Debug: Log ROI summary visibility
+  console.log('=== DynamicFormSection ROI Debug ===');
+  console.log('schema.title:', schema.title);
+  console.log('hasEffectEntries:', hasEffectEntries);
+  console.log('shouldShowROISummary:', shouldShowROISummary);
+  console.log('effectEntries:', effectEntries);
+  console.log('roiCostEntries:', roiCostEntries);
+  console.log('=====================================');
 
   if (!shouldShow) {
     return null;
@@ -428,7 +437,10 @@ export default function DynamicFormSection({ schema, register, watch, setValue, 
       {schema.questions?.map(q => <React.Fragment key={q.id}>{renderQuestion(q)}</React.Fragment>)}
       {/* ROI-sammanfattning för effekter */}
       {shouldShowROISummary && (
-        <ROISummary effectEntries={effectEntries} costEntries={roiCostEntries} />
+        <>
+          {console.log('=== ROISummary should render ===')}
+          <ROISummary effectEntries={effectEntries} costEntries={roiCostEntries} />
+        </>
       )}
     </div>
   );

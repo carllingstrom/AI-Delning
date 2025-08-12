@@ -118,7 +118,7 @@ export default function AddProjectModal({ municipalities }: AddProjectModalProps
               <button type="button" onClick={() => setOpen(false)} style={{ background: 'none', border: 'none', fontSize: 22, cursor: 'pointer', color: '#888' }}>&times;</button>
             </div>
             <div style={{ marginBottom: 18 }}>
-              <label style={{ fontWeight: 600, color: '#004D66', display: 'block', marginBottom: 6 }}>Kommun(er) <span style={{ color: 'red' }}>*</span></label>
+              <label style={{ fontWeight: 600, color: '#004D66', display: 'block', marginBottom: 6 }}>Organisation(er) <span style={{ color: 'red' }}>*</span></label>
               {form.municipality_ids.map((id, idx) => (
                 <div key={idx} style={{ display: 'flex', alignItems: 'center', marginBottom: 8 }}>
                   <select
@@ -127,7 +127,7 @@ export default function AddProjectModal({ municipalities }: AddProjectModalProps
                     style={{ flex: 1, padding: 8, borderRadius: 4, border: '1px solid #ccc', marginRight: 8, color:'#121F2B'}}
                     required
                   >
-                    <option value="">Välj kommun</option>
+                    <option value="">Välj organisation</option>
                     {municipalities.filter(m =>
                       !form.municipality_ids.includes(m.id) || m.id === id
                     ).map((m) => (
@@ -135,15 +135,15 @@ export default function AddProjectModal({ municipalities }: AddProjectModalProps
                     ))}
                   </select>
                   {form.municipality_ids.length > 1 && (
-                    <button type="button" onClick={() => handleRemoveMunicipality(idx)} style={{ background: 'none', border: 'none', color: '#d00', fontSize: 20, cursor: 'pointer' }} title="Ta bort kommun">×</button>
+                    <button type="button" onClick={() => handleRemoveMunicipality(idx)} style={{ background: 'none', border: 'none', color: '#d00', fontSize: 20, cursor: 'pointer' }} title="Ta bort organisation">×</button>
                   )}
                 </div>
               ))}
               <button type="button" onClick={handleAddMunicipality} style={{ background: '#fecb00', color:'#121F2B', border: 'none', borderRadius: 4, padding: '4px 12px', fontWeight: 600, fontSize: 14, marginTop: 4, cursor: 'pointer' }}>
-                + Lägg till kommun
+                + Lägg till organisation
               </button>
               <div style={{ fontSize: 12, color:'#121F2B', marginTop: 4 }}>
-                Lägg till en eller flera kommuner som samarbetar i projektet.
+                Lägg till en eller flera organisationer som samarbetar i projektet.
               </div>
             </div>
             {/* ...rest of form... */}

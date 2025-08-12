@@ -539,19 +539,15 @@ export const createValueCreationSchema = (selectedValueDimensions: string[] = []
         evaluate: (formData: any) => {
           console.log('=== PoV CONDITION EVALUATION START ===');
           console.log('PoV condition evaluating with formData:', formData);
-          console.log('Effects data:', formData.effects_data);
           console.log('Effects data type:', typeof formData.effects_data);
-          console.log('Effects data keys:', formData.effects_data ? Object.keys(formData.effects_data) : 'null');
           
           // Kontrollera om det finns några effektposter i effects_data
           const effectDetails = formData.effects_data?.effectDetails || [];
           
-          console.log('Effect details found:', effectDetails.length);
           console.log('Effect details:', effectDetails);
           
           // Om inga effektposter finns alls, visa PoV-frågan
           if (effectDetails.length === 0) {
-            console.log('Final decision: SHOW PoV question (no effects)');
             console.log('=== PoV CONDITION EVALUATION END ===');
             return true;
           }
@@ -562,26 +558,21 @@ export const createValueCreationSchema = (selectedValueDimensions: string[] = []
             const hasQualitative = entry.hasQualitative === "true" || entry.hasQualitative === true;
             const hasQuantitative = entry.hasQuantitative === "true" || entry.hasQuantitative === true;
             
-            console.log('Entry:', entry, 'hasQualitative:', hasQualitative, 'hasQuantitative:', hasQuantitative);
             
             // Om någon effekt har kvalitativa eller kvantitativa effekter, markera att inte alla har "Nej"
             if (hasQualitative || hasQuantitative) {
               allEffectsHaveNoData = false;
-              console.log('Found effect with data, will hide PoV');
               break; // Vi behöver inte kontrollera fler om vi redan hittat en med data
             }
           }
           
-          console.log('All effects have no data:', allEffectsHaveNoData);
           
           // Om alla effekter har "Nej" på båda frågorna, visa PoV-frågan
           if (allEffectsHaveNoData) {
-            console.log('Final decision: SHOW PoV question (all effects have no data)');
             console.log('=== PoV CONDITION EVALUATION END ===');
             return true;
           }
           
-          console.log('Final decision: HIDE PoV question (some effects have data)');
           console.log('=== PoV CONDITION EVALUATION END ===');
           return false;
         }

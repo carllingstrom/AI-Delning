@@ -333,8 +333,8 @@ function ProjectWizardContent() {
       const hasCounties = data.county_codes && data.county_codes.length > 0 && data.county_codes[0] !== '';
       
       if (!hasMunicipalities && !hasCounties) {
-        setError('municipality_ids', { message: 'Antingen kommuner eller län måste väljas' });
-        setError('county_codes', { message: 'Antingen kommuner eller län måste väljas' });
+        setError('municipality_ids', { message: 'Antingen organisationer eller län måste väljas' });
+        setError('county_codes', { message: 'Antingen organisationer eller län måste väljas' });
         hasErrors = true;
       }
 

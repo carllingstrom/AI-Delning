@@ -84,7 +84,7 @@ export const legalSections = [
       {
         id: 'reusable_contract',
         type: 'radio',
-        label: 'Kan andra kommuner avropa på ert avtal?',
+        label: 'Kan andra organisationer avropa på ert avtal?',
         options: ['Ja', 'Nej', 'Vet ej'],
         condition: { id: 'procurement_type', value: 'Ramavtal' }
       },

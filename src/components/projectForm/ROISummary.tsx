@@ -1,51 +1,21 @@
-import React, { useState, useMemo, useEffect } from 'react';
-import { calculateROI, createEmptyROIMetrics } from '@/lib/roiCalculator';
-import { formatRatio, getROIColor, getROIStatus, formatCurrency, formatPercentage } from '@/lib/utils';
-import type { EffectEntry } from '@/lib/roiCalculator';
+import React, { useState, useMemo } from 'react';
+import { getROIColor, formatCurrency, formatPercentage } from '@/lib/utils';
 import ROIInfoModal from './ROIInfoModal';
+import { computeROIMetrics } from '@/services/roi/roi.service';
+import type { EffectEntry } from '@/domain';
 
 interface ROISummaryProps {
   effectEntries: EffectEntry[];
   costEntries: any[];
+  budgetAmount?: number | string | null;
 }
 
-export default function ROISummary({ effectEntries, costEntries }: ROISummaryProps) {
+export default function ROISummary({ effectEntries, costEntries, budgetAmount }: ROISummaryProps) {
   const [isModalOpen, setIsModalOpen] = useState(false);
 
-  const openModal = () => {
-    setIsModalOpen(true);
-  };
-
-  // Calculate total investment from cost entries or budget
-  const totalInvestment = useMemo(() => {
-    if (costEntries && costEntries.length > 0) {
-      // Use cost entries if available
-      return costEntries.reduce((total, entry) => {
-        const amount = entry.costUnit ? parseFloat(entry.costUnit) : 
-                      entry.costType ? parseFloat(entry.costType) : 0;
-        return total + (isNaN(amount) ? 0 : amount);
-      }, 0);
-    } else {
-      // For idea projects, try to get budget from form data
-      const formData = (window as any).__FORM_DATA__ || {};
-      const budgetAmount = formData.budgetDetails?.budgetAmount || 
-                          formData.cost_data?.budgetDetails?.budgetAmount;
-      return budgetAmount ? parseFloat(budgetAmount) : 0;
-    }
-  }, [costEntries]);
-
-  // Calculate ROI metrics
   const roiMetrics = useMemo(() => {
-    try {
-      return calculateROI({
-        effectEntries: effectEntries || [],
-        totalProjectInvestment: totalInvestment
-      });
-    } catch (error) {
-      console.error('Error calculating ROI:', error);
-      return createEmptyROIMetrics();
-    }
-  }, [effectEntries, totalInvestment]);
+    return computeROIMetrics({ effectEntries: effectEntries || [], costEntries, budgetAmount });
+  }, [effectEntries, costEntries, budgetAmount]);
 
   return (
     <div className="bg-[#224556] rounded-lg p-6 space-y-4">
@@ -102,6 +72,8 @@ export default function ROISummary({ effectEntries, costEntries }: ROISummaryPro
           {roiMetrics.summary.dimensionsCovered.length}
         </div>
       </div>
+
+      <ROIInfoModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} />
     </div>
   );
 } 

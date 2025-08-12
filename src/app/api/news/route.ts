@@ -37,7 +37,7 @@ export async function GET() {
     const res = await fetch('https://kommun.ai.se/api/usecases/data', {
       signal: controller.signal,
       headers: {
-        'User-Agent': 'Kommunkartan-MVP/1.0'
+        'User-Agent': 'Projektportalen/1.0'
       }
     });
     

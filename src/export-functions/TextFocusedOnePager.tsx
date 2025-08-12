@@ -267,7 +267,7 @@ const TextFocusedOnePager: React.FC<TextFocusedOnePagerProps> = ({ project, aiSu
 
         {/* Footer */}
         <View style={styles.footer}>
-          <Text>AI Sweden - Kommunkartan MVP | Genererad {new Date().toLocaleDateString('sv-SE')}</Text>
+          <Text>AI Sweden - Projektportalen | Genererad {new Date().toLocaleDateString('sv-SE')}</Text>
         </View>
       </Page>
     </Document>

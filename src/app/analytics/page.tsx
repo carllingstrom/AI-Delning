@@ -434,32 +434,84 @@ export default function AnalyticsPage() {
         )}
 
         {selectedChart === 'performance' && analytics && (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-            <div className="bg-[#224556] p-6 rounded-lg">
-              <h3 className="text-xl font-bold text-[#fecb00] mb-4">Top ROI-projekt</h3>
-              <div className="space-y-3">
-                {analytics.topPerformers.highestROI.slice(0, 5).map((project, index) => (
-                  <div key={project.id} className="flex justify-between items-center">
-                    <span className="text-sm truncate">{index + 1}. {project.title}</span>
-                    <span className="text-[#fecb00] font-semibold">
-                      {formatPercentage(project.roi)}
-                    </span>
-                  </div>
-                ))}
+          <div className="space-y-8">
+            {/* Summary cards */}
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="bg-[#224556] p-4 rounded-lg">
+                <div className="text-sm text-gray-300 mb-1">Högst ROI</div>
+                <div className="text-lg font-bold text-[#fecb00]">
+                  {analytics.topPerformers.highestROI[0] ? formatPercentage(analytics.topPerformers.highestROI[0].roi) : '—'}
+                </div>
+                <div className="text-xs text-gray-400 truncate">
+                  {analytics.topPerformers.highestROI[0]?.title || '—'}
+                </div>
+              </div>
+              <div className="bg-[#224556] p-4 rounded-lg">
+                <div className="text-sm text-gray-300 mb-1">Störst budget</div>
+                <div className="text-lg font-bold text-[#fecb00]">
+                  {analytics.topPerformers.largestBudget[0] ? formatCurrency(analytics.topPerformers.largestBudget[0].budget) : '—'}
+                </div>
+                <div className="text-xs text-gray-400 truncate">
+                  {analytics.topPerformers.largestBudget[0]?.title || '—'}
+                </div>
+              </div>
+              <div className="bg-[#224556] p-4 rounded-lg">
+                <div className="text-sm text-gray-300 mb-1">Flest påverkade grupper</div>
+                <div className="text-lg font-bold text-[#fecb00]">
+                  {analytics.topPerformers.mostAffectedGroups[0]?.count ?? '—'}
+                </div>
+                <div className="text-xs text-gray-400 truncate">
+                  {analytics.topPerformers.mostAffectedGroups[0]?.title || '—'}
+                </div>
+              </div>
+              <div className="bg-[#224556] p-4 rounded-lg">
+                <div className="text-sm text-gray-300 mb-1">Mest innovativ</div>
+                <div className="text-lg font-bold text-[#fecb00]">
+                  {analytics.topPerformers.mostInnovative[0]?.score ?? '—'}
+                </div>
+                <div className="text-xs text-gray-400 truncate">
+                  {analytics.topPerformers.mostInnovative[0]?.title || '—'}
+                </div>
               </div>
             </div>
-            
-            <div className="bg-[#224556] p-6 rounded-lg">
-              <h3 className="text-xl font-bold text-[#fecb00] mb-4">Största Budget-projekt</h3>
-              <div className="space-y-3">
-                {analytics.topPerformers.largestBudget.slice(0, 5).map((project, index) => (
-                  <div key={project.id} className="flex justify-between items-center">
-                    <span className="text-sm truncate">{index + 1}. {project.title}</span>
-                    <span className="text-[#fecb00] font-semibold">
-                      {formatCurrency(project.budget)}
-                    </span>
-                  </div>
-                ))}
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+              <div className="bg-[#224556] p-6 rounded-lg">
+                <h3 className="text-xl font-bold text-[#fecb00] mb-4">Top ROI-projekt</h3>
+                <div className="space-y-3">
+                  {analytics.topPerformers.highestROI.slice(0, 5).map((project, index) => (
+                    <div key={project.id || index} className="flex justify-between items-center">
+                      <span className="text-sm truncate">
+                        <span className="inline-block w-6 text-gray-400">{index + 1}.</span> {project.title}
+                      </span>
+                      <span className="text-[#fecb00] font-semibold">
+                        {formatPercentage(project.roi)}
+                      </span>
+                    </div>
+                  ))}
+                  {analytics.topPerformers.highestROI.length === 0 && (
+                    <div className="text-gray-400 text-sm">Inga projekt med ROI beräknad</div>
+                  )}
+                </div>
+              </div>
+              
+              <div className="bg-[#224556] p-6 rounded-lg">
+                <h3 className="text-xl font-bold text-[#fecb00] mb-4">Största Budget-projekt</h3>
+                <div className="space-y-3">
+                  {analytics.topPerformers.largestBudget.slice(0, 5).map((project, index) => (
+                    <div key={project.id || index} className="flex justify-between items-center">
+                      <span className="text-sm truncate">
+                        <span className="inline-block w-6 text-gray-400">{index + 1}.</span> {project.title}
+                      </span>
+                      <span className="text-[#fecb00] font-semibold">
+                        {formatCurrency(project.budget)}
+                      </span>
+                    </div>
+                  ))}
+                  {analytics.topPerformers.largestBudget.length === 0 && (
+                    <div className="text-gray-400 text-sm">Inga budgeterade projekt</div>
+                  )}
+                </div>
               </div>
             </div>
           </div>

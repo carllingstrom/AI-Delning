@@ -73,45 +73,52 @@ export function calculateAnnualValue(details: any, unitType: string): number {
   let annualValue = 0;
   
   switch (unitType) {
-    case 'hours':
-      const hours = details.hoursDetails?.hours || 
-                   (details.hoursDetails?.timePerPerson || 0) * (details.hoursDetails?.affectedPeople || 0);
+    case 'hours': {
+      const hours = details.hoursDetails?.hours ??
+                   ((details.hoursDetails?.timePerPerson || 0) * (details.hoursDetails?.affectedPeople || 0));
       const hourlyRate = details.hoursDetails?.hourlyRate || 0;
-      const timescale = details.hoursDetails?.timescale || 'week';
+      const timescale = details.hoursDetails?.timescale || 'per_year';
       const multiplier = getTimescaleMultiplier(timescale);
-      annualValue = hours * hourlyRate * multiplier;
+      // If hours is a total (no explicit per_*), multiplier will be 1 (per_year) which is fine
+      annualValue = (hours || 0) * hourlyRate * multiplier;
       break;
-      
-    case 'currency':
+    }
+    case 'currency': {
       const amount = details.currencyDetails?.amount || 0;
-      const currencyTimescale = details.currencyDetails?.timescale || 'year';
-      const currencyMultiplier = getTimescaleMultiplier(currencyTimescale);
-      annualValue = amount * currencyMultiplier;
+      const currencyTimescale = details.currencyDetails?.timescale || 'per_year';
+      // One-time amounts should not be annualized across a year; treat as yearly equivalent (no extra factor)
+      if (currencyTimescale === 'one_time') {
+        annualValue = amount;
+      } else {
+        const currencyMultiplier = getTimescaleMultiplier(currencyTimescale);
+        annualValue = amount * currencyMultiplier;
+      }
       break;
-      
-    case 'percentage':
+    }
+    case 'percentage': {
       const percentage = details.percentageDetails?.percentage || 0;
       const baseValue = details.percentageDetails?.baseValue || 0;
-      const percentageTimescale = details.percentageDetails?.timescale || 'year';
+      const percentageTimescale = details.percentageDetails?.timescale || 'per_year';
       const percentageMultiplier = getTimescaleMultiplier(percentageTimescale);
       annualValue = (percentage / 100) * baseValue * percentageMultiplier;
       break;
-      
-    case 'count':
+    }
+    case 'count': {
       const count = details.countDetails?.count || 0;
       const valuePerUnit = details.countDetails?.valuePerUnit || 0;
-      const countTimescale = details.countDetails?.timescale || 'year';
+      const countTimescale = details.countDetails?.timescale || 'per_year';
       const countMultiplier = getTimescaleMultiplier(countTimescale);
       annualValue = count * valuePerUnit * countMultiplier;
       break;
-      
-    case 'other':
+    }
+    case 'other': {
       const otherAmount = details.otherDetails?.amount || 0;
       const otherValuePerUnit = details.otherDetails?.valuePerUnit || 0;
-      const otherTimescale = details.otherDetails?.timescale || 'year';
+      const otherTimescale = details.otherDetails?.timescale || 'per_year';
       const otherMultiplier = getTimescaleMultiplier(otherTimescale);
       annualValue = otherAmount * otherValuePerUnit * otherMultiplier;
       break;
+    }
   }
   
   return annualValue;
@@ -182,17 +189,17 @@ export function calculateSavedAmount(details: any, unitType: string): number {
  * Get multiplier for different timescales
  */
 function getTimescaleMultiplier(timescale: string): number {
-  switch (timescale.toLowerCase()) {
+  switch ((timescale || '').toLowerCase()) {
     case 'hour':
     case 'timme':
-      return 1880; // 40 hours/week * 47 work weeks (Swedish standard)
+      return 1880; // 40 h/week * 47 work weeks
     case 'day':
     case 'dag':
-      return 235; // 5 days/week * 47 work weeks (Swedish standard)
+      return 235; // 5 days/week * 47 weeks
     case 'week':
     case 'vecka':
     case 'per_week':
-      return 47; // Swedish work weeks per year
+      return 47;
     case 'month':
     case 'månad':
     case 'per_month':
@@ -201,6 +208,8 @@ function getTimescaleMultiplier(timescale: string): number {
     case 'år':
     case 'per_year':
       return 1;
+    case 'one_time':
+      return 1; // handled specially for currency to avoid multi-year scaling
     default:
       return 1;
   }

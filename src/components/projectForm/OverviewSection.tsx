@@ -99,7 +99,7 @@ export default function OverviewSection({ register, watch, setValue, setError, c
     // Validate municipality selection
     if (locationMode === 'municipality') {
       if (municipalityIds.length === 0 || municipalityIds[0] === '') {
-        setError?.('municipality_ids', { message: 'Minst en kommun måste väljas' });
+        setError?.('municipality_ids', { message: 'Minst en organisation måste väljas' });
       } else {
         clearErrors?.('municipality_ids');
       }
@@ -219,7 +219,7 @@ export default function OverviewSection({ register, watch, setValue, setError, c
             }`}
             onClick={() => handleLocationModeChange('municipality')}
           >
-            Kommun(er)
+            Organisation(er)
           </button>
           <button
             type="button"
@@ -238,7 +238,7 @@ export default function OverviewSection({ register, watch, setValue, setError, c
         {locationMode === 'municipality' && (
           <div>
             <label className="block text-[#fffefa] text-sm mb-2">
-              Välj en eller flera kommuner
+              Välj en eller flera organisationer
             </label>
             {municipalityIds.map((id, idx) => (
               <div key={idx} className="flex items-center gap-2 mb-2">
@@ -248,7 +248,7 @@ export default function OverviewSection({ register, watch, setValue, setError, c
                   onChange={(e) => setMunicipality(idx, e.target.value)}
                   required={idx === 0}
                 >
-                  <option value="">Välj kommun</option>
+                  <option value="">Välj organisation</option>
                   {Array.isArray(municipalities) ? municipalities
                     .filter((m) => !municipalityIds.includes(m.id.toString()) || m.id.toString() === id)
                     .map((m) => (
@@ -256,7 +256,7 @@ export default function OverviewSection({ register, watch, setValue, setError, c
                         {m.name}
                       </option>
                     )) : (
-                      <option value="">Laddar kommuner...</option>
+                      <option value="">Laddar organisationer...</option>
                     )}
                 </select>
                 {municipalityIds.length > 1 && (
@@ -267,9 +267,9 @@ export default function OverviewSection({ register, watch, setValue, setError, c
               </div>
             ))}
             <button type="button" onClick={addMunicipality} className="px-3 py-1 bg-[#fecb00] text-[#121F2B] rounded mb-2">
-              + Lägg till kommun
+              + Lägg till organisation
             </button>
-            {errors?.municipality_ids && <p className="text-red-400 text-sm mt-1">{String(errors.municipality_ids.message || 'Minst en kommun måste väljas')}</p>}
+            {errors?.municipality_ids && <p className="text-red-400 text-sm mt-1">{String(errors.municipality_ids.message || 'Minst en organisation måste väljas')}</p>}
           </div>
         )}
 

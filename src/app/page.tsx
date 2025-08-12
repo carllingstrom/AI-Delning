@@ -1,5 +1,7 @@
 import Header from '@/components/Header';
 import Link from 'next/link';
+import { formatCurrency, formatPercentage } from '@/lib/utils';
+import { calculateProjectScore } from '@/lib/projectScore';
 
 async function fetchNews() {
   try {
@@ -11,7 +13,7 @@ async function fetchNews() {
       baseUrl = `https://${process.env.VERCEL_URL}`;
     } else if (process.env.NODE_ENV === 'production') {
       // Fallback for other production environments
-      baseUrl = 'https://kommunkartan-mvp.vercel.app';
+      baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://projektportalen.ai-sweden.se';
     } else {
       // Development environment
       baseUrl = 'http://localhost:3000';
@@ -25,7 +27,7 @@ async function fetchNews() {
       cache: 'no-store',
       signal: controller.signal,
       headers: {
-        'User-Agent': 'Kommunkartan-Internal/1.0'
+        'User-Agent': 'Projektportalen-Internal/1.0'
       }
     });
     
@@ -74,21 +76,125 @@ function getFallbackNews() {
   ];
 }
 
+async function fetchProjects() {
+  try {
+    // Mirror the robust base URL handling used for news
+    let baseUrl: string;
+    if (process.env.VERCEL_URL) {
+      baseUrl = `https://${process.env.VERCEL_URL}`;
+    } else if (process.env.NODE_ENV === 'production') {
+      baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://projektportalen.ai-sweden.se';
+    } else {
+      baseUrl = 'http://localhost:3000';
+    }
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000);
+    const res = await fetch(`${baseUrl}/api/projects`, {
+      cache: 'no-store',
+      signal: controller.signal,
+      headers: { 'User-Agent': 'Projektportalen-Internal/1.0' }
+    });
+    clearTimeout(timeoutId);
+    if (!res.ok) return [] as any[];
+    const data = await res.json();
+    return Array.isArray(data) ? data : [];
+  } catch {
+    return [] as any[];
+  }
+}
+
 export default async function LandingPage() {
-  const news = await fetchNews();
+  const [projects, news] = await Promise.all([fetchProjects(), fetchNews()]);
 
   return (
     <div className="min-h-screen flex flex-col bg-[#121f2b] text-[#fffefa]">
       <Header />
       <main className="flex-1 flex flex-col items-center justify-center text-center px-6">
-        <h1 className="text-4xl md:text-6xl font-extrabold text-[#fecb00] mb-6">Acceleration av AI-implementationer i Sverige</h1>
+        <h1 className="text-4xl md:text-6xl font-extrabold text-[#fffefa] mb-6">Acceleration av AI-implementationer i Sverige</h1>
         <p className="max-w-2xl text-lg md:text-xl mb-8 text-gray-200">
-          Upptäck kommunernas AI-initiativ, dela lärdomar och inspireras av konkreta resultat.
+          Upptäck organisationers AI-initiativ, dela lärdomar och inspireras av konkreta resultat.
         </p>
         <div className="flex gap-4">
-          <Link href="/map" className="px-6 py-3 rounded bg-[#fecb00] text-[#121f2b] font-semibold hover:bg-[#fecb00]">Utforska kartan</Link>
-          <Link href="/projects" className="px-6 py-3 rounded border border-[#fecb00] text-[#fecb00] font-semibold hover:bg-[#224556]">Projektportal</Link>
+          <Link href="/projects" className="px-6 py-3 rounded bg-[#fecb00] text-[#121f2b] font-semibold hover:bg-[#fecb00]">Utforska projektportalen</Link>
+          <Link href="/projects/new" className="px-6 py-3 rounded border border-[#fecb00] text-[#fecb00] font-semibold hover:bg-[#224556]">Lägg till projekt</Link>
         </div>
+
+        {/* Projects Section (4 centered project cards, like project portal) */}
+        <section className="mt-16 w-full">
+          <h2 className="text-3xl font-bold mb-2 text-[#fecb00]">Projekt i Projektportalen</h2>
+          <p className="mb-6 text-gray-300">Ett urval av pågående och genomförda AI-initiativ.</p>
+          <div className="max-w-6xl mx-auto">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+              {projects && projects.length > 0 ? projects.slice(0, 4).map((project: any) => {
+                const score = calculateProjectScore(project);
+                const metrics: any[] = [];
+                const roi = project.calculatedMetrics?.roi;
+                const budget = project.calculatedMetrics?.budget;
+                if (roi !== null && roi !== undefined) {
+                  metrics.push(
+                    <span key="roi" className={`${roi > 0 ? 'text-green-400' : 'text-red-400'} font-semibold`}>ROI: {formatPercentage(roi)}</span>
+                  );
+                }
+                metrics.push(
+                  <span key="score" className="text-gray-200">Delningspoäng: <span className="font-semibold">{Number(score.percentage)}%</span></span>
+                );
+                if (budget) {
+                  metrics.push(
+                    <span key="budget" className="text-gray-200">Budget: <span className="font-semibold">{formatCurrency(Number(budget))}</span></span>
+                  );
+                }
+                return (
+                  <Link href={`/projects/${project.id}`} key={project.id} className="bg-[#121F2B] border border-gray-700 p-4 md:p-6 rounded-lg hover:bg-[#1a2a36] transition-colors cursor-pointer group shadow">
+                    <div className="flex justify-between items-start mb-3">
+                      <h3 className="text-base md:text-lg font-semibold text-[#fffefa] truncate pr-4 group-hover:text-[#fecb00] transition-colors">{project.title}</h3>
+                      <span className={`px-2 py-1 rounded text-xs font-medium text-[#fffefa] flex-shrink-0 ${(() => {
+                        switch (project.phase) {
+                          case 'idea': return 'bg-blue-500';
+                          case 'pilot': return 'bg-orange-500';
+                          case 'implemented': return 'bg-green-500';
+                          default: return 'bg-gray-400';
+                        }
+                      })()}`}>
+                        {(() => {
+                          switch (project.phase) {
+                            case 'idea': return 'Idé';
+                            case 'pilot': return 'Pilot';
+                            case 'implemented': return 'Implementerat';
+                            default: return project.phase;
+                          }
+                        })()}
+                      </span>
+                    </div>
+                    {project.intro && (<p className="text-gray-300 text-sm mb-4 line-clamp-3 text-left">{project.intro}</p>)}
+                    <div className="text-sm text-left">
+                      {project.project_municipalities?.length > 0 && (
+                        <div className="flex flex-wrap items-center gap-1">
+                          <span className="text-[#fecb00] font-medium text-xs">Organisation: </span>
+                          <span className="text-gray-300 text-xs">{project.project_municipalities.map((pm: any) => pm.municipalities.name).join(', ')}</span>
+                        </div>
+                      )}
+                      {project.areas?.length > 0 && (
+                        <div className="flex flex-wrap items-center gap-1 mt-1">
+                          <span className="text-[#fecb00] font-medium text-xs">Områden: </span>
+                          <span className="text-gray-300 text-xs">{project.areas.slice(0, 2).join(', ')}</span>
+                          {project.areas.length > 2 && <span className="text-gray-400 text-xs"> +{project.areas.length - 2}</span>}
+                        </div>
+                      )}
+                      <div className="mt-3 text-xs w-full overflow-hidden text-ellipsis whitespace-nowrap">
+                        {metrics.map((el, idx) => (
+                          <span key={idx} className="mr-3 align-middle">{el}</span>
+                        ))}
+                      </div>
+                    </div>
+                  </Link>
+                );
+              }) : (
+                <div className="text-gray-400">Inga projekt kunde hämtas just nu.</div>
+              )}
+            </div>
+          </div>
+        </section>
 
         {/* News Section */}
         <section className="mt-20">

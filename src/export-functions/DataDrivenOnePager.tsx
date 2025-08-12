@@ -600,7 +600,7 @@ const DataDrivenOnePager: React.FC<DataDrivenOnePagerProps> = ({ project, aiSumm
 
         {/* Footer */}
         <View style={styles.footer}>
-          <Text>AI Sweden - Kommunkartan MVP | Genererad {new Date().toLocaleDateString('sv-SE')}</Text>
+          <Text>AI Sweden - Projektportalen | Genererad {new Date().toLocaleDateString('sv-SE')}</Text>
         </View>
       </Page>
     </Document>

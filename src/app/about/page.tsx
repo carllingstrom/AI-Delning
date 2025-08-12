@@ -1,177 +1,125 @@
 import Header from '@/components/Header';
+import SuccessMetrics from '@/components/about/SuccessMetrics';
 import Link from 'next/link';
 
-export default function AboutPage() {
+export default async function AboutPage() {
+  // Ground success metrics in real data
+  let analytics: any = null;
+  try {
+    const res = await fetch('/api/analytics', { cache: 'no-store' });
+    if (res.ok) analytics = await res.json();
+  } catch (e) {
+    analytics = null;
+  }
   return (
     <div className="min-h-screen bg-[#121f2b] text-[#fffefa]">
       <Header />
       
-      <main className="max-w-4xl mx-auto px-6 py-12">
+      <main className="max-w-6xl mx-auto px-6 py-12">
         {/* Hero Section */}
-        <div className="text-center mb-16">
-          <h1 className="text-4xl md:text-5xl font-bold text-[#fecb00] mb-6">
-            Om Kommunkartan
-          </h1>
-          <p className="text-xl text-gray-300 max-w-3xl mx-auto">
-            En plattform för att dela, upptäcka och lära av AI-implementeringar i svenska kommuner
-          </p>
-        </div>
+        <section className="relative overflow-hidden mb-16">
+          <div className="absolute inset-0 pointer-events-none" aria-hidden>
+            <div className="h-64 w-[120%] -left-10 -top-16 absolute bg-gradient-to-b from-[#1a2740] to-transparent opacity-70" />
+          </div>
+          <div className="relative text-center">
+            <h1 className="text-4xl md:text-6xl font-extrabold text-[#fecb00] tracking-tight mb-4">Projektportalen</h1>
+            <p className="text-xl md:text-2xl text-gray-200 max-w-4xl mx-auto leading-relaxed">
+              En samlingsplats för AI-initiativ i offentlig sektor – med korrekt ROI, kostnader och effekter för att dela, lära och accelerera implementation.
+            </p>
+          </div>
+        </section>
 
         {/* Mission Section */}
-        <section className="mb-16">
-          <h2 className="text-3xl font-bold text-[#fecb00] mb-6">Vårt Uppdrag</h2>
-          <div className="grid md:grid-cols-2 gap-8">
-            <div className="bg-[#224556] p-6 rounded-lg">
-              <h3 className="text-xl font-semibold text-[#fecb00] mb-4">Dela Kunskap</h3>
-              <p className="text-gray-300">
-                Samla och dela erfarenheter från AI-projekt i kommuner för att undvika att uppfinna hjulet på nytt. 
-                Varje projekt bidrar till kollektiv kunskap som gynnar hela sektorn.
+        <section className="mb-20">
+          <h2 className="text-3xl font-bold text-[#fecb00] mb-4">Vårt uppdrag</h2>
+          <div className="grid md:grid-cols-2 gap-10">
+            <div>
+              <h3 className="text-xl font-semibold text-[#fffefa] mb-2">Dela kunskap</h3>
+              <p className="text-gray-300 leading-relaxed">
+                Samla och dela erfarenheter med korrekt ROI, kostnad och effektdata. Undvik att uppfinna hjulet – bygg på det som fungerar.
               </p>
             </div>
-            <div className="bg-[#224556] p-6 rounded-lg">
-              <h3 className="text-xl font-semibold text-[#fecb00] mb-4">Accelerera Implementation</h3>
-              <p className="text-gray-300">
-                Minska tid till värde genom att bygga vidare på beprövade lösningar. 
-                Få inspiration från liknande projekt och undvik vanliga fallgropar.
+            <div>
+              <h3 className="text-xl font-semibold text-[#fffefa] mb-2">Accelerera implementation</h3>
+              <p className="text-gray-300 leading-relaxed">
+                Minska tid till värde med data-drivna beslut. Använd beprövade lösningar, tydliga effekter och uppföljning.
               </p>
             </div>
           </div>
         </section>
 
-        {/* How to Use Section */}
-        <section className="mb-16">
-          <h2 className="text-3xl font-bold text-[#fecb00] mb-6">Så Använder Du Plattformen</h2>
-          
-          <div className="space-y-8">
-            <div className="bg-[#224556] p-6 rounded-lg">
-              <h3 className="text-xl font-semibold text-[#fecb00] mb-4">1. Utforska Projekt</h3>
-              <p className="text-gray-300 mb-4">
-                Börja med att utforska befintliga projekt för att få inspiration och förstå vad som redan har implementerats.
-              </p>
-              <div className="grid md:grid-cols-3 gap-4 text-sm">
-                <div className="bg-[#1a2a3d] p-4 rounded">
-                  <h4 className="font-semibold text-[#fecb00] mb-2">Projektportalen</h4>
-                  <p className="text-gray-400">Bläddra bland alla projekt med avancerade filter för fas, område och ROI</p>
-                </div>
-                <div className="bg-[#1a2a3d] p-4 rounded">
-                  <h4 className="font-semibold text-[#fecb00] mb-2">Kartan</h4>
-                  <p className="text-gray-400">Se projekt geografiskt och hitta vad som händer i närliggande kommuner</p>
-                </div>
-                <div className="bg-[#1a2a3d] p-4 rounded">
-                  <h4 className="font-semibold text-[#fecb00] mb-2">Analys</h4>
-                  <p className="text-gray-400">Förstå trender och insikter från hela databasen</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="bg-[#224556] p-6 rounded-lg">
-              <h3 className="text-xl font-semibold text-[#fecb00] mb-4">2. Hitta Liknande Projekt</h3>
-              <p className="text-gray-300 mb-4">
-                Använd sökfunktionen för att hitta projekt som liknar dina behov. Filtrera på:
-              </p>
-              <ul className="text-gray-300 space-y-2 ml-4">
-                <li>• <strong>Område:</strong> Samma verksamhetsområde som ditt projekt</li>
-                <li>• <strong>Fas:</strong> Idé, pilot eller implementerat</li>
-                <li>• <strong>ROI:</strong> Projekt med positiv avkastning</li>
-                <li>• <strong>Teknologi:</strong> Specifika AI-tekniker eller plattformar</li>
-                <li>• <strong>Kommunstorlek:</strong> Liknande befolkningsstorlek</li>
+        {/* Challenges and success factors */}
+        <section className="mb-20">
+          <div className="grid md:grid-cols-3 gap-10">
+            <div>
+              <h3 className="text-xl font-semibold text-[#fecb00] mb-3">Utmaningar</h3>
+              <ul className="text-gray-300 space-y-2 text-sm">
+                <li>• Spridda dataformat och varierande kvalitet</li>
+                <li>• ROI-uppskattningar utan gemensam metod</li>
+                <li>• Svårt att återanvända lärdomar mellan organisationer</li>
               </ul>
             </div>
-
-            <div className="bg-[#224556] p-6 rounded-lg">
-              <h3 className="text-xl font-semibold text-[#fecb00] mb-4">3. Analysera ROI och Effekter</h3>
-              <p className="text-gray-300 mb-4">
-                Varje projekt innehåller detaljerad information om kostnader, effekter och ROI. Använd denna data för att:
-              </p>
-              <div className="grid md:grid-cols-2 gap-4">
-                <div className="bg-[#1a2a3d] p-4 rounded">
-                  <h4 className="font-semibold text-[#fecb00] mb-2">Kostnadsanalys</h4>
-                  <ul className="text-gray-400 text-sm space-y-1">
-                    <li>• Detaljerad kostnadsfördelning</li>
-                    <li>• Timkostnader och resurser</li>
-                    <li>• Budget vs faktisk kostnad</li>
-                  </ul>
-                </div>
-                <div className="bg-[#1a2a3d] p-4 rounded">
-                  <h4 className="font-semibold text-[#fecb00] mb-2">Effektmätning</h4>
-                  <ul className="text-gray-400 text-sm space-y-1">
-                    <li>• Kvantifierbara besparingar</li>
-                    <li>• Kvalitativa förbättringar</li>
-                    <li>• ROI-beräkningar</li>
-                  </ul>
-                </div>
-              </div>
+            <div>
+              <h3 className="text-xl font-semibold text-[#fecb00] mb-3">Framgångsfaktorer</h3>
+              <ul className="text-gray-300 space-y-2 text-sm">
+                <li>• Enhetlig ROI-logik och sammanhållen data</li>
+                <li>• Transparens: kostnader, effekter och antaganden</li>
+                <li>• Delningspoäng som uppmuntrar komplett dokumentation</li>
+              </ul>
             </div>
-
-            <div className="bg-[#224556] p-6 rounded-lg">
-              <h3 className="text-xl font-semibold text-[#fecb00] mb-4">4. Dela Ditt Projekt</h3>
-              <p className="text-gray-300 mb-4">
-                Bidra till kollektiv kunskap genom att dela dina egna AI-projekt. Detta hjälper andra kommuner och bygger upp plattformen.
-              </p>
-              <div className="bg-[#1a2a3d] p-4 rounded">
-                <h4 className="font-semibold text-[#fecb00] mb-2">Vad Du Kan Dela</h4>
-                <ul className="text-gray-400 text-sm space-y-1">
-                  <li>• Projektbeskrivning och mål</li>
-                  <li>• Kostnadsdata och budget</li>
-                  <li>• Effektmätningar och ROI</li>
-                  <li>• Teknisk implementation</li>
-                  <li>• Lärdomar och utmaningar</li>
-                  <li>• Juridisk och organisatorisk information</li>
-                </ul>
-              </div>
+            <div>
+              <h3 className="text-xl font-semibold text-[#fecb00] mb-3">Effekter av delning</h3>
+              <ul className="text-gray-300 space-y-2 text-sm">
+                <li>• Kortare tid till värde och bättre beslut</li>
+                <li>• Högre kvalitet och minskad risk</li>
+                <li>• Skalbarhet – fler kan bygga vidare på det som fungerar</li>
+              </ul>
             </div>
           </div>
         </section>
 
-        {/* Value Proposition */}
-        <section className="mb-16">
-          <h2 className="text-3xl font-bold text-[#fecb00] mb-6">Värde för Kommuner</h2>
-          <div className="grid md:grid-cols-3 gap-6">
-            <div className="bg-[#224556] p-6 rounded-lg text-center">
-              <div className="text-4xl mb-4">💰</div>
-              <h3 className="text-xl font-semibold text-[#fecb00] mb-3">Kostnadsbesparingar</h3>
-              <p className="text-gray-300">
-                Lär av andras erfarenheter och undvik dyra misstag. Se konkreta ROI-exempel från liknande projekt.
-              </p>
+        {/* (Den äldre, boxiga sektionen är borttagen – se flödande sektionen längre ner) */}
+
+        {/* Value for organisations – flowing text, no boxes */}
+        <section className="mb-24">
+          <h2 className="text-3xl font-bold text-[#fecb00] mb-4">Värde för organisationer</h2>
+          <div className="grid md:grid-cols-3 gap-10">
+            <div>
+              <h3 className="text-xl font-semibold text-[#fffefa] mb-2">💰 Kostnadsbesparingar</h3>
+              <p className="text-gray-300 leading-relaxed">Lär av andras erfarenheter och undvik dyra misstag. Se konkreta ROI-exempel från liknande projekt.</p>
             </div>
-            <div className="bg-[#224556] p-6 rounded-lg text-center">
-              <div className="text-4xl mb-4">⏱️</div>
-              <h3 className="text-xl font-semibold text-[#fecb00] mb-3">Tidsbesparingar</h3>
-              <p className="text-gray-300">
-                Minska implementationstid genom att bygga vidare på beprövade lösningar och processer.
-              </p>
+            <div>
+              <h3 className="text-xl font-semibold text-[#fffefa] mb-2">⏱️ Tidsbesparingar</h3>
+              <p className="text-gray-300 leading-relaxed">Minska implementationstid genom att bygga vidare på beprövade lösningar och processer.</p>
             </div>
-            <div className="bg-[#224556] p-6 rounded-lg text-center">
-              <div className="text-4xl mb-4">🤝</div>
-              <h3 className="text-xl font-semibold text-[#fecb00] mb-3">Samarbete</h3>
-              <p className="text-gray-300">
-                Skapa nätverk med andra kommuner som arbetar med liknande utmaningar och lösningar.
-              </p>
+            <div>
+              <h3 className="text-xl font-semibold text-[#fffefa] mb-2">🤝 Samarbete</h3>
+              <p className="text-gray-300 leading-relaxed">Skapa nätverk med andra organisationer som arbetar med liknande utmaningar och lösningar.</p>
             </div>
           </div>
         </section>
 
-        {/* Success Metrics */}
-        <section className="mb-16">
-          <h2 className="text-3xl font-bold text-[#fecb00] mb-6">Framgångsmått</h2>
-          <div className="bg-[#224556] p-8 rounded-lg">
-            <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 text-center">
-              <div>
-                <div className="text-3xl font-bold text-[#fecb00] mb-2">100+</div>
-                <div className="text-gray-400">Projekt delade</div>
-              </div>
-              <div>
-                <div className="text-3xl font-bold text-[#fecb00] mb-2">50+</div>
-                <div className="text-gray-400">Kommuner representerade</div>
-              </div>
-              <div>
-                <div className="text-3xl font-bold text-[#fecb00] mb-2">85%</div>
-                <div className="text-gray-400">Genomsnittlig ROI</div>
-              </div>
-              <div>
-                <div className="text-3xl font-bold text-[#fecb00] mb-2">12</div>
-                <div className="text-gray-400">Verksamhetsområden</div>
-              </div>
+        {/* Success Metrics grounded in live data */}
+        <section className="mb-24">
+          <h2 className="text-3xl font-bold text-[#fecb00] mb-4">Framgångsmått</h2>
+          <SuccessMetrics />
+        </section>
+
+        {/* Flödande sektion: Så använder du Projektportalen */}
+        <section className="mb-24">
+          <h2 className="text-3xl font-bold text-[#fecb00] mb-6">Så använder du Projektportalen</h2>
+          <div className="grid md:grid-cols-3 gap-10">
+            <div>
+              <h3 className="text-xl font-semibold text-[#fffefa] mb-2">1. Utforska projekt</h3>
+              <p className="text-gray-300 text-sm leading-relaxed">Få en bild av vad som redan är gjort. Filtrera på fas, område, teknik och ROI.</p>
+            </div>
+            <div>
+              <h3 className="text-xl font-semibold text-[#fffefa] mb-2">2. Analysera effekter</h3>
+              <p className="text-gray-300 text-sm leading-relaxed">Se investeringsnivåer, monetära effekter och återbetalningstid. Jämför värdedimensioner.</p>
+            </div>
+            <div>
+              <h3 className="text-xl font-semibold text-[#fffefa] mb-2">3. Dela lärdomar</h3>
+              <p className="text-gray-300 text-sm leading-relaxed">Dokumentera kostnader, effekter och antaganden. Hjälp fler nå värde snabbare.</p>
             </div>
           </div>
         </section>

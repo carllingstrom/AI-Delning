@@ -115,7 +115,8 @@ export async function GET(
         roi: null, // Will be calculated below
         totalMonetaryValue: null, // Will be calculated below
         affectedGroups: project.effects_data?.affectedGroups || [],
-        technologies: project.technical_data?.aiMethodology || []
+        technologies: project.technical_data?.aiMethodology || [],
+        sharingScore: null as number | null // Will be calculated below
       }
     };
 
@@ -124,66 +125,83 @@ export async function GET(
       try {
         const { calculateROI } = require('@/lib/roiCalculator');
         
-        const effectEntries = project.effects_data.effectDetails || [];
+        const effectEntriesRaw = project.effects_data.effectDetails || [];
+        // Normalize booleans for safety
+        const effectEntries = effectEntriesRaw.map((e: any) => ({
+          ...e,
+          hasQualitative: e.hasQualitative === true || e.hasQualitative === 'true',
+          hasQuantitative: e.hasQuantitative === true || e.hasQuantitative === 'true',
+        }));
         const costEntries = project.cost_data?.actualCostDetails?.costEntries || [];
         
+        // Determine total investment: prefer explicit cost entries, otherwise budget fallback
+        let totalInvestment = 0;
+        if (Array.isArray(costEntries) && costEntries.length > 0) {
+          totalInvestment = costEntries.reduce((total: number, entry: any) => {
+            if (!entry) return total;
+            let entryTotal = 0;
+            switch (entry.costUnit) {
+              case 'hours': {
+                const hours = Number(entry.hoursDetails?.hours) || 0;
+                const rate = Number(entry.hoursDetails?.hourlyRate) || 0;
+                entryTotal = hours * rate;
+                break;
+              }
+              case 'fixed': {
+                entryTotal = Number(entry.fixedDetails?.fixedAmount) || 0;
+                break;
+              }
+              case 'monthly': {
+                const monthlyAmount = Number(entry.monthlyDetails?.monthlyAmount) || 0;
+                const monthlyDuration = Number(entry.monthlyDetails?.monthlyDuration) || 1;
+                entryTotal = monthlyAmount * monthlyDuration;
+                break;
+              }
+              case 'yearly': {
+                const yearlyAmount = Number(entry.yearlyDetails?.yearlyAmount) || 0;
+                const yearlyDuration = Number(entry.yearlyDetails?.yearlyDuration) || 1;
+                entryTotal = yearlyAmount * yearlyDuration;
+                break;
+              }
+              default: {
+                entryTotal = 0;
+              }
+            }
+            return total + entryTotal;
+          }, 0);
+        } else {
+          // Budget fallback (especially for idea phase)
+          const budgetAmount = project.cost_data?.budgetDetails?.budgetAmount;
+          if (budgetAmount !== undefined && budgetAmount !== null && budgetAmount !== '') {
+            const n = typeof budgetAmount === 'string' ? parseFloat(budgetAmount) : Number(budgetAmount);
+            totalInvestment = isNaN(n) ? 0 : n;
+          }
+        }
+        
+        // Only compute ROI if we have any effects
         if (effectEntries.length > 0) {
-          // Check if project actually has measurable effects
-          const hasActualEffects = effectEntries.some((effect: any) => {
-            const hasQuantitative = (effect.hasQuantitative === true || effect.hasQuantitative === 'true') && 
-                                  effect.quantitativeDetails && 
-                                  (effect.quantitativeDetails.financialDetails || effect.quantitativeDetails.redistributionDetails);
-            
-            const hasQualitative = (effect.hasQualitative === true || effect.hasQualitative === 'true') && 
-                                 effect.qualitativeDetails && 
-                                 effect.qualitativeDetails.factor;
-            
-            return hasQuantitative || hasQualitative;
+          const roiMetrics = calculateROI({ 
+            effectEntries, 
+            totalProjectInvestment: totalInvestment 
           });
           
-          if (hasActualEffects) {
-            // Calculate total investment from cost entries ONLY
-            const totalInvestment = costEntries.reduce((total: number, entry: any) => {
-              if (!entry) return total;
-              
-              let entryTotal = 0;
-              
-              switch (entry.costUnit) {
-                case 'hours':
-                  const hours = Number(entry.hoursDetails?.hours) || 0;
-                  const rate = Number(entry.hoursDetails?.hourlyRate) || 0;
-                  entryTotal = hours * rate;
-                  break;
-                case 'fixed':
-                  entryTotal = Number(entry.fixedDetails?.fixedAmount) || 0;
-                  break;
-                case 'monthly':
-                  const monthlyAmount = Number(entry.monthlyDetails?.monthlyAmount) || 0;
-                  const monthlyDuration = Number(entry.monthlyDetails?.monthlyDuration) || 1;
-                  entryTotal = monthlyAmount * monthlyDuration;
-                  break;
-                case 'yearly':
-                  const yearlyAmount = Number(entry.yearlyDetails?.yearlyAmount) || 0;
-                  const yearlyDuration = Number(entry.yearlyDetails?.yearlyDuration) || 1;
-                  entryTotal = yearlyAmount * yearlyDuration;
-                  break;
-                default:
-                  entryTotal = 0;
-              }
-              
-              return total + entryTotal;
-            }, 0);
-            
-            const roiMetrics = calculateROI({ 
-              effectEntries, 
-              totalProjectInvestment: totalInvestment 
-            });
-            
-
-            
-            projectData.calculatedMetrics.roi = roiMetrics.economicROI;
-            projectData.calculatedMetrics.totalMonetaryValue = roiMetrics.totalMonetaryValue;
+          // Set calculated metrics
+          projectData.calculatedMetrics.roi = roiMetrics.economicROI;
+          projectData.calculatedMetrics.totalMonetaryValue = roiMetrics.totalMonetaryValue;
+          // Also set actualCost if missing but we used budget fallback
+          if (!projectData.calculatedMetrics.actualCost && totalInvestment > 0) {
+            projectData.calculatedMetrics.actualCost = totalInvestment;
           }
+        }
+        
+        // Calculate sharing score
+        try {
+          const { calculateProjectScore } = await import('@/lib/projectScore');
+          const projectScore = calculateProjectScore(project);
+          projectData.calculatedMetrics.sharingScore = projectScore.percentage;
+        } catch (err) {
+          console.error('Error calculating sharing score for project:', project.id, err);
+          projectData.calculatedMetrics.sharingScore = 0;
         }
       } catch (err) {
         console.error('Error calculating ROI for project:', project.id, err);

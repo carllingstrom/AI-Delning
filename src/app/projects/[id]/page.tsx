@@ -5,11 +5,11 @@ import { useParams, useRouter } from 'next/navigation';
 import Header from '@/components/Header';
 import ProjectScoreBar from '@/components/ProjectScoreBar';
 import { calculateProjectScore } from '@/lib/projectScore';
-import AIOnePagerPDF from '@/components/AIOnePagerPDF';
 import ROIInfoModal from '@/components/projectForm/ROIInfoModal';
 
 import CollapsibleSection from '@/components/CollapsibleSection';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, formatPercentage } from '@/lib/utils';
+import { computeROIMetrics } from '@/services/roi/roi.service';
 
 interface Project {
   id: string;
@@ -490,8 +490,12 @@ export default function ProjectDetailPage() {
       });
       
       if (totalCost > 0 && effectEntries.length > 0) {
-        const roiMetrics = calculateROI({ effectEntries, totalProjectInvestment: totalCost });
-        parts.push(`Ekonomisk analys:\n• Total investering: ${formatCurrency(totalCost)}\n• Förväntad ROI: ${roiMetrics.economicROI.toFixed(1)}%\n• Återbetalningstid: ${roiMetrics.paybackPeriod.toFixed(1)} år`);
+        const roi = computeROIMetrics({
+          effectEntries,
+          costEntries: project.cost_data?.actualCostDetails?.costEntries || [],
+          budgetAmount: project.cost_data?.budgetDetails?.budgetAmount || null,
+        });
+        parts.push(`Ekonomisk analys:\n• Total investering: ${formatCurrency(roi.totalInvestment)}\n• Förväntad ROI: ${roi.economicROI.toFixed(1)}%\n• Återbetalningstid: ${roi.paybackPeriod.toFixed(1)} år`);
       }
     } catch (error) {
       // Handle ROI calculation error silently
@@ -1035,16 +1039,19 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
                   });
 
                   if (totalCost > 0 && effectEntries.length > 0 && hasActualEffects) {
-                    const roiMetrics = calculateROI({ effectEntries, totalProjectInvestment: totalCost });
-                    
+                    const roi = computeROIMetrics({
+                      effectEntries,
+                      costEntries: projectCostData?.actualCostDetails?.costEntries || [],
+                      budgetAmount: projectCostData?.budgetDetails?.budgetAmount || null,
+                    });
                     return (
                       <div className="border-l-4 border-gray-600 pl-4">
                         <div className="text-[#fffefa] font-medium">Investeringsanalys</div>
                         <div className="text-gray-300">
-                          Investeringen på <span className="text-[#fffefa] font-semibold">{formatCurrency(totalCost)}</span> förväntas 
-                          betala tillbaka sig på <span className="text-[#fffefa] font-semibold">{roiMetrics.paybackPeriod.toFixed(1)} år</span> med 
-                          en total ROI på <span className={`font-semibold ${roiMetrics.economicROI > 0 ? 'text-green-400' : 'text-red-400'}`}>
-                            {roiMetrics.economicROI.toFixed(1)}%
+                          Investeringen på <span className="text-[#fffefa] font-semibold">{formatCurrency(roi.totalInvestment)}</span> förväntas 
+                          betala tillbaka sig på <span className="text-[#fffefa] font-semibold">{roi.paybackPeriod.toFixed(1)} år</span> med 
+                          en total ROI på <span className={`font-semibold ${roi.economicROI > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                            {roi.economicROI.toFixed(1)}%
                           </span>.
                         </div>
                       </div>
@@ -2042,7 +2049,7 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
                 <div className="text-[#fffefa] font-medium">Upphandlingsanalys</div>
                 <div className="text-gray-300">
                   <span className={`font-semibold ${getProcurementInsight().color}`}>{getProcurementInsight().status}</span> upphandling - {getProcurementInsight().insight}.
-                  {legalData.reusable_contract === 'Ja' && ' Avropsmöjlighet för andra kommuner skapar skalfördelar.'}
+                  {legalData.reusable_contract === 'Ja' && ' Avropsmöjlighet för andra organisationer skapar skalfördelar.'}
                   {legalData.supplier_contract_clauses && ' Särskilda avtalsvillkor dokumenterade för AI/transparens.'}
                 </div>
               </div>
@@ -2596,6 +2603,12 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
   }
 
   const score = calculateProjectScore(project);
+  // Compute ROI metrics directly from project data (effects + costs, with budget fallback)
+  const roiMetrics = computeROIMetrics({
+    effectEntries: project.effects_data?.effectDetails || [],
+    costEntries: project.cost_data?.actualCostDetails?.costEntries || [],
+    budgetAmount: project.cost_data?.budgetDetails?.budgetAmount || null,
+  });
 
   return (
     <div className="min-h-screen bg-[#121f2b] text-[#fffefa]">
@@ -2624,78 +2637,6 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
               <span className={`px-3 py-1 rounded-full text-sm font-medium text-[#fffefa] ${getPhaseColor(project.phase)}`}>
                 {getPhaseLabel(project.phase)}
               </span>
-            </div>
-            
-            <div className="relative" ref={exportMenuRef}>
-              <button
-                onClick={() => setShowExportMenu(!showExportMenu)}
-                className="flex items-center gap-2 px-3 py-2 text-gray-400 hover:text-[#fffefa] border border-gray-600 hover:border-gray-400 rounded-lg text-sm transition-colors"
-                title="Exportera projekt"
-              >
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                Exportera
-                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-              </button>
-              
-              {showExportMenu && (
-                <div className="absolute right-0 mt-2 w-72 bg-[#1a2332] border border-gray-600 rounded-lg shadow-lg z-50">
-                  <div className="p-2">
-                    <div className="text-xs text-gray-400 mb-3 px-2">Välj exportformat</div>
-                    
-                    <button
-                      onClick={() => {
-                        exportToMyAI();
-                        setShowExportMenu(false);
-                      }}
-                      className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:text-[#fffefa] hover:bg-[#2a3441] rounded-md transition-colors flex items-center gap-3"
-                    >
-                      <div className="w-8 h-8 bg-[#fecb00] rounded-lg flex items-center justify-center text-[#121f2b] text-xs font-bold">
-                        AI
-                      </div>
-                      <div>
-                        <div className="font-medium">myAI Export</div>
-                        <div className="text-xs text-gray-500">Enkel PDF-utskrift för myAI</div>
-                      </div>
-                    </button>
-                    
-                    <AIOnePagerPDF project={project}>
-                      {({ loading, generatePDF }) => (
-                        <button
-                          onClick={() => {
-                            generatePDF();
-                            setShowExportMenu(false);
-                          }}
-                          disabled={loading}
-                          className="w-full text-left px-3 py-2 text-sm text-gray-300 hover:text-[#fffefa] hover:bg-[#2a3441] rounded-md transition-colors flex items-center gap-3 disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-[#fffefa] text-xs font-bold">
-                            {loading ? (
-                              <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
-                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
-                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
-                              </svg>
-                            ) : (
-                              'PDF'
-                            )}
-                          </div>
-                          <div>
-                            <div className="font-medium">AI-PDF OnePager</div>
-                            <div className="text-xs text-gray-500">AI-genererad professionell PDF</div>
-                          </div>
-                        </button>
-                      )}
-                    </AIOnePagerPDF>
-                    
-
-                    
-
-                  </div>
-                </div>
-              )}
             </div>
           </div>
 
@@ -2737,7 +2678,7 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
               />
             </div>
             
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-8 text-center">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-8 text-center">
               <div>
                 <div className="text-2xl font-bold mb-1" style={{
                   color: (() => {
@@ -2752,18 +2693,21 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
 
               <div>
                 <div className="text-2xl font-bold text-[#fecb00] mb-1">
-                  {project.calculatedMetrics?.roi !== undefined && project.calculatedMetrics?.roi !== null
-                    ? `${project.calculatedMetrics.roi.toFixed(1)}%`
-                    : '—'}
+                  {roiMetrics ? `${roiMetrics.economicROI.toFixed(1)}%` : '—'}
                 </div>
                 <div className="text-gray-400 text-sm">Total ROI</div>
               </div>
 
               <div>
                 <div className="text-2xl font-bold text-[#fecb00] mb-1">
-                  {project.calculatedMetrics?.totalMonetaryValue !== undefined && project.calculatedMetrics?.totalMonetaryValue !== null
-                    ? formatCurrency(project.calculatedMetrics.totalMonetaryValue)
-                    : '—'}
+                  {roiMetrics ? `${roiMetrics.paybackPeriod.toFixed(1)} år` : '—'}
+                </div>
+                <div className="text-gray-400 text-sm">Återbetalningstid</div>
+              </div>
+
+              <div>
+                <div className="text-2xl font-bold text-[#fecb00] mb-1">
+                  {formatCurrency(roiMetrics.totalMonetaryValue || 0)}
                 </div>
                 <div className="text-gray-400 text-sm">Total nytta</div>
               </div>
@@ -2787,7 +2731,7 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
                     const hasLocation = isCountyProject ? countyCodes.length > 0 : municipalityCount > 0;
                     
                     if (!hasLocation) return 'Ingen plats';
-                    return isCountyProject ? 'Län' : 'Kommuner';
+                    return isCountyProject ? 'Län' : 'Organisationer';
                   })()}
                 </div>
               </div>
@@ -2843,7 +2787,7 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
                       <h4 className="font-semibold text-[#fecb00] mb-3">
                         {isCountyProject 
                           ? `Län (${countyCodes.length})`
-                          : `Kommuner (${project.project_municipalities?.length || 0})`
+                          : `Organisationer (${project.project_municipalities?.length || 0})`
                         }
                       </h4>
                       <div className="space-y-2">
@@ -2919,40 +2863,38 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
           </div>
         </div>
 
-        {/* Content Sections */}
-        <div className="space-y-6">
+
           
-          {/* Cost Analysis Section */}
-          <CollapsibleSection title="Kostnadsanalys" defaultOpen={true}>
-            {renderCostData(project.cost_data)}
-          </CollapsibleSection>
-
-          {/* Effects Analysis Section */}
-          <CollapsibleSection title="Effektanalys" defaultOpen={false}>
-            {renderEffectsData(project!.effects_data, project!.cost_data)}
-          </CollapsibleSection>
-
-
-
-          {/* Technical Information Section */}
-          <CollapsibleSection title="Teknisk information" defaultOpen={false}>
-            {renderTechnicalData(project.technical_data)}
-          </CollapsibleSection>
-
-          {/* Leadership Section */}
-          {project.leadership_data && Object.keys(project.leadership_data).length > 0 && (
-            <CollapsibleSection title="Organisation & Ledarskap" defaultOpen={false}>
-              {renderLeadershipData(project.leadership_data)}
+          <div className="space-y-6">
+            {/* Cost Analysis Section */}
+            <CollapsibleSection title="Kostnadsanalys" defaultOpen={true}>
+              {renderCostData(project.cost_data)}
             </CollapsibleSection>
-          )}
 
-          {/* Legal & Compliance Section */}
-          {project.legal_data && Object.keys(project.legal_data).length > 0 && (
-            <CollapsibleSection title="Juridisk & Etisk analys" defaultOpen={false}>
-              {renderLegalData(project.legal_data)}
+            {/* Effects Analysis Section */}
+            <CollapsibleSection title="Effektanalys" defaultOpen={true}>
+              {renderEffectsData(project!.effects_data, project!.cost_data)}
             </CollapsibleSection>
-          )}
-        </div>
+
+            {/* Technical Information Section */}
+            <CollapsibleSection title="Teknisk information" defaultOpen={false}>
+              {renderTechnicalData(project.technical_data)}
+            </CollapsibleSection>
+
+            {/* Leadership Section */}
+            {project.leadership_data && Object.keys(project.leadership_data).length > 0 && (
+              <CollapsibleSection title="Organisation & Ledarskap" defaultOpen={false}>
+                {renderLeadershipData(project.leadership_data)}
+              </CollapsibleSection>
+            )}
+
+            {/* Legal & Compliance Section */}
+            {project.legal_data && Object.keys(project.legal_data).length > 0 && (
+              <CollapsibleSection title="Juridisk & Etisk analys" defaultOpen={false}>
+                {renderLegalData(project.legal_data)}
+              </CollapsibleSection>
+            )}
+          </div>
 
         {/* Additional Actions */}
         <div className="mt-12 flex justify-center space-x-4">

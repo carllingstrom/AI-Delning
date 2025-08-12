@@ -20,30 +20,34 @@ export interface ProjectScore {
 export function calculateProjectScore(project: any): ProjectScore {
   let totalScore = 0;
   const breakdown = {
-    basic: { score: 0, max: 15, label: 'Grundinfo' },
-    financial: { score: 0, max: 25, label: 'Budget & Kostnad' },
-    effects: { score: 0, max: 35, label: 'Effekter & ROI' },
-    technical: { score: 0, max: 15, label: 'Teknik & Data' },
+    basic: { score: 0, max: 12, label: 'Grundinfo' },
+    financial: { score: 0, max: 20, label: 'Budget & Kostnad' },
+    effects: { score: 0, max: 30, label: 'Effekter & ROI' },
+    technical: { score: 0, max: 12, label: 'Teknik & Data' },
     governance: { score: 0, max: 10, label: 'Organisation & Juridik' },
-    bonus: { score: 0, max: 0, label: 'Bonuspoäng' }
+    bonus: { score: 0, max: 18, label: 'Bonuspoäng' }
   };
   
   const missingHighValue: string[] = [];
 
-  // === BASIC INFORMATION (15 points max) ===
+  // === BASIC INFORMATION (12 points max) ===
   if (project.title?.trim()) breakdown.basic.score += 2;
   if (project.intro?.trim()) breakdown.basic.score += 2;
   if (project.problem?.trim()) breakdown.basic.score += 2;
   if (project.opportunity?.trim()) breakdown.basic.score += 2;
   if (project.responsible?.trim()) breakdown.basic.score += 2;
-  if (project.areas?.length > 0) breakdown.basic.score += 3;
+  if (project.areas?.length > 0) breakdown.basic.score += 1;
   if (project.value_dimensions?.length > 0) breakdown.basic.score += 1;
-  if (project.municipality_ids?.length > 0) breakdown.basic.score += 1;
+  // Bonus for having municipality/county info
+  if (project.municipality_ids?.length > 0 || project.county_codes?.length > 0) breakdown.basic.score += 1;
+  
+  // Extra bonus for very complete basic info
+  if (breakdown.basic.score >= 10) breakdown.basic.score += 3;
 
-  // === FINANCIAL DATA (25 points max) ===
+  // === FINANCIAL DATA (20 points max) ===
   const costData = project.cost_data || {};
   
-  // Budget planning (8 points) - REQUIRED for any meaningful score
+  // Budget planning (6 points) - REQUIRED for any meaningful score
   if (costData.hasDedicatedBudget !== undefined) {
     breakdown.financial.score += 3;
     if (costData.budgetDetails?.budgetAmount) {
@@ -53,12 +57,15 @@ export function calculateProjectScore(project: any): ProjectScore {
     missingHighValue.push('Budget information');
   }
   
-  // Actual cost entries (17 points - ESSENTIAL)
+  // Actual cost entries (14 points - ESSENTIAL)
   const costEntries = costData.actualCostDetails?.costEntries || [];
   if (costEntries.length > 0) {
     breakdown.financial.score += 7; // Base points for having cost entries
     
-    // Detailed cost entries required for full points
+    // Give points for ANY cost entries, not just detailed ones
+    breakdown.financial.score += Math.min(8, costEntries.length * 2);
+    
+    // Extra points for detailed entries
     const detailedEntries = costEntries.filter((entry: any) => {
       if (entry?.costUnit === 'hours' && entry?.hoursDetails?.hours && entry?.hoursDetails?.hourlyRate) return true;
       if (entry?.costUnit === 'fixed' && entry?.fixedDetails?.fixedAmount) return true;
@@ -67,12 +74,12 @@ export function calculateProjectScore(project: any): ProjectScore {
       return false;
     });
     
-    breakdown.financial.score += Math.min(10, detailedEntries.length * 5);
+    breakdown.financial.score += Math.min(5, detailedEntries.length * 2);
   } else {
     missingHighValue.push('Detailed cost breakdown');
   }
 
-  // === EFFECTS & ROI (35 points max - CRITICAL SECTION) ===
+  // === EFFECTS & ROI (30 points max - CRITICAL SECTION) ===
   const effectsData = project.effects_data || {};
   const effectEntries = effectsData.effectDetails || [];
   
@@ -149,44 +156,59 @@ export function calculateProjectScore(project: any): ProjectScore {
     });
     
     // Calculate controlled point allocation
-    quantitativePoints = Math.min(12, completeQuantitativeEffects * 6); // Max 12 points
-    qualitativePoints = Math.min(8, completeQualitativeEffects * 4); // Max 8 points  
-    monetaryPoints = Math.min(5, detailedMonetaryEffects * 2); // Max 5 points
+    quantitativePoints = Math.min(8, completeQuantitativeEffects * 4); // Max 8 points
+    qualitativePoints = Math.min(6, completeQualitativeEffects * 3); // Max 6 points  
+    monetaryPoints = Math.min(4, detailedMonetaryEffects * 2);
+    
+
     
     if (hasCompleteEffect) {
-      // Base points for having effects (8 points)
-      breakdown.effects.score += 8;
+      // Base points for having effects (16 points)
+      breakdown.effects.score += 16;
       
-      // Points for quantitative analysis (max 12)
-      breakdown.effects.score += Math.min(12, quantitativePoints);
+      // Points for quantitative analysis (max 8)
+      breakdown.effects.score += Math.min(8, quantitativePoints);
       
-      // Points for qualitative analysis (max 8) 
-      breakdown.effects.score += Math.min(8, qualitativePoints);
+      // Points for qualitative analysis (max 6) 
+      breakdown.effects.score += Math.min(6, qualitativePoints);
       
-      // Points for monetary estimates (max 5)
-      breakdown.effects.score += Math.min(5, monetaryPoints);
+      // Points for monetary estimates (max 4)
+      breakdown.effects.score += Math.min(4, monetaryPoints);
       
       // Bonus for having both quantitative AND qualitative effects (2 points)
       if (quantitativePoints > 0 && qualitativePoints > 0) {
         breakdown.effects.score += 2;
       }
       
-      // ENSURE WE NEVER EXCEED MAX (35 points total)
-      breakdown.effects.score = Math.min(35, breakdown.effects.score);
+      // ENSURE WE NEVER EXCEED MAX (30 points total)
+      breakdown.effects.score = Math.min(30, breakdown.effects.score);
     } else {
       missingHighValue.push('Complete effect details');
     }
   }
 
-  // === TECHNICAL DATA (15 points max) - REQUIRED FOR HIGH SCORES ===
+  // === TECHNICAL DATA (12 points max) - REQUIRED FOR HIGH SCORES ===
   const techData = project.technical_data || {};
   
   // Core technical information needed
   if (techData.system_name?.trim()) breakdown.technical.score += 3;
-  if (techData.ai_methodology?.trim()) breakdown.technical.score += 4;
-  if (techData.deployment_environment?.trim()) breakdown.technical.score += 3;
-  if (techData.data_types?.length > 0) breakdown.technical.score += 3;
+  if (techData.ai_methodology?.trim()) breakdown.technical.score += 3;
+  if (techData.deployment_environment?.trim()) breakdown.technical.score += 2;
+  if (techData.data_types?.length > 0) breakdown.technical.score += 2;
   if (techData.data_sources?.length > 0) breakdown.technical.score += 2;
+  
+  // Give points for having ANY technical data
+  if (Object.keys(techData).length > 0) {
+    breakdown.technical.score += 1;
+  }
+  
+  // Extra bonus for very complete technical info
+  if (breakdown.technical.score >= 10) breakdown.technical.score += 2;
+  
+  // Bonus for having detailed technical descriptions
+  if (techData.technical_obstacles?.trim() || techData.technical_solutions?.trim()) {
+    breakdown.technical.score += 2;
+  }
   
   // Missing technical data is a high-value missing item
   if (Object.keys(techData).length === 0 || 
@@ -198,42 +220,59 @@ export function calculateProjectScore(project: any): ProjectScore {
   const leadershipData = project.leadership_data || {};
   const legalData = project.legal_data || {};
   
-  // Leadership/organization info (5 points)
+  // Leadership/organization info (4 points)
   if (Object.keys(leadershipData).length > 0) {
     breakdown.governance.score += 5;
   } else {
     missingHighValue.push('Leadership information');
   }
   
-  // Legal compliance info (5 points)  
+  // Legal compliance info (4 points)  
   if (Object.keys(legalData).length > 0) {
     breakdown.governance.score += 5;
   } else {
     missingHighValue.push('Legal compliance information');
   }
 
-  // === BONUS POINTS FOR COMPLETENESS (10 points max) ===
+  // === BONUS POINTS FOR COMPLETENESS (18 points max) ===
   // Add bonus points for projects that are very complete
   let bonusPoints = 0;
   
-  // Bonus for having all basic info filled
-  if (breakdown.basic.score >= breakdown.basic.max * 0.8) bonusPoints += 2;
+  // Bonus for having most basic info filled (easier threshold)
+  if (breakdown.basic.score >= breakdown.basic.max * 0.4) bonusPoints += 4;
   
-  // Bonus for having detailed financial data
-  if (breakdown.financial.score >= breakdown.financial.max * 0.8) bonusPoints += 2;
+  // Bonus for having some financial data (easier threshold)
+  if (breakdown.financial.score >= breakdown.financial.max * 0.3) bonusPoints += 5;
   
-  // Bonus for having comprehensive effects analysis
-  if (breakdown.effects.score >= breakdown.effects.max * 0.8) bonusPoints += 2;
+  // Bonus for having some effects analysis (easier threshold)
+  if (breakdown.effects.score >= breakdown.effects.max * 0.3) bonusPoints += 5;
   
-  // Bonus for having technical details
-  if (breakdown.technical.score >= breakdown.technical.max * 0.8) bonusPoints += 2;
+  // Bonus for having some technical details (easier threshold)
+  if (breakdown.technical.score >= breakdown.technical.max * 0.3) bonusPoints += 4;
   
-  // Bonus for having governance info
-  if (breakdown.governance.score >= breakdown.governance.max * 0.8) bonusPoints += 2;
+  // Bonus for having some governance info (easier threshold)
+  if (breakdown.governance.score >= breakdown.governance.max * 0.3) bonusPoints += 5;
+  
+  // Extra bonus for very complete projects (all categories well filled)
+  if (breakdown.basic.score >= breakdown.basic.max * 0.8 && 
+      breakdown.financial.score >= breakdown.financial.max * 0.7 &&
+      breakdown.effects.score >= breakdown.effects.max * 0.6 &&
+      breakdown.technical.score >= breakdown.technical.max * 0.7 &&
+      breakdown.governance.score >= breakdown.governance.max * 0.7) {
+    bonusPoints += 4;
+  }
+  
+  // Super bonus for projects that have shared everything they can
+  if (breakdown.basic.score >= breakdown.basic.max * 0.9 && 
+      breakdown.financial.score >= breakdown.financial.max * 0.8 &&
+      breakdown.technical.score >= breakdown.technical.max * 0.8 &&
+      breakdown.governance.score >= breakdown.governance.max * 0.8) {
+    bonusPoints += 10;
+  }
   
   // Update bonus category
-  breakdown.bonus.max = 10;
-  breakdown.bonus.score = Math.min(10, bonusPoints);
+  breakdown.bonus.max = 34; // Increased max to accommodate super bonus
+  breakdown.bonus.score = Math.min(34, bonusPoints);
 
   // Ensure all categories are within their max limits
   breakdown.basic.score = Math.min(breakdown.basic.max, breakdown.basic.score);
@@ -247,15 +286,17 @@ export function calculateProjectScore(project: any): ProjectScore {
   totalScore = Object.values(breakdown).reduce((sum, category) => sum + category.score, 0);
   const maxScore = Object.values(breakdown).reduce((sum, category) => sum + category.max, 0);
   
+
+  
   // Ensure percentage never exceeds 100%
   const percentage = Math.min(100, Math.round((totalScore / maxScore) * 100));
 
-  // Determine level with much stricter thresholds
+  // Determine level with adjusted thresholds for better distribution
   let level: ProjectScore['level'];
-  if (percentage >= 95) level = 'Exemplarisk';
-  else if (percentage >= 85) level = 'Komplett';
-  else if (percentage >= 70) level = 'Avancerad';
-  else if (percentage >= 50) level = 'Utvecklad';
+  if (percentage >= 90) level = 'Exemplarisk';
+  else if (percentage >= 75) level = 'Komplett';
+  else if (percentage >= 60) level = 'Avancerad';
+  else if (percentage >= 40) level = 'Utvecklad';
   else level = 'Grundläggande';
 
   return {
@@ -270,7 +311,7 @@ export function calculateProjectScore(project: any): ProjectScore {
 
 export function getScoreColor(percentage: number): string {
   // Red to green gradient for text
-  if (percentage >= 80) return 'text-green-400';
+  if (percentage >= 75) return 'text-green-400';
   if (percentage >= 60) return 'text-yellow-400';
   if (percentage >= 40) return 'text-orange-400';
   return 'text-red-400';
