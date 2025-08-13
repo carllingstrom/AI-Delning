@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState } from 'react';
 
 interface CollapsibleSectionProps {
   title: string;
@@ -14,17 +14,10 @@ const CollapsibleSection: React.FC<CollapsibleSectionProps> = ({
   className = ''
 }) => {
   const [isOpen, setIsOpen] = useState(defaultOpen);
-  const [contentHeight, setContentHeight] = useState(0);
-  const contentRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (contentRef.current) {
-      setContentHeight(contentRef.current.scrollHeight);
-    }
-  }, [children, isOpen]);
+  
 
   return (
-    <div className={`border border-gray-600 rounded-lg overflow-hidden ${className}`}>
+    <div className={`border border-gray-600 rounded-lg ${className}`}>
       <button
         onClick={() => setIsOpen(!isOpen)}
         className="w-full px-6 py-4 bg-gray-800 hover:bg-gray-700 transition-colors flex justify-between items-center"
@@ -40,17 +33,11 @@ const CollapsibleSection: React.FC<CollapsibleSectionProps> = ({
         </svg>
       </button>
       
-      <div 
-        className={`transition-all duration-300 ease-in-out overflow-hidden`}
-        style={{ 
-          maxHeight: isOpen ? `${contentHeight}px` : '0px',
-          opacity: isOpen ? 1 : 0
-        }}
-      >
-        <div ref={contentRef} className="px-6 py-6 bg-gray-900">
+      {isOpen && (
+        <div className="px-6 py-6 bg-gray-900">
           {children}
         </div>
-      </div>
+      )}
     </div>
   );
 };

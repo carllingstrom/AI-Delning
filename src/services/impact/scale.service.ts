@@ -29,12 +29,17 @@ export function computeScaledImpact(project: any, input: ScalingInput) {
   const base = computeROIMetrics({ effectEntries: effects, costEntries: costs, budgetAmount: budget });
   const orgs = Math.max(1, Math.floor(Number(input.orgs || 1)));
   const adoptionRate = Math.max(0, Math.min(1, Number(input.adoptionRatePct || 100) / 100));
-  const adopted = Math.max(0, Math.floor(orgs * adoptionRate));
+  const adopted = adoptionRate <= 0
+    ? 0
+    : Math.min(orgs, Math.max(1, Math.round(orgs * adoptionRate)));
   const s = input.scalabilityCoefficient ?? 1;
 
   // Normalize benefit per org if enabled
   const normalize = input.normalization?.enabled;
-  let benefitPerOrg = base.totalMonetaryValue; // treat base as 1 org for simplicity
+  // Base per-organisation benefit (normalized if enabled). For the first org we
+  // use full base benefit without dampening, and apply diminishing returns only
+  // to additional organisations beyond the first.
+  let benefitPerOrg = base.totalMonetaryValue;
   if (normalize) {
     const baseMetric = Number(input.normalization?.baseMetric || 1);
     const targetMetric = Number(input.normalization?.targetAvgMetric || baseMetric);
@@ -42,9 +47,7 @@ export function computeScaledImpact(project: any, input: ScalingInput) {
     const ratio = baseMetric > 0 ? (targetMetric / baseMetric) : 1;
     benefitPerOrg = benefitPerOrg * Math.pow(ratio, exponent);
   }
-  benefitPerOrg = benefitPerOrg * s; // dampening
-
-  // Total benefit with simple diminishing returns across organisations (optional)
+  // Total benefit with diminishing returns across organisations
   let totalBenefit = 0;
   for (let i = 0; i < adopted; i++) {
     totalBenefit += benefitPerOrg * Math.pow(s, i);
@@ -63,17 +66,21 @@ export function computeScaledImpact(project: any, input: ScalingInput) {
           break;
         }
         case 'percent_geometric': {
-          const pct = Math.max(0, Math.min(1, Number(rep.percentPerOrg || 0))); // e.g. 0.1 = 10% cheaper per org
+          const pct = Math.max(0, Math.min(1, Number(rep.percentPerOrg || 0))); // 0.02 => 2% billigare per ny org
           const floor = Math.max(0, Math.min(1, Number(rep.floorPct || 0)));
-          const thisCost = base.totalInvestment * Math.max(floor, Math.pow(1 - pct, i - 1));
+          // Kräver explicit kostnadsbas; ingen default. Om saknas blir extra=0.
+          const baseUnit = Number((rep as any).baseUnitCost) > 0 ? Number((rep as any).baseUnitCost) : 0;
+          const factor = Math.max(floor, Math.pow(1 - pct, i - 2)); // i=2 startar på 100% av baseUnit
+          const thisCost = baseUnit * factor;
           extra = thisCost;
           break;
         }
         case 'percent_linear': {
           const pct = Math.max(0, Math.min(1, Number(rep.percentPerOrg || 0)));
           const floor = Math.max(0, Math.min(1, Number(rep.floorPct || 0)));
-          const thisPct = Math.max(floor, 1 - pct * (i - 1));
-          extra = base.totalInvestment * thisPct;
+          const baseUnit = Number((rep as any).baseUnitCost) > 0 ? Number((rep as any).baseUnitCost) : 0;
+          const thisPct = Math.max(floor, 1 - pct * (i - 2)); // i=2 startar på 100% av baseUnit
+          extra = baseUnit * thisPct;
           break;
         }
         case 'fixed_discount': {
@@ -89,7 +96,13 @@ export function computeScaledImpact(project: any, input: ScalingInput) {
   }
 
   const economicROI = totalCost > 0 ? ((totalBenefit - totalCost) / totalCost) * 100 : 0;
-  const paybackYears = totalBenefit > 0 ? (totalCost / Math.max(1, base.totalMonetaryValue)) : 0; // rough, refine if annual value known
+  // Derive an annual benefit baseline from base payback definition: payback = cost / annualBenefit
+  const baseAnnualBenefit = base.paybackPeriod > 0 ? (base.totalInvestment / base.paybackPeriod) : 0;
+  // Assume annual benefit scales proportionally with total benefit
+  const scaledAnnualBenefit = base.totalMonetaryValue > 0
+    ? baseAnnualBenefit * (totalBenefit / base.totalMonetaryValue)
+    : baseAnnualBenefit;
+  const paybackYears = scaledAnnualBenefit > 0 ? (totalCost / scaledAnnualBenefit) : 0;
 
   return {
     base,
@@ -100,7 +113,15 @@ export function computeScaledImpact(project: any, input: ScalingInput) {
       economicROI,
       paybackYears,
       benefitPerOrg
-    }
+    },
+    breakdown: (() => {
+      const scaleFactor = base.totalMonetaryValue > 0 ? (totalBenefit / base.totalMonetaryValue) : 0;
+      const map: Record<string, { totalValue: number }> = {};
+      Object.entries(base.dimensionBreakdown || {}).forEach(([k, v]: any) => {
+        map[k] = { totalValue: (v.totalValue || 0) * scaleFactor };
+      });
+      return { byValueDimension: map, scaleFactor };
+    })()
   };
 }
 

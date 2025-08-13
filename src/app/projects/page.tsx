@@ -1674,6 +1674,62 @@ export default function ProjectsPage() {
                     'Projekt per värdedimension'
                   )}
                 </div>
+
+                {/* Impact Explorer (Portfolio) */}
+                <div className="p-8 rounded-lg border border-gray-700 shadow">
+                  <h2 className="text-2xl font-bold text-[#fecb00] mb-2">Impact Explorer (portfölj)</h2>
+                  <div className="text-xs text-gray-400 mb-4">Baserad på senaste ROI/nytta/kostnad från projekt som har beräknat sin potential.</div>
+                  {(() => {
+                    // Use latest /api/projects payload so we also have scaled fields from effects_data
+                    const list = (projects || []) as any[];
+                    // Only include projects with explicit scaled impact saved
+                    const eligible = list.map(p => {
+                      const value = Number(p?.calculatedMetrics?.scaledTotalBenefit) || 0;
+                      const cost = Number(p?.calculatedMetrics?.scaledTotalCost) || 0;
+                      const roiSaved = Number(p?.calculatedMetrics?.scaledROI);
+                      const roi = isFinite(roiSaved) && roiSaved !== 0 ? roiSaved : (cost > 0 ? ((value - cost) / cost) * 100 : 0);
+                      return { ...p, _impact: { value, cost, roi } };
+                    }).filter(x => x._impact.value > 0 && x._impact.cost > 0);
+                    if (!eligible.length) {
+                      return <div className="text-gray-400 text-sm">Inga projekt med beräknad potential ännu</div>;
+                    }
+                    const totals = eligible.reduce((acc, p:any) => {
+                      acc.value += p._impact.value;
+                      acc.cost += p._impact.cost;
+                      return acc;
+                    }, { value: 0, cost: 0 });
+                    const roi = totals.cost > 0 ? ((totals.value - totals.cost) / totals.cost) * 100 : 0;
+                    const top = [...eligible].sort((a:any,b:any) => b._impact.value - a._impact.value).slice(0, 10);
+                    const barData: Record<string, number> = {};
+                    top.forEach((p:any) => { barData[p.title] = p._impact.value; });
+                    return (
+                      <>
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+                          <div className="border border-gray-700 p-4 rounded-lg text-center">
+                            <div className="text-xl font-bold text-[#fecb00]">{eligible.length}</div>
+                            <div className="text-gray-400 text-xs">Projekt i portfölj</div>
+                          </div>
+                          <div className="border border-gray-700 p-4 rounded-lg text-center">
+                            <div className="text-xl font-bold text-[#fecb00]">{formatCurrency(totals.value)}</div>
+                            <div className="text-gray-400 text-xs">Total nytta (portfölj)</div>
+                          </div>
+                          <div className="border border-gray-700 p-4 rounded-lg text-center">
+                            <div className="text-xl font-bold text-[#fecb00]">{formatCurrency(totals.cost)}</div>
+                            <div className="text-gray-400 text-xs">Total kostnad (portfölj)</div>
+                          </div>
+                          <div className="border border-gray-700 p-4 rounded-lg text-center">
+                            <div className="text-xl font-bold" style={{color: roi>=0?'#10B981':'#EF4444'}}>{formatPercentage(roi)}</div>
+                            <div className="text-gray-400 text-xs">ROI (portfölj)</div>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                          {createBarChart(barData, 'Topp 10: projekt efter total nytta (SEK)')}
+                          {createBarChart(Object.fromEntries(eligible.map((p:any) => [p.title, p._impact.roi || 0])), 'ROI per projekt (%)', '#34af8f')}
+                        </div>
+                      </>
+                    );
+                  })()}
+                </div>
                 {/* Best-in-class Highlights */}
                 <div className="p-6 rounded-lg border border-gray-700 shadow">
                   <h3 className="text-2xl font-bold text-[#fecb00] mb-6">Bäst i klassen</h3>

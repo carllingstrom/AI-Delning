@@ -378,6 +378,7 @@ export async function GET(req: NextRequest) {
           : [project.technical_data.aiMethodology];
       }
 
+      const scaled = project.effects_data?.scaledImpactLatest?.result?.kpis || null;
       return {
         ...project,
         // Flatten areas array
@@ -390,6 +391,10 @@ export async function GET(req: NextRequest) {
           actualCost,
           roi,
           totalMonetaryValue,
+          // scaled impact (latest saved)
+          scaledTotalBenefit: scaled?.totalBenefit ?? null,
+          scaledTotalCost: scaled?.totalCost ?? null,
+          scaledROI: scaled?.economicROI ?? null,
           affectedGroups,
           technologies
         },
