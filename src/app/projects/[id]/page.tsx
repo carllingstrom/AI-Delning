@@ -6,6 +6,7 @@ import Header from '@/components/Header';
 import ProjectScoreBar from '@/components/ProjectScoreBar';
 import { calculateProjectScore } from '@/lib/projectScore';
 import ROIInfoModal from '@/components/projectForm/ROIInfoModal';
+import dynamic from 'next/dynamic';
 
 import CollapsibleSection from '@/components/CollapsibleSection';
 import { formatCurrency, formatPercentage } from '@/lib/utils';
@@ -2610,6 +2611,8 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
     budgetAmount: project.cost_data?.budgetDetails?.budgetAmount || null,
   });
 
+  const ScaleImpactPanel = dynamic(() => import('./ScaleImpactPanel'), { ssr: false });
+
   return (
     <div className="min-h-screen bg-[#121f2b] text-[#fffefa]">
       <Header />
@@ -2894,6 +2897,11 @@ Exporterat: ${new Date().toLocaleString('sv-SE')}
                 {renderLegalData(project.legal_data)}
               </CollapsibleSection>
             )}
+
+            {/* Aggregated Impact Section */}
+            <CollapsibleSection title="Skalad effektanalys" defaultOpen={false}>
+              <ScaleImpactPanel projectId={project.id} />
+            </CollapsibleSection>
           </div>
 
         {/* Additional Actions */}
