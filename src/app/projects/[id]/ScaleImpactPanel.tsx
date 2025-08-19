@@ -7,13 +7,15 @@ export default function ScaleImpactPanel({ projectId }: { projectId: string }) {
   const [orgs, setOrgs] = useState(3);
   const [adoption, setAdoption] = useState(0.7);
   const [s, setS] = useState(0.9);
-  const [mode, setMode] = useState<'hours'|'percent_linear'|'percent_geometric'|'fixed_discount'>('hours');
+  const [mode, setMode] = useState<'hours_per_org'|'cost_per_org'|'economies_of_scale'|'complexity_increase'>('hours_per_org');
   const [hourlyRate, setHourlyRate] = useState(900);
-  const [baseHours, setBaseHours] = useState(120);
-  const [margHours, setMargHours] = useState(40);
-  const [percentPerOrg, setPercentPerOrg] = useState(0.1);
-  const [floorPct, setFloorPct] = useState(0.2);
-  const [fixedDiscount, setFixedDiscount] = useState(100_000);
+  const [hoursPerOrg, setHoursPerOrg] = useState(160); // Hours to implement for ONE org
+  const [costPerOrg, setCostPerOrg] = useState(150_000); // Direct cost per org
+  const [baseCostPerOrg, setBaseCostPerOrg] = useState(180_000); // Base cost before scale adjustments
+  const [scaleDiscountPct, setScaleDiscountPct] = useState(0.05); // 5% discount per additional org
+  const [complexityIncreasePct, setComplexityIncreasePct] = useState(0.03); // 3% increase per additional org
+  const [minCostPerOrg, setMinCostPerOrg] = useState(75_000); // Floor cost
+  const [driverType, setDriverType] = useState<'population'|'users'|'employees'|'area'|'custom'>('population');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<any>(null);
   const [showInfo, setShowInfo] = useState(false);
@@ -27,6 +29,8 @@ export default function ScaleImpactPanel({ projectId }: { projectId: string }) {
   const [ci, setCi] = useState<{ p10: number; p50: number; p90: number } | null>(null);
   const [tornado, setTornado] = useState<Array<{ name: string; low: number; high: number; impact: number }>>([]);
   const [fieldText, setFieldText] = useState<Record<string, string>>({});
+  const [showScenarios, setShowScenarios] = useState(false);
+  const [scenarios, setScenarios] = useState<any[]>([]);
 
   // helpers for user-friendly numeric input that allows clearing
   const bindNum = (name: string, value: number, setter: (n: number)=>void, opts?: { step?: string; min?: number; max?: number; className?: string }) => {
@@ -91,11 +95,13 @@ export default function ScaleImpactPanel({ projectId }: { projectId: string }) {
         if (typeof saved.s === 'number') setS(saved.s);
         if (saved.mode) setMode(saved.mode);
         if (typeof saved.hourlyRate === 'number') setHourlyRate(saved.hourlyRate);
-        if (typeof saved.baseHours === 'number') setBaseHours(saved.baseHours);
-        if (typeof saved.margHours === 'number') setMargHours(saved.margHours);
-        if (typeof saved.percentPerOrg === 'number') setPercentPerOrg(saved.percentPerOrg);
-        if (typeof saved.floorPct === 'number') setFloorPct(saved.floorPct);
-        if (typeof saved.fixedDiscount === 'number') setFixedDiscount(saved.fixedDiscount);
+        if (typeof saved.hoursPerOrg === 'number') setHoursPerOrg(saved.hoursPerOrg);
+        if (typeof saved.costPerOrg === 'number') setCostPerOrg(saved.costPerOrg);
+        if (typeof saved.baseCostPerOrg === 'number') setBaseCostPerOrg(saved.baseCostPerOrg);
+        if (typeof saved.scaleDiscountPct === 'number') setScaleDiscountPct(saved.scaleDiscountPct);
+        if (typeof saved.complexityIncreasePct === 'number') setComplexityIncreasePct(saved.complexityIncreasePct);
+        if (typeof saved.minCostPerOrg === 'number') setMinCostPerOrg(saved.minCostPerOrg);
+        if (saved.driverType) setDriverType(saved.driverType);
         if (typeof saved.normEnabled === 'boolean') setNormEnabled(saved.normEnabled);
         if (typeof saved.baseMetric === 'number') setBaseMetric(saved.baseMetric);
         if (typeof saved.targetMetric === 'number') setTargetMetric(saved.targetMetric);
@@ -112,11 +118,12 @@ export default function ScaleImpactPanel({ projectId }: { projectId: string }) {
           adoptionPct: String(Math.round((saved.adoption ?? adoption) * 100)),
           s: String(saved.s ?? s),
           hourlyRate: String(saved.hourlyRate ?? hourlyRate),
-          baseHours: String(saved.baseHours ?? baseHours),
-          margHours: String(saved.margHours ?? margHours),
-          percentPerOrg: String(saved.percentPerOrg ?? percentPerOrg),
-          floorPct: String(saved.floorPct ?? floorPct),
-          fixedDiscount: String(saved.fixedDiscount ?? fixedDiscount),
+          hoursPerOrg: String(saved.hoursPerOrg ?? hoursPerOrg),
+          costPerOrg: String(saved.costPerOrg ?? costPerOrg),
+          baseCostPerOrg: String(saved.baseCostPerOrg ?? baseCostPerOrg),
+          scaleDiscountPct: String(Math.round((saved.scaleDiscountPct ?? scaleDiscountPct) * 100)),
+          complexityIncreasePct: String(Math.round((saved.complexityIncreasePct ?? complexityIncreasePct) * 100)),
+          minCostPerOrg: String(saved.minCostPerOrg ?? minCostPerOrg),
           baseMetric: String(saved.baseMetric ?? baseMetric),
           targetMetric: String(saved.targetMetric ?? targetMetric),
           exponent: String(saved.exponent ?? exponent),
@@ -138,11 +145,18 @@ export default function ScaleImpactPanel({ projectId }: { projectId: string }) {
         replication: { mode }
       };
       if (normEnabled) {
-        scaling.normalization = { enabled: true, baseMetric, targetAvgMetric: targetMetric, exponent };
+        scaling.normalization = { enabled: true, driverType, baseMetric, targetAvgMetric: targetMetric, exponent };
       }
-      if (mode === 'hours') Object.assign(scaling.replication, { baseReplicationHours: baseHours, hourlyRate, marginalHoursPerOrg: margHours });
-      if (mode === 'percent_linear' || mode === 'percent_geometric') Object.assign(scaling.replication, { percentPerOrg, floorPct, baseUnitCost: hourlyRate > 0 && baseHours > 0 ? 0 : undefined });
-      if (mode === 'fixed_discount') Object.assign(scaling.replication, { fixedDiscountPerOrg: fixedDiscount });
+      if (mode === 'hours_per_org') Object.assign(scaling.replication, { hoursPerOrg, hourlyRate });
+      if (mode === 'cost_per_org') Object.assign(scaling.replication, { costPerOrg });
+      if (mode === 'economies_of_scale') Object.assign(scaling.replication, { baseCostPerOrg, scaleDiscountPct, minCostPerOrg });
+      if (mode === 'complexity_increase') Object.assign(scaling.replication, { baseCostPerOrg, complexityIncreasePct });
+      
+      // Add validation constraints
+      scaling.validation = {
+        maxROI: 1000,
+        minCostPerOrg: 50000
+      };
 
       const res = await fetch('/api/impact/compute', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -153,7 +167,7 @@ export default function ScaleImpactPanel({ projectId }: { projectId: string }) {
       // persist latest inputs
       try {
         const key = `scaleImpactState:${projectId}`;
-        const payload = { orgs, adoption, s, mode, hourlyRate, baseHours, margHours, percentPerOrg, floorPct, fixedDiscount, normEnabled, baseMetric, targetMetric, exponent, benefitUncPct, costUncPct };
+        const payload = { orgs, adoption, s, mode, hourlyRate, hoursPerOrg, costPerOrg, baseCostPerOrg, scaleDiscountPct, complexityIncreasePct, minCostPerOrg, driverType, normEnabled, baseMetric, targetMetric, exponent, benefitUncPct, costUncPct };
         // Placeholders for outputs; will be completed below after series/ci/tornado are computed
         localStorage.setItem(key, JSON.stringify({ ...payload }));
       } catch {}
@@ -219,7 +233,7 @@ export default function ScaleImpactPanel({ projectId }: { projectId: string }) {
       try {
         const key = `scaleImpactState:${projectId}`;
         const payloadOutputs = {
-          orgs, adoption, s, mode, hourlyRate, baseHours, margHours, percentPerOrg, floorPct, fixedDiscount,
+          orgs, adoption, s, mode, hourlyRate, hoursPerOrg, costPerOrg, baseCostPerOrg, scaleDiscountPct, complexityIncreasePct, minCostPerOrg, driverType,
           normEnabled, baseMetric, targetMetric, exponent, benefitUncPct, costUncPct,
           result: data, series: seq, ci: { p10, p50, p90 }, tornado: rows
         };
@@ -264,9 +278,10 @@ export default function ScaleImpactPanel({ projectId }: { projectId: string }) {
                     <li><span className="text-[#fecb00]">Scalability</span>: dämpning (0.6–1.0) av nytta per extra org p.g.a. avtagande marginalnytta.</li>
                     <li><span className="text-[#fecb00]">Replikeringskostnad</span>: välj modell:
                       <ul className="list-[circle] ml-6">
-                        <li>Timmar × timpris (bas + marginal per org)</li>
-                        <li>Procentuellt avdrag (linjärt eller geometriskt) mot basens kostnad</li>
-                        <li>Fast rabatt per extra org</li>
+                        <li><strong>Timmar × timpris</strong>: mest noggrann, baserad på faktiska timmar och kostnader</li>
+                        <li><strong>Procent av baskostnad</strong>: enkel modell där varje extra org kostar X% av originalprojektet</li>
+                        <li><strong>Fast kostnad per org</strong>: direkt kostnad för varje extra organisation</li>
+                        <li><strong>Skalfördelar</strong>: kostnadsminskning per extra org (economies of scale)</li>
                       </ul>
                     </li>
                     <li><span className="text-[#fecb00]">Normalisering</span> (valfritt): justera nytta per org efter en driver (t.ex. befolkning). Vi skalar med (mål/bas)<sup>exponent</sup>. Exponent 1.0 = proportionellt.</li>
@@ -291,9 +306,9 @@ export default function ScaleImpactPanel({ projectId }: { projectId: string }) {
                     <li><span className="text-[#fecb00]">Replikeringskostnad</span> (extra för org i≥2):
                       <ul className="list-[circle] ml-6">
                         <li>Timmar: extra<sub>i</sub> = (basRep för i=2 + marginal) × timpris</li>
-                        <li>Linjär procent: extra<sub>i</sub> = Kostnad<sub>bas</sub> × max(golv, 1 − pct×(i−1))</li>
-                        <li>Geometrisk procent: extra<sub>i</sub> = Kostnad<sub>bas</sub> × max(golv, (1 − pct)<sup>(i−1)</sup>)</li>
-                        <li>Fast rabatt: extra<sub>i</sub> = max(0, Kostnad<sub>bas</sub> − rabatt×(i−1))</li>
+                        <li>Procent av bas: extra<sub>i</sub> = Kostnad<sub>bas</sub> × procent</li>
+                        <li>Fast per org: extra<sub>i</sub> = kostnadPerOrg</li>
+                        <li>Skalfördelar: extra<sub>i</sub> = max(minKostnad, Kostnad<sub>bas</sub> − rabatt×(i−1))</li>
                       </ul>
                     </li>
                     <li><span className="text-[#fecb00]">Total kostnad</span>: Kostnad<sub>tot</sub> = Kostnad<sub>bas</sub> + Σ extra<sub>i</sub>.</li>
@@ -342,7 +357,17 @@ export default function ScaleImpactPanel({ projectId }: { projectId: string }) {
             Aktivera normalisering efter driver (t.ex. befolkning)
           </label>
           {normEnabled && (
-            <div className="mt-2 grid grid-cols-1 md:grid-cols-3 gap-2">
+            <div className="mt-2 grid grid-cols-1 md:grid-cols-4 gap-2">
+              <div>
+                <label className="block text-xs mb-1">Driver-typ</label>
+                <select value={driverType} onChange={e=>setDriverType(e.target.value as any)} className="w-full p-2 bg-[#121F2B] border border-gray-700 rounded">
+                  <option value="population">Befolkning</option>
+                  <option value="users">Antal användare</option>
+                  <option value="employees">Antal anställda</option>
+                  <option value="area">Område/storlek</option>
+                  <option value="custom">Anpassad</option>
+                </select>
+              </div>
               <div>
                 <label className="block text-xs mb-1">Basvärde (referensorg)</label>
                 <input type="number" {...bindNum('baseMetric', baseMetric, setBaseMetric, { className: 'w-full p-2 bg-[#121F2B] border border-gray-700 rounded' })} />
@@ -359,23 +384,22 @@ export default function ScaleImpactPanel({ projectId }: { projectId: string }) {
           )}
         </div>
         <div>
-          <label className="block text-sm mb-1">Replikeringsläge</label>
+          <label className="block text-sm mb-1">Kostnadsmodell för implementation</label>
           <select className="w-full p-2 bg-[#0e1722] border border-gray-700 rounded" value={mode} onChange={e=>setMode(e.target.value as any)}>
-            <option value="hours">Timmar × timpris</option>
-            <option value="percent_linear">Procentuellt avdrag (linjärt)</option>
-            <option value="percent_geometric">Procentuellt avdrag (geometriskt)</option>
-            <option value="fixed_discount">Fast rabatt per org</option>
+            <option value="hours_per_org">Timmar per organisation (mest noggrann)</option>
+            <option value="cost_per_org">Fast kostnad per organisation</option>
+            <option value="economies_of_scale">Skalfördelar (blir billigare)</option>
+            <option value="complexity_increase">Ökad komplexitet (blir dyrare)</option>
           </select>
+          <div className="text-xs text-gray-400 mt-1">Vad kostar det att implementera för EN ny organisation?</div>
         </div>
-        {mode==='hours' && (
+        
+        {mode==='hours_per_org' && (
           <>
             <div>
-              <label className="block text-sm mb-1">Basreplication (timmar, första extra org)</label>
-              <input type="number" {...bindNum('baseHours', baseHours, setBaseHours)} />
-            </div>
-            <div>
-              <label className="block text-sm mb-1">Marginal timmar/org</label>
-              <input type="number" {...bindNum('margHours', margHours, setMargHours)} />
+              <label className="block text-sm mb-1">Timmar per organisation</label>
+              <input type="number" {...bindNum('hoursPerOrg', hoursPerOrg, setHoursPerOrg)} />
+              <div className="text-xs text-gray-400 mt-1">Antal timmar för att implementera för EN organisation</div>
             </div>
             <div>
               <label className="block text-sm mb-1">Timpris (SEK)</label>
@@ -383,26 +407,56 @@ export default function ScaleImpactPanel({ projectId }: { projectId: string }) {
             </div>
           </>
         )}
-        {(mode==='percent_linear' || mode==='percent_geometric') && (
+        
+        {mode==='cost_per_org' && (
+          <div>
+            <label className="block text-sm mb-1">Kostnad per organisation (SEK)</label>
+            <input type="number" {...bindNum('costPerOrg', costPerOrg, setCostPerOrg)} />
+            <div className="text-xs text-gray-400 mt-1">Fast kostnad för att implementera för EN organisation</div>
+          </div>
+        )}
+        
+        {mode==='economies_of_scale' && (
           <>
             <div>
-              <label className="block text-sm mb-1">Procentuellt avdrag per org (0–1)</label>
-              <input type="number" {...bindNum('percentPerOrg', percentPerOrg, setPercentPerOrg, { step: '0.01' })} />
+              <label className="block text-sm mb-1">Baskostnad per organisation (SEK)</label>
+              <input type="number" {...bindNum('baseCostPerOrg', baseCostPerOrg, setBaseCostPerOrg)} />
+              <div className="text-xs text-gray-400 mt-1">Kostnad för första organisationen</div>
             </div>
             <div>
-              <label className="block text-sm mb-1">Lägsta andel av baskostnad (0–1)</label>
-              <input type="number" {...bindNum('floorPct', floorPct, setFloorPct, { step: '0.05' })} />
+              <label className="block text-sm mb-1">Rabatt per ytterligare org (%)</label>
+              <input type="number" {...bindPercent('scaleDiscountPct', scaleDiscountPct, setScaleDiscountPct, { step: '1' })} />
+              <div className="text-xs text-gray-400 mt-1">T.ex. 5% = varje ny org kostar 5% mindre</div>
+            </div>
+            <div>
+              <label className="block text-sm mb-1">Minimikostnad per org (SEK)</label>
+              <input type="number" {...bindNum('minCostPerOrg', minCostPerOrg, setMinCostPerOrg)} />
+              <div className="text-xs text-gray-400 mt-1">Lägsta möjliga kostnad per organisation</div>
             </div>
           </>
         )}
-        {mode==='fixed_discount' && (
-          <div>
-            <label className="block text-sm mb-1">Fast rabatt per extra org (SEK)</label>
-            <input type="number" {...bindNum('fixedDiscount', fixedDiscount, setFixedDiscount)} />
-          </div>
+        
+        {mode==='complexity_increase' && (
+          <>
+            <div>
+              <label className="block text-sm mb-1">Baskostnad per organisation (SEK)</label>
+              <input type="number" {...bindNum('baseCostPerOrg', baseCostPerOrg, setBaseCostPerOrg)} />
+              <div className="text-xs text-gray-400 mt-1">Kostnad för första organisationen</div>
+            </div>
+            <div>
+              <label className="block text-sm mb-1">Komplexitetsökning per org (%)</label>
+              <input type="number" {...bindPercent('complexityIncreasePct', complexityIncreasePct, setComplexityIncreasePct, { step: '1' })} />
+              <div className="text-xs text-gray-400 mt-1">T.ex. 3% = varje ny org ökar komplexiteten med 3%</div>
+            </div>
+          </>
         )}
       </div>
-      <button onClick={compute} disabled={loading} className="px-4 py-2 bg-[#fecb00] text-[#121F2B] font-semibold rounded">{loading? 'Beräknar…':'Beräkna'}</button>
+      <div className="flex gap-2">
+        <button onClick={compute} disabled={loading} className="flex-1 px-4 py-2 bg-[#fecb00] text-[#121F2B] font-semibold rounded">{loading? 'Beräknar…':'Beräkna'}</button>
+        <button onClick={() => setShowScenarios(!showScenarios)} className="px-3 py-2 bg-[#0e1722] border border-gray-700 text-[#fffefa] rounded text-sm">
+          {showScenarios ? 'Dölj scenarioer' : 'Jämför scenarioer'}
+        </button>
+      </div>
       {result && (
         <div className="mt-4">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center mb-4">
@@ -423,8 +477,36 @@ export default function ScaleImpactPanel({ projectId }: { projectId: string }) {
               <div className="text-gray-400 text-xs">Återbetalningstid (år)</div>
             </div>
           </div>
+          
+          {/* Validation warnings */}
+          {result.validation?.warnings && result.validation.warnings.length > 0 && (
+            <div className="mt-4 p-3 bg-orange-900/30 border border-orange-700 rounded">
+              <h5 className="text-sm font-semibold text-orange-400 mb-2">⚠️ Observera</h5>
+              <ul className="text-xs text-orange-300 space-y-1">
+                {result.validation.warnings.map((warning: string, i: number) => (
+                  <li key={i}>• {warning}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+          
+          {/* Additional metrics */}
+          {result.validation && (
+            <div className="mt-3 p-2 bg-[#0e1722] border border-gray-700 rounded text-xs">
+              <div className="grid grid-cols-2 gap-2">
+                <div>Kostnad per org: <span className="text-[#fecb00]">{Math.round(result.validation.costPerOrg).toLocaleString('sv-SE')} SEK</span></div>
+                <div>Nytta per org: <span className="text-[#fecb00]">{Math.round(result.validation.benefitPerOrg).toLocaleString('sv-SE')} SEK</span></div>
+              </div>
+              <div className="mt-1 text-center">
+                Bedömning: <span className={result.validation.isRealistic ? "text-green-400" : "text-red-400"}>
+                  {result.validation.isRealistic ? "Realistisk" : "Kontrollera antaganden"}
+                </span>
+              </div>
+            </div>
+          )}
+
           {result.breakdown?.byValueDimension && (
-            <div className="mt-2">
+            <div className="mt-4">
               <h4 className="text-sm font-semibold text-[#fffefa] mb-2">Nytta per värdedimension</h4>
               <div className="space-y-2 text-xs">
                 {Object.entries(result.breakdown.byValueDimension).map(([dim, v]: any) => (
@@ -482,6 +564,30 @@ export default function ScaleImpactPanel({ projectId }: { projectId: string }) {
               <div className="text-xs text-gray-400 mb-2">Visar hur ROI påverkas när en parameter varieras ±10% (övriga hålls konstanta). Låga/höga stapeländar visar ROI-min/max.</div>
               <TornadoChart rows={tornado} base={result.kpis.economicROI} />
             </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Quick scenario comparison */}
+      {showScenarios && result && (
+        <div className="mt-6 p-4 bg-[#0e1722] border border-gray-700 rounded">
+          <h4 className="text-sm font-semibold text-[#fffefa] mb-3">Snabb scenariojämförelse</h4>
+          <div className="text-xs text-gray-400 mb-3">Jämför ROI för olika antal organisationer med nuvarande inställningar:</div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+            {[5, 10, 25, 50].map(n => {
+              const roiAtN = series.find(s => s.n === n)?.roi || 0;
+              return (
+                <div key={n} className="text-center p-2 bg-[#121F2B] border border-gray-700 rounded">
+                  <div className="text-[#fecb00] font-semibold">{n} org</div>
+                  <div className={roiAtN >= 0 ? "text-green-400" : "text-red-400"}>
+                    {roiAtN.toFixed(1)}%
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <div className="mt-3 text-xs text-gray-400">
+            Tips: Ändra replikeringsläge och kör "Beräkna" igen för att se hur olika kostnadsmodeller påverkar resultatet.
           </div>
         </div>
       )}
